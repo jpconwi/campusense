@@ -1,0 +1,15 @@
+topic,keywords,answer
+Campus location,campus location;where is nemsu;where is the campus;nemsu location;where is tandag main campus,"NEMSU Tandag Main Campus is in Tandag City, Surigao del Sur, Philippines."
+Campus gates,gate;gates,"There are three main gates. The 1st Gate is near the CBM departments, the 2nd Gate is not far from the CBM area (the 1st Canteen is near it), and the 3rd Gate is near the ICT/CITE area."
+1st Gate,1st gate;first gate;gate 1,The 1st Gate is near the CBM departments.
+2nd Gate,2nd gate;second gate;gate 2,The 2nd Gate is not far from the CBM area. The 1st Canteen is near this gate.
+3rd Gate,3rd gate;third gate;gate 3;gate+cite;gate+ict,The 3rd Gate is near the ICT/CITE area.
+Gate near CBM,gate+cbm,"The 1st Gate is near the CBM departments, and the 2nd Gate is not far from the CBM area."
+Canteens,canteen;canteens,The campus has two canteens. The 1st Canteen is near the 2nd Gate and the CBM area. The 2nd Canteen is near the Library and CAS.
+1st Canteen,1st canteen;first canteen;canteen+cbm;canteen+gate,The 1st Canteen is near the 2nd Gate and the CBM area.
+2nd Canteen,2nd canteen;second canteen;canteen+library;canteen+cas,The 2nd Canteen is near the Library and CAS.
+Library,library;librarian,The Library is near CAS and the 2nd Canteen.
+CAS,cas;college of arts and sciences,"CAS (College of Arts and Sciences) is near the Library and the 2nd Canteen. Programs include Political Science, Biology, Midwifery, BS Mathematics, Environmental Science, English Language and Filipino."
+CBM,cbm;college of business and management,"CBM (College of Business and Management) is near the 1st Gate and relatively near the 2nd Gate. Programs include Hospitality Management, Financial Management, Marketing Management and Public Administration."
+CITE / ICT,cite;ict;ict area;college of information technology education;bscs;computer science,"CITE (College of Information Technology Education) is in the ICT area, near the 3rd Gate. It includes the Bachelor of Science in Computer Science (BSCS)."
+College of Teacher Education,beed;teacher education;elementary education,The campus has the Bachelor of Elementary Education (BEEd) under the College of Teacher Education.
