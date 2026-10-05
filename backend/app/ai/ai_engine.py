@@ -29,7 +29,7 @@ CAMPUS_KEYWORDS = [
     "reservation", "borrow", "concern", "report", "feedback", "instructor",
     "teacher", "professor", "faculty", "sir", "maam", "student", "dean",
     "enrollment", "registrar", "gym", "court", "hall", "office", "maintenance",
-    "john patrick", "conwi", "handsome", "genius", "ict area", "wifi",
+    "map", "maps", "locate", "location", "directions", "john patrick", "conwi", "handsome", "genius", "ict area", "wifi",
 ]
 
 

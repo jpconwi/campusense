@@ -109,9 +109,13 @@ SUB_AREA_WORDS = [
 
 def is_campus_location(q):
     """'where is nemsu', 'map of tandag campus', 'how do i get to the campus'."""
-    if not has(q, *CAMPUS_ANCHORS):
-        return False
     if has(q, *SUB_AREA_WORDS):
+        return False
+    # follow-ups like "show me the map" / "can you show the map?" need no campus word,
+    # because the chat is already about the campus
+    if has(q, "map", "maps", "google map", "google maps"):
+        return True
+    if not has(q, *CAMPUS_ANCHORS):
         return False
     return has(q, *LOCATION_ASK)
 
