@@ -156,51 +156,59 @@ export default function Chat() {
     }
   }
 
+  const extra = user.role === "admin"
+    ? ["Show pending reports", "Show pending concerns"] : ["Show my pending concerns"];
+  const CARDS = [
+    ["Reserve a facility", "How do I reserve a room or facility?"],
+    ["Report a concern", "How do I report a broken facility?"],
+    ["Find a campus location", "Where is the NEMSU Tandag campus?"],
+    ["Borrow equipment", "What equipment can I borrow?"],
+  ];
+
   return (
     <div className="page chat-page">
-      <div className="layout">
-        <aside aria-label="Suggested questions">
-          <h2>Quick questions</h2>
-          <div className="topic-list">
-            {QUICK.map((q) => <button key={q} className="chip" type="button" onClick={() => send(q)}>{q}</button>)}
-            {user.role === "admin" ? (
-              <>
-                <button className="chip" type="button" onClick={() => send("Show pending reports")}>Show pending reports</button>
-                <button className="chip" type="button" onClick={() => send("Show pending concerns")}>Show pending concerns</button>
-              </>
-            ) : <button className="chip" type="button" onClick={() => send("Show my pending concerns")}>Show my pending concerns</button>}
-          </div>
-          {user.role === "instructor" && <p className="side-note">Instructors who cannot come to school can type "I am sick and cannot come to school" to file an availability report.</p>}
-          {user.role === "student" && <p className="side-note">You can ask "Is Sir JP available today?" to check whether an instructor is in school.</p>}
-        </aside>
-
-        <main className="chat">
-          <div className="messages" aria-live="polite">
-            <div className="thread">
-              {items.length === 0 && (
-                <div className="welcome">
-                  <img src="/logo.png" alt="" />
-                  <h2>What do you need help with on campus?</h2>
-                  <p>Ask about facilities, equipment, reservations, or maintenance concerns. Pick a quick question on the left or type your own below.</p>
+      <main className="chat">
+        <div className="messages" aria-live="polite">
+          <div className="thread">
+            {items.length === 0 && (
+              <div className="welcome">
+                <img src="/logo.png" alt="" />
+                <h2>How can I help you today?</h2>
+                <p className="sub">Your NEMSU Tandag Main Campus Assistant</p>
+                <div className="cards">
+                  {CARDS.map(([title, q]) => (
+                    <button key={title} type="button" className="card-btn" onClick={() => send(q)}>
+                      <strong>{title}</strong><span>{q}</span>
+                    </button>
+                  ))}
                 </div>
-              )}
-              {items.map((item) => <Row key={item.id} item={item} />)}
-              <div ref={bottom} />
-            </div>
-          </div>
-          <div className="composer">
-            <div className="composer-inner">
-              <div className="input-area">
-                <textarea id="question" ref={input} rows={1} placeholder="Type your question" aria-label="Your question"
-                          value={text} onChange={(e) => setText(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
-                <button className="send" type="button" disabled={busy} onClick={() => send()}>{busy ? "Thinking..." : "Send"}</button>
+                {user.role === "instructor" && <p className="side-note">Instructors who cannot come to school can type "I am sick and cannot come to school" to file an availability report.</p>}
+                {user.role === "student" && <p className="side-note">You can ask "Is Sir JP available today?" to check whether an instructor is in school.</p>}
               </div>
-              <p className="footnote">Enter to send, Shift+Enter for a new line. North Eastern Mindanao State University, Surigao del Sur</p>
-            </div>
+            )}
+            {items.map((item) => <Row key={item.id} item={item} />)}
+            <div ref={bottom} />
           </div>
-        </main>
-      </div>
+        </div>
+        <div className="composer">
+          <div className="composer-inner">
+            <div className="chips-row" aria-label="Suggested questions">
+              {[...QUICK, ...extra].map((q) => (
+                <button key={q} className="chip" type="button" onClick={() => send(q)}>{q}</button>
+              ))}
+            </div>
+            <div className="input-area">
+              <textarea id="question" ref={input} rows={1} placeholder="Message CampusSense AI" aria-label="Your question"
+                        value={text} onChange={(e) => setText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
+              <button className="send" type="button" disabled={busy || !text.trim()} onClick={() => send()} aria-label="Send">
+                {busy ? "…" : <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>}
+              </button>
+            </div>
+            <p className="footnote">Enter to send, Shift+Enter for a new line.</p>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
