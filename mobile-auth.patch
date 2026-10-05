@@ -1,0 +1,435 @@
+diff --git a/backend/app/config.py b/backend/app/config.py
+index ee13dee..a0fea44 100644
+--- a/backend/app/config.py
++++ b/backend/app/config.py
+@@ -61,6 +61,9 @@ ALLOWED_DOMAIN = os.getenv("ALLOWED_EMAIL_DOMAIN", "nemsu.edu.ph").strip().lower
+ COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").strip().lower() in ("1", "true", "yes")
+ 
+ SESSION_HOURS = 8
++# Android app: how long its bearer token stays valid (deactivating a user still
++# blocks them immediately, because the user is re-read from the database every request).
++MOBILE_TOKEN_DAYS = int(os.getenv("MOBILE_TOKEN_DAYS", "14"))
+ MAX_UPLOAD_MB = 5
+ 
+ 
+diff --git a/backend/app/main.py b/backend/app/main.py
+index 55063a9..2dd9963 100644
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -20,7 +20,7 @@ from starlette.middleware.sessions import SessionMiddleware
+ 
+ from app import config
+ from app.database import init_db
+-from app.routers import admin, admin_login, api, auth
++from app.routers import admin, admin_login, api, auth, mobile_auth
+ from app.services.common import ValidationError
+ 
+ 
+@@ -69,6 +69,7 @@ def create_app():
+         max_age=config.SESSION_HOURS * 3600, same_site="lax", https_only=config.COOKIE_SECURE)
+ 
+     app.include_router(auth.router)
++    app.include_router(mobile_auth.router)
+     app.include_router(admin_login.router)
+     app.include_router(admin.router)
+     app.include_router(api.router)
+diff --git b/backend/app/routers/mobile_auth.py b/backend/app/routers/mobile_auth.py
+new file mode 100644
+index 0000000..638b965
+--- /dev/null
++++ b/backend/app/routers/mobile_auth.py
+@@ -0,0 +1,52 @@
++"""
++routers/mobile_auth.py - sign-in for the Flutter Android app.
++
++The website uses a browser redirect + session cookie. A native app cannot do
++that, so it signs in with the Google Android SDK, sends the resulting ID token
++here, and gets back a signed bearer token to send as `Authorization: Bearer ...`.
++
++All the NEMSU rules are the SAME code the website uses (_finish_login).
++This router has no CSRF dependency on purpose: it sets no cookie and relies on
++no ambient credentials - the Google ID token in the body is the credential.
++"""
++
++from fastapi import APIRouter, HTTPException
++from pydantic import BaseModel
++from starlette.concurrency import run_in_threadpool
++
++from app import config
++from app.routers.auth import _finish_login
++from app.security import MESSAGE_WRONG_ACCOUNT, create_mobile_token
++from app.services.google_token import InvalidGoogleToken, verify_google_id_token
++
++router = APIRouter(prefix="/api/auth/mobile", tags=["mobile-auth"])
++
++
++class GoogleTokenBody(BaseModel):
++    id_token: str = ""
++
++
++@router.post("/google")
++async def mobile_google_login(body: GoogleTokenBody):
++    if not config.SECRET_KEY or not config.GOOGLE_CLIENT_ID:
++        raise HTTPException(503, "Mobile sign-in is not configured on the server.")
++    try:
++        info = await run_in_threadpool(verify_google_id_token, body.id_token)
++    except InvalidGoogleToken:
++        raise HTTPException(401, "Google sign-in could not be verified. Please try again.")
++    except Exception as error:               # e.g. Google's key server unreachable
++        print("MOBILE LOGIN ERROR:", repr(error))
++        raise HTTPException(503, "Sign-in is temporarily unavailable. Please try again.")
++
++    result, user_id, role = await run_in_threadpool(_finish_login, info)
++    if result == "wrong_account":
++        raise HTTPException(403, MESSAGE_WRONG_ACCOUNT)
++    if result == "deactivated":
++        raise HTTPException(403, "This account has been deactivated.")
++
++    return {
++        "token": create_mobile_token(user_id),
++        "token_type": "Bearer",
++        "expires_in": config.MOBILE_TOKEN_DAYS * 24 * 3600,
++        "role": role,                         # None -> app must show role selection
++    }
+diff --git a/backend/app/security.py b/backend/app/security.py
+index 329ebf4..3ec9765 100644
+--- a/backend/app/security.py
++++ b/backend/app/security.py
+@@ -6,6 +6,9 @@ the database. The browser can never decide the role (the role sent in
+ POST /api/auth/role is only used once, to pick student/instructor on first
+ login, and is validated).
+ 
++Android app: sends "Authorization: Bearer <token>" (see routers/mobile_auth.py).
++Bearer requests skip CSRF (no cookie is involved) and ignore the cookie.
++
+ CSRF: the session holds a random token. The React app reads it from
+ GET /api/auth/me and sends it back in the X-CSRF-Token header on every
+ POST/PUT/PATCH/DELETE request.
+@@ -17,6 +20,7 @@ from dataclasses import dataclass
+ from typing import Optional
+ 
+ from fastapi import Depends, HTTPException, Request
++from itsdangerous import BadSignature, URLSafeTimedSerializer
+ from sqlalchemy.orm import Session
+ 
+ from app import config
+@@ -66,6 +70,36 @@ class CurrentUser:
+                 "created_at": self.created_at, "last_login": self.last_login}
+ 
+ 
++# ------------------------------------------------ bearer tokens (Android app)
++# The website uses the signed session cookie. The Android app sends
++# "Authorization: Bearer <token>" instead. The token only carries the user id;
++# role/is_active are always re-read from the database.
++def _token_serializer():
++    return URLSafeTimedSerializer(config.SECRET_KEY, salt="campusense-mobile-v1")
++
++
++def create_mobile_token(user_id):
++    return _token_serializer().dumps({"uid": int(user_id)})
++
++
++def bearer_token(request: Request) -> Optional[str]:
++    """The bearer token from the Authorization header, or None if not used."""
++    header = request.headers.get("authorization") or ""
++    if header[:7].lower() == "bearer ":
++        return header[7:].strip()
++    return None
++
++
++def _user_id_from_bearer(token):
++    if not config.SECRET_KEY:
++        return None
++    try:
++        data = _token_serializer().loads(token, max_age=config.MOBILE_TOKEN_DAYS * 86400)
++        return int(data["uid"])
++    except (BadSignature, KeyError, TypeError, ValueError):
++        return None
++
++
+ # ------------------------------------------------------------- email rules
+ def is_nemsu_email(email):
+     email = (email or "").strip().lower()
+@@ -83,7 +117,12 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> Optiona
+         return request.state.current_user
+ 
+     user = None
+-    user_id = request.session.get("user_id")
++    bearer = bearer_token(request)
++    if bearer is not None:
++        # Bearer present -> ONLY the token counts (the cookie is ignored).
++        user_id = _user_id_from_bearer(bearer)
++    else:
++        user_id = request.session.get("user_id")
+     if user_id:
+         row = user_service.get_user(db, user_id)
+         if row is not None and row.is_active:
+@@ -147,6 +186,8 @@ def csrf_protect(request: Request):
+     """Dependency for routers: unsafe methods must send the session's CSRF token."""
+     if request.method in SAFE_METHODS:
+         return
++    if bearer_token(request) is not None:
++        return          # not cookie-based, so there is nothing for CSRF to abuse
+     expected = request.session.get("csrf") or ""
+     sent = request.headers.get("x-csrf-token") or ""
+     if not expected or not hmac.compare_digest(expected.encode(), sent.encode()):
+diff --git b/backend/app/services/google_token.py b/backend/app/services/google_token.py
+new file mode 100644
+index 0000000..ad9312e
+--- /dev/null
++++ b/backend/app/services/google_token.py
+@@ -0,0 +1,73 @@
++"""
++services/google_token.py - verify a Google ID token sent by the Android app.
++
++The native Google sign-in gives the app an ID token (a signed JWT). We never
++trust it blindly: the signature is checked against Google's public keys, and
++the issuer, audience (our own GOOGLE_CLIENT_ID), and expiry are validated.
++Only RS256 is accepted. The NEMSU-domain rules are applied afterwards by the
++same function the website uses (routers/auth.py::_finish_login).
++"""
++
++import threading
++import time
++
++import httpx
++from authlib.jose import JsonWebKey, JsonWebToken
++from authlib.jose.errors import JoseError
++
++from app import config
++
++JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
++ISSUERS = ["https://accounts.google.com", "accounts.google.com"]
++_CACHE_SECONDS = 3600
++
++_jwt = JsonWebToken(["RS256"])
++_lock = threading.Lock()
++_cache = {"jwks": None, "fetched_at": 0.0}
++
++
++class InvalidGoogleToken(Exception):
++    """The ID token is missing, expired, forged, or meant for another app."""
++
++
++_MIN_REFRESH_SECONDS = 60       # a forged token must not make us hammer Google
++
++
++def _fetch_jwks(force=False):
++    with _lock:
++        age = time.time() - _cache["fetched_at"]
++        stale = _cache["jwks"] is None or age >= _CACHE_SECONDS
++        if stale or (force and age >= _MIN_REFRESH_SECONDS):
++            response = httpx.get(JWKS_URL, timeout=10)
++            response.raise_for_status()
++            _cache["jwks"] = response.json()
++            _cache["fetched_at"] = time.time()
++        return _cache["jwks"]
++
++
++def _decode(id_token, jwks):
++    claims = _jwt.decode(
++        id_token, JsonWebKey.import_key_set(jwks),
++        claims_options={
++            "iss": {"essential": True, "values": ISSUERS},
++            "aud": {"essential": True, "value": config.GOOGLE_CLIENT_ID},
++            "exp": {"essential": True},
++            "sub": {"essential": True},
++        })
++    claims.validate(leeway=60)
++    return dict(claims)
++
++
++def verify_google_id_token(id_token):
++    """Return the verified claims (sub, email, email_verified, name, hd ...)."""
++    id_token = (id_token or "").strip()
++    if not id_token or not config.GOOGLE_CLIENT_ID:
++        raise InvalidGoogleToken("missing token")
++    try:
++        try:
++            return _decode(id_token, _fetch_jwks())
++        except (ValueError, JoseError):
++            # Google rotates its signing keys: retry once with a fresh key set.
++            return _decode(id_token, _fetch_jwks(force=True))
++    except (ValueError, JoseError) as error:
++        raise InvalidGoogleToken(str(error)) from error
+diff --git b/backend/tests/test_mobile_auth.py b/backend/tests/test_mobile_auth.py
+new file mode 100644
+index 0000000..2c32a12
+--- /dev/null
++++ b/backend/tests/test_mobile_auth.py
+@@ -0,0 +1,175 @@
++"""Android app sign-in: Google ID token -> bearer token. No internet needed
++(Google's public keys are replaced by a test key)."""
++
++import time
++
++import pytest
++from authlib.jose import JsonWebKey, JsonWebToken
++
++from app import config
++from app.database import SessionLocal
++from app.models import User
++from app.services import google_token
++from tests.conftest import Client
++
++KEY = JsonWebKey.generate_key("RSA", 2048, is_private=True, options={"kid": "test-kid"})
++OTHER_KEY = JsonWebKey.generate_key("RSA", 2048, is_private=True, options={"kid": "test-kid"})
++JWKS = {"keys": [KEY.as_dict(is_private=False)]}
++
++
++@pytest.fixture(autouse=True)
++def fake_google_keys(monkeypatch):
++    monkeypatch.setattr(google_token, "_fetch_jwks", lambda force=False: JWKS)
++
++
++def id_token(email="mia@nemsu.edu.ph", *, key=KEY, alg="RS256", aud=None, iss=None,
++             exp_in=3600, verified=True, hd=None, sub=None, name="Mia Student"):
++    now = int(time.time())
++    payload = {"iss": iss or "https://accounts.google.com", "aud": aud or config.GOOGLE_CLIENT_ID,
++               "sub": sub or "sub-" + email, "email": email, "email_verified": verified,
++               "name": name, "iat": now, "exp": now + exp_in}
++    if hd:
++        payload["hd"] = hd
++    return JsonWebToken([alg]).encode({"alg": alg, "kid": "test-kid"}, payload, key).decode()
++
++
++def app_client():
++    return Client().http            # fresh client = no cookies, like the phone
++
++
++def login(c, **kw):
++    return c.post("/api/auth/mobile/google", json={"id_token": id_token(**kw)})
++
++
++def auth(token):
++    return {"Authorization": f"Bearer {token}"}
++
++
++# ---------------------------------------------------------------- happy path
++def test_login_then_role_then_ask_without_csrf_or_cookies():
++    c = app_client()
++    r = login(c)
++    assert r.status_code == 200
++    body = r.json()
++    assert body["token_type"] == "Bearer" and body["role"] is None and body["token"]
++    h = auth(body["token"])
++
++    me = c.get("/api/auth/me", headers=h).json()["user"]
++    assert me["email"] == "mia@nemsu.edu.ph" and me["role"] is None
++
++    # role not chosen yet -> same rule as the website
++    assert c.post("/api/ask", json={"question": "hi"}, headers=h).status_code == 403
++
++    # POST with bearer and NO csrf header works
++    assert c.post("/api/auth/role", json={"role": "student"}, headers=h).status_code == 200
++    r = c.post("/api/ask", json={"question": "hello"}, headers=h)
++    assert r.status_code == 200 and r.json()["type"] == "message" and r.json()["answer"]
++
++    assert c.get("/api/home", headers=h).json()["counts"]["concerns"] == 0
++
++
++def test_second_login_returns_existing_role():
++    c = app_client()
++    h = auth(login(c).json()["token"])
++    c.post("/api/auth/role", json={"role": "instructor"}, headers=h)
++    assert login(c).json()["role"] == "instructor"
++
++
++# ------------------------------------------------------- NEMSU rules (shared)
++@pytest.mark.parametrize("kw", [
++    {"email": "someone@gmail.com"},
++    {"email": "fake@nemsu.edu.ph.evil.com"},
++    {"email": "fake@evilnemsu.edu.ph"},
++    {"email": "unverified@nemsu.edu.ph", "verified": False},
++    {"email": "wronghd@nemsu.edu.ph", "hd": "other.edu"},
++])
++def test_non_nemsu_accounts_rejected(kw):
++    r = login(app_client(), **kw)
++    assert r.status_code == 403 and "NEMSU" in r.json()["error"]
++    assert "token" not in r.json()
++
++
++def test_deactivated_user_cannot_log_in_or_keep_using_token():
++    c = app_client()
++    token = login(c).json()["token"]
++    with SessionLocal() as db:
++        db.query(User).update({"is_active": False})
++        db.commit()
++    assert c.get("/api/auth/me", headers=auth(token)).json()["user"] is None
++    r = login(c)
++    assert r.status_code == 403
++
++
++# ------------------------------------------------------- forged / bad tokens
++@pytest.mark.parametrize("make", [
++    lambda: id_token(aud="someone-elses-client-id"),          # meant for another app
++    lambda: id_token(exp_in=-3600),                            # expired
++    lambda: id_token(key=OTHER_KEY),                           # wrong signing key
++    lambda: id_token(iss="https://evil.example.com"),          # wrong issuer
++    lambda: "not.a.jwt",
++    lambda: "",
++])
++def test_bad_google_tokens_rejected(make):
++    r = app_client().post("/api/auth/mobile/google", json={"id_token": make()})
++    assert r.status_code == 401
++
++
++def test_hs256_token_signed_with_public_key_is_rejected():
++    """Classic algorithm-confusion attack: only RS256 is accepted."""
++    now = int(time.time())
++    payload = {"iss": "https://accounts.google.com", "aud": config.GOOGLE_CLIENT_ID, "sub": "x",
++               "email": "mia@nemsu.edu.ph", "email_verified": True, "exp": now + 3600}
++    forged = JsonWebToken(["HS256"]).encode({"alg": "HS256", "kid": "test-kid"}, payload,
++                                            "secret").decode()
++    assert app_client().post("/api/auth/mobile/google", json={"id_token": forged}).status_code == 401
++
++
++def test_unsigned_alg_none_token_is_rejected():
++    import base64, json
++    b64 = lambda d: base64.urlsafe_b64encode(json.dumps(d).encode()).rstrip(b"=").decode()
++    now = int(time.time())
++    forged = (b64({"alg": "none"}) + "." + b64({
++        "iss": "https://accounts.google.com", "aud": config.GOOGLE_CLIENT_ID, "sub": "x",
++        "email": "mia@nemsu.edu.ph", "email_verified": True, "exp": now + 3600}) + ".")
++    assert app_client().post("/api/auth/mobile/google", json={"id_token": forged}).status_code == 401
++
++
++# ------------------------------------------------------------ bearer handling
++def test_garbage_and_tampered_bearer_tokens_get_401():
++    c = app_client()
++    token = login(c).json()["token"]
++    for bad in ("garbage", token[:-3] + "abc", ""):
++        r = c.post("/api/ask", json={"question": "hi"}, headers=auth(bad))
++        assert r.status_code == 401, bad
++
++
++def test_expired_bearer_token(monkeypatch):
++    c = app_client()
++    token = login(c).json()["token"]
++    monkeypatch.setattr(config, "MOBILE_TOKEN_DAYS", -1)
++    assert c.get("/api/auth/me", headers=auth(token)).json()["user"] is None
++
++
++def test_bearer_wins_over_cookie_and_bad_bearer_does_not_fall_back_to_cookie(client):
++    web = client()                                        # website user with a cookie session
++    web.google_login("web@nemsu.edu.ph", "Web User")
++    web.post("/api/auth/role", json={"role": "student"})
++    assert web.me()["user"]["email"] == "web@nemsu.edu.ph"
++
++    token = login(web.http, email="phone@nemsu.edu.ph").json()["token"]
++    assert web.http.get("/api/auth/me", headers=auth(token)).json()["user"]["email"] == \
++        "phone@nemsu.edu.ph"
++    # a junk bearer header must NOT silently use the cookie session (and so skip CSRF)
++    r = web.http.post("/api/ask", json={"question": "hi"}, headers=auth("junk"))
++    assert r.status_code == 401
++
++
++def test_cookie_sessions_still_require_csrf(student):
++    r = student.http.post("/api/ask", json={"question": "hi"})      # no CSRF header
++    assert r.status_code == 400
++
++
++def test_logout_with_bearer_is_harmless():
++    c = app_client()
++    h = auth(login(c).json()["token"])
++    assert c.post("/api/auth/logout", headers=h).json() == {"success": True}

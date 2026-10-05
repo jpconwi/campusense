@@ -61,6 +61,9 @@ ALLOWED_DOMAIN = os.getenv("ALLOWED_EMAIL_DOMAIN", "nemsu.edu.ph").strip().lower
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").strip().lower() in ("1", "true", "yes")
 
 SESSION_HOURS = 8
+# Android app: how long its bearer token stays valid (deactivating a user still
+# blocks them immediately, because the user is re-read from the database every request).
+MOBILE_TOKEN_DAYS = int(os.getenv("MOBILE_TOKEN_DAYS", "14"))
 MAX_UPLOAD_MB = 5
 
 

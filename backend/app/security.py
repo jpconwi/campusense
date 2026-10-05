@@ -6,6 +6,9 @@ the database. The browser can never decide the role (the role sent in
 POST /api/auth/role is only used once, to pick student/instructor on first
 login, and is validated).
 
+Android app: sends "Authorization: Bearer <token>" (see routers/mobile_auth.py).
+Bearer requests skip CSRF (no cookie is involved) and ignore the cookie.
+
 CSRF: the session holds a random token. The React app reads it from
 GET /api/auth/me and sends it back in the X-CSRF-Token header on every
 POST/PUT/PATCH/DELETE request.
@@ -17,6 +20,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Request
+from itsdangerous import BadSignature, URLSafeTimedSerializer
 from sqlalchemy.orm import Session
 
 from app import config
@@ -66,6 +70,36 @@ class CurrentUser:
                 "created_at": self.created_at, "last_login": self.last_login}
 
 
+# ------------------------------------------------ bearer tokens (Android app)
+# The website uses the signed session cookie. The Android app sends
+# "Authorization: Bearer <token>" instead. The token only carries the user id;
+# role/is_active are always re-read from the database.
+def _token_serializer():
+    return URLSafeTimedSerializer(config.SECRET_KEY, salt="campusense-mobile-v1")
+
+
+def create_mobile_token(user_id):
+    return _token_serializer().dumps({"uid": int(user_id)})
+
+
+def bearer_token(request: Request) -> Optional[str]:
+    """The bearer token from the Authorization header, or None if not used."""
+    header = request.headers.get("authorization") or ""
+    if header[:7].lower() == "bearer ":
+        return header[7:].strip()
+    return None
+
+
+def _user_id_from_bearer(token):
+    if not config.SECRET_KEY:
+        return None
+    try:
+        data = _token_serializer().loads(token, max_age=config.MOBILE_TOKEN_DAYS * 86400)
+        return int(data["uid"])
+    except (BadSignature, KeyError, TypeError, ValueError):
+        return None
+
+
 # ------------------------------------------------------------- email rules
 def is_nemsu_email(email):
     email = (email or "").strip().lower()
@@ -83,7 +117,12 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> Optiona
         return request.state.current_user
 
     user = None
-    user_id = request.session.get("user_id")
+    bearer = bearer_token(request)
+    if bearer is not None:
+        # Bearer present -> ONLY the token counts (the cookie is ignored).
+        user_id = _user_id_from_bearer(bearer)
+    else:
+        user_id = request.session.get("user_id")
     if user_id:
         row = user_service.get_user(db, user_id)
         if row is not None and row.is_active:
@@ -147,6 +186,8 @@ def csrf_protect(request: Request):
     """Dependency for routers: unsafe methods must send the session's CSRF token."""
     if request.method in SAFE_METHODS:
         return
+    if bearer_token(request) is not None:
+        return          # not cookie-based, so there is nothing for CSRF to abuse
     expected = request.session.get("csrf") or ""
     sent = request.headers.get("x-csrf-token") or ""
     if not expected or not hmac.compare_digest(expected.encode(), sent.encode()):
