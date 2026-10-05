@@ -99,6 +99,9 @@ LOCATION_ASK = [
     "find", "situated", "located", "route",
 ]
 CAMPUS_ANCHORS = ["nemsu", "campus", "tandag", "school", "university"]
+# other NEMSU campuses: these questions must NOT get the Tandag map
+OTHER_CAMPUS_WORDS = ["bislig", "cantilan", "tagbina", "lianga", "san miguel",
+                      "cagwait", "marihatag", "campuses", "extension campus"]
 SUB_AREA_WORDS = [
     "library", "canteen", "canteens", "gate", "gates", "room", "rooms", "lab", "labs",
     "laboratory", "building", "cas", "cbm", "cite", "cte", "ict", "gym", "court",
@@ -110,6 +113,8 @@ SUB_AREA_WORDS = [
 def is_campus_location(q):
     """'where is nemsu', 'map of tandag campus', 'how do i get to the campus'."""
     if has(q, *SUB_AREA_WORDS):
+        return False
+    if has(q, *OTHER_CAMPUS_WORDS):
         return False
     # follow-ups like "show me the map" / "can you show the map?" need no campus word,
     # because the chat is already about the campus

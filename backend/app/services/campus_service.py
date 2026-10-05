@@ -23,17 +23,26 @@ def normalize(text):
 
 
 def seed_if_empty(db: Session):
-    """First start only: load the starter facts from seed/campus_info.csv."""
-    if db.execute(select(func.count()).select_from(CampusInfo)).scalar_one() > 0:
-        return
+    """Load starter facts from seed/campus_info.csv.
+
+    Adds every seed topic that is not in the table yet, so new facts added to the
+    CSV reach an existing database after a redeploy. Existing rows (including ones
+    edited in the admin dashboard) are never changed.
+    """
     if not config.CAMPUS_SEED_CSV.exists():
         return
+    have = {t.lower() for t in db.execute(select(CampusInfo.topic)).scalars()}
+    added = False
     with config.CAMPUS_SEED_CSV.open("r", newline="", encoding="utf-8-sig") as f:
         for row in csv.DictReader(f):
-            if row.get("topic"):
-                db.add(CampusInfo(topic=row["topic"], keywords=row.get("keywords", ""),
+            topic = (row.get("topic") or "").strip()
+            if topic and topic.lower() not in have:
+                db.add(CampusInfo(topic=topic, keywords=row.get("keywords", ""),
                                   answer=row.get("answer", "")))
-    db.commit()
+                have.add(topic.lower())
+                added = True
+    if added:
+        db.commit()
 
 
 def list_info(db: Session):
