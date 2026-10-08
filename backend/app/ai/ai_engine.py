@@ -1,5 +1,5 @@
 """
-ai/ai_engine.py - the brain of CampusSense AI.
+ai/ai_engine.py - the brain of NEMSAI.
 
 Order of work for every question:
   1. rule-based intent (greeting, private data, records, faculty, forms)
@@ -39,7 +39,7 @@ def _is_campus_related(question):
 
 
 def _greeting(role):
-    base = ("Hello! I'm CampusSense AI, the NEMSU Tandag Main Campus assistant. "
+    base = ("Hello! I'm NEMSAI, the NEMSU Tandag Main Campus assistant. "
             "I can help with campus locations, rooms, facilities and equipment")
     extra = {
         "student": ", reservations, concerns, reports, feedback and instructor "

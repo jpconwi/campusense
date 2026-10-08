@@ -51,7 +51,7 @@ export default function Login() {
         <div className="login-card">
           <img src="/logo.png" alt="NEMSU seal" />
 
-          <h1>CampusSense AI</h1>
+          <h1>NEMSAI</h1>
 
           <p className="sub">
             NEMSU Tandag Main Campus Assistant

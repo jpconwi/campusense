@@ -1,4 +1,4 @@
-/* Chat.jsx - the CampusSense AI chat window. */
+/* Chat.jsx - the NEMSAI chat window. */
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { api } from "../api.js";
@@ -77,7 +77,7 @@ function Row({ item }) {
       {ai && <img className="avatar" src="/logo.png" alt="" />}
       <div className="stack">
         {item.kind === "typing" && (
-          <div className="bubble rich"><span className="typing" aria-label="CampusSense AI is typing"><span></span><span></span><span></span></span></div>
+          <div className="bubble rich"><span className="typing" aria-label="NEMSAI is typing"><span></span><span></span><span></span></span></div>
         )}
         {item.kind === "text" && (
           <div className={"bubble" + (item.error ? " error" : "") + (ai && !item.error ? " rich" : "")}>
@@ -198,7 +198,7 @@ export default function Chat() {
               ))}
             </div>
             <div className="input-area">
-              <textarea id="question" ref={input} rows={1} placeholder="Message CampusSense AI" aria-label="Your question"
+              <textarea id="question" ref={input} rows={1} placeholder="Message NEMSAI" aria-label="Your question"
                         value={text} onChange={(e) => setText(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
               <button className="send" type="button" disabled={busy || !text.trim()} onClick={() => send()} aria-label="Send">

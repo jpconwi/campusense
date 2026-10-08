@@ -1,5 +1,5 @@
 """
-main.py - starts CampusSense AI (FastAPI).
+main.py - starts NEMSAI (FastAPI).
 
 Development:  uvicorn app.main:app --reload          (from the backend/ folder)
 Production:   uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app():
-    app = FastAPI(title="CampusSense AI", lifespan=lifespan,
+    app = FastAPI(title="NEMSAI", lifespan=lifespan,
                   docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json")
 
     secret = config.SECRET_KEY

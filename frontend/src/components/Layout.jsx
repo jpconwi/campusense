@@ -10,7 +10,7 @@ export function Header({ children }) {
       <div className="header-inner">
         <img src="/logo.png" alt="North Eastern Mindanao State University seal" />
         <div className="header-text">
-          <h1>CampusSense AI</h1>
+          <h1>NEMSAI</h1>
           <p>NEMSU Tandag Main Campus Assistant</p>
         </div>
         {children}
@@ -80,7 +80,7 @@ export default function Layout() {
       <aside className="sidebar" aria-label="Main navigation">
         <div className="sb-top">
           <img src="/logo.png" alt="NEMSU seal" />
-          <div className="sb-brand"><strong>CampusSense AI</strong><span>NEMSU Tandag</span></div>
+          <div className="sb-brand"><strong>NEMSAI</strong><span>NEMSU Tandag</span></div>
           <button type="button" className="sb-toggle" onClick={() => setCollapsed((c) => !c)}
                   aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!collapsed}>
             <Icon d={collapsed ? "M9 6l6 6-6 6" : "M15 6l-6 6 6 6"} />

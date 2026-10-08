@@ -1,7 +1,7 @@
 """
 services/pdf_service.py - builds the PDF reports (ReportLab).
 
-Same look as the original faculty report: "CampusSense AI" heading,
+Same look as the original faculty report: "NEMSAI" heading,
 report title, label/value lines and a small footer.
 """
 
@@ -18,7 +18,7 @@ def generate_pdf(path, title, rows):
     y = height - 70
 
     pdf.setFont("Helvetica-Bold", 20)
-    pdf.drawString(left, y, "CampusSense AI")
+    pdf.drawString(left, y, "NEMSAI")
     y -= 22
     pdf.setFont("Helvetica", 10)
     pdf.drawString(left, y, "NEMSU Tandag Main Campus")
@@ -42,7 +42,7 @@ def generate_pdf(path, title, rows):
 
     y -= 10
     pdf.setFont("Helvetica-Oblique", 9)
-    pdf.drawString(left, max(y, 50), "Generated automatically by CampusSense AI.")
+    pdf.drawString(left, max(y, 50), "Generated automatically by NEMSAI.")
     pdf.save()
 
 
