@@ -46,7 +46,7 @@ NAV = {
         ("Concerns", "/admin/concerns"), ("Reports", "/admin/reports"),
         ("Faculty Reports", "/admin/faculty"), ("Feedback", "/admin/feedback"),
         ("Reservations", "/admin/reservations"), ("Rooms", "/admin/rooms"),
-        ("Campus", "/admin/campus"),
+        ("Campus", "/admin/campus"), ("Announcements", "/admin/announcements"),
     ],
 }
 

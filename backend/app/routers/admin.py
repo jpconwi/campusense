@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_email)
-from app.services import (campus_service, chart_service, common, faculty_service,
+from app.services import (announcement_service, campus_service, chart_service, common, faculty_service,
                           reservation_service, room_service, user_service)
 from app.services.common import ValidationError
 
@@ -183,3 +183,32 @@ def campus_add(body: dict, db: Session = Depends(get_db)):
 def campus_delete(row_id: int, db: Session = Depends(get_db)):
     campus_service.delete_info(db, row_id)
     return {"success": True, "message": "Campus information deleted."}
+
+
+# ------------------------------------------------------ announcements
+ANNOUNCEMENT_FIELDS = [
+    ["title", "Title", True],
+    ["category", "Category", True, "select", announcement_service.CATEGORIES],
+    ["body", "Message (what the AI tells people)", True, "textarea"],
+    ["start_date", "Show from (optional)", False, "date"],
+    ["end_date", "Show until (optional)", False, "date"],
+]
+
+
+@router.get("/announcements")
+def announcements(db: Session = Depends(get_db)):
+    return {"title": "Announcements", "fields": ANNOUNCEMENT_FIELDS,
+            "rows": announcement_service.list_all(db),
+            "empty": "No announcements yet. Post news, events or champions and the AI will tell users."}
+
+
+@router.post("/announcements")
+def announcements_add(body: dict, db: Session = Depends(get_db)):
+    announcement_service.add_announcement(db, _strings(body))
+    return {"success": True, "message": "Announcement posted."}
+
+
+@router.delete("/announcements/{row_id}")
+def announcements_delete(row_id: int, db: Session = Depends(get_db)):
+    announcement_service.delete_announcement(db, row_id)
+    return {"success": True, "message": "Announcement deleted."}

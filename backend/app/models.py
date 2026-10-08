@@ -2,7 +2,7 @@
 models.py - PostgreSQL tables.
 
 users, admin_credentials, concerns, reports, feedback, reservations,
-faculty_reports, rooms, campus_info.
+faculty_reports, rooms, campus_info, announcements.
 
 (Faculty availability, rooms and campus information used to be CSV files.
 They are normal tables now, so every part of the system reads one database.)
@@ -158,6 +158,19 @@ class CampusInfo(Base):
     topic: Mapped[str] = mapped_column(String(80), nullable=False)
     keywords: Mapped[str] = mapped_column(String(200), nullable=False)
     answer: Mapped[str] = mapped_column(String(600), nullable=False)
+
+
+class Announcement(Base):
+    """News the admin feeds to the AI: announcements, events, champions, updates."""
+    __tablename__ = "announcements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    category: Mapped[str] = mapped_column(String(30), default="Announcement", nullable=False)
+    body: Mapped[str] = mapped_column(String(1000), nullable=False)
+    start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)   # show from
+    end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)     # show until
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
 
 
 # Topics are unique ignoring upper/lower case.

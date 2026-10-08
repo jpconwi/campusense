@@ -329,3 +329,30 @@ def test_available_rooms_question_lists_real_rooms(admin, student):
     assert r["type"] == "message" and "CBM Room 101" in r["answer"]
     r = student.ask("what are available rooms?")
     assert "CBM Room 101" in r["answer"]
+
+
+def test_admin_announcements_feed_the_ai(admin, student):
+    assert student.post("/api/admin/announcements", json={}).status_code in (401, 403)
+    ok = admin.post("/api/admin/announcements", json={
+        "title": "Local MAST starts October 20", "category": "Event",
+        "body": "The Local MAST opens on October 20 at the gymnasium. All students are invited."})
+    assert ok.status_code == 200, ok.text
+    admin.post("/api/admin/announcements", json={
+        "title": "Intramurals Champions", "category": "Champions",
+        "body": "CBM won the overall championship this year."})
+    admin.post("/api/admin/announcements", json={
+        "title": "Old news", "category": "News", "body": "This one already ended.",
+        "start_date": "2020-01-01", "end_date": "2020-01-31"})
+    assert admin.post("/api/admin/announcements", json={
+        "title": "x", "category": "Nope", "body": "y"}).status_code == 400
+    # a broad question lists the active ones only
+    a = student.ask("Any announcements?")["answer"]
+    assert "Local MAST" in a and "Intramurals Champions" in a and "Old news" not in a
+    # a category question filters
+    c = student.ask("Who are the champions?")["answer"]
+    assert "CBM won" in c and "Local MAST" not in c
+    # a free question is matched without the language model
+    m = student.ask("When does the local mast start?")["answer"]
+    assert "October 20" in m
+    assert [r["title"] for r in student.get("/api/announcements").json()["rows"]] \
+        == ["Intramurals Champions", "Local MAST starts October 20"]

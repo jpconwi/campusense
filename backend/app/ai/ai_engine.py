@@ -15,7 +15,8 @@ from app.model.systemAi import ask_model
 from app.prompts.locationPrompt import (CAMPUS_EMBED_URL, CAMPUS_LOCATION_TEXT,
                                         CAMPUS_MAP_URL, other_campus_map)
 from app.prompts.systemPrompt import OFF_TOPIC_RESPONSE
-from app.services import campus_service, common, faculty_service, place_service, room_service
+from app.services import (announcement_service, campus_service, common, faculty_service,
+                          place_service, room_service)
 from app.services.campus_service import normalize
 
 CAMPUS_KEYWORDS = [
@@ -124,6 +125,9 @@ def ask_ai(db, question, user):
     if name == "campus_location":               # fixed answer + map, never the LLM
         return response.map_card(CAMPUS_LOCATION_TEXT, CAMPUS_MAP_URL, CAMPUS_EMBED_URL)
 
+    if name == "announcements":                 # what the admin posted: news, events, champions
+        return response.message(announcement_service.chat_reply(db, found["category"]))
+
     if name == "rooms_list":                    # real rooms from the admin's room list
         return response.message(room_service.rooms_answer(
             room_service.list_rooms(db), found["words"], found["available"]))
@@ -176,6 +180,10 @@ def ask_ai(db, question, user):
     info = campus_service.lookup(db, question)
     if info:
         return response.message(info)
+
+    posted = announcement_service.match(db, intents.normalize(question))
+    if posted:                                  # e.g. "when does the local mast start?"
+        return response.message(posted)
 
     code = room_service.extract_room_code(question)
     if code:

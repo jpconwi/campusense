@@ -16,7 +16,7 @@ from app.prompts.reservationPrompt import RESERVATION_PROMPT
 from app.prompts.roomPrompt import ROOM_PROMPT
 from app.prompts.studentPrompt import STUDENT_PROMPT
 from app.prompts.systemPrompt import SYSTEM_PROMPT
-from app.services import campus_service, room_service
+from app.services import announcement_service, campus_service, room_service
 
 ADMIN_PROMPT = """
 ==================================================
@@ -54,6 +54,12 @@ def build_system_prompt(db, role):
     if extra:
         parts.append("ADDITIONAL CAMPUS INFORMATION (from the campus database):\n" +
                      "\n".join(f"- {r['topic']}: {r['answer']}" for r in extra))
+
+    posted = announcement_service.list_active(db)
+    if posted:
+        parts.append("CURRENT ANNOUNCEMENTS (posted by campus administrators; share them when "
+                     "relevant and never invent details they do not give):\n" +
+                     announcement_service.for_prompt(posted))
 
     parts += [ROLE_PROMPTS.get(role, STUDENT_PROMPT), CONCERN_PROMPT, REPORT_PROMPT,
               FEEDBACK_PROMPT, RESERVATION_PROMPT]

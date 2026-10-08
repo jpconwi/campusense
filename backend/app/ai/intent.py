@@ -122,6 +122,26 @@ def _looks_like_form(q):
                "report", "incident")
 
 
+def announcements_request(q):
+    """'any announcements?', 'what's new', 'upcoming events', 'who are the champions'."""
+    if _looks_like_form(q):
+        return None
+    if not has(q, "announcement", "announcements", "news", "whats new", "events",
+               "upcoming events", "champion", "champions", "winner", "winners", "updates"):
+        return None
+    if has(q, "champion", "champions", "winner", "winners"):
+        category = "Champions"
+    elif has(q, "events", "upcoming events"):
+        category = "Event"
+    elif has(q, "news"):
+        category = "News"
+    elif has(q, "updates"):
+        category = "Update"
+    else:
+        category = None
+    return {"category": category}
+
+
 def rooms_request(q, original):
     """'what are available rooms', 'available rooms in cbm', 'list of rooms'."""
     if _looks_like_form(q) or room_service.extract_room_code(original):
@@ -308,6 +328,11 @@ def detect(db, question, role):
 
     if has(q, *ABSENCE_PATTERNS):
         return {"intent": "faculty_absence"}
+
+    # announcements, news, events, champions the admin posted
+    ann = announcements_request(q)
+    if ann:
+        return {"intent": "announcements", **ann}
 
     # "available rooms", "rooms in cbm" -> the real room list from the database
     rooms = rooms_request(q, original)

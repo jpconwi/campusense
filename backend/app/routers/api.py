@@ -15,7 +15,7 @@ from app import config
 from app.ai.ai_engine import ask_ai
 from app.database import get_db
 from app.security import CurrentUser, csrf_protect, login_required, role_required
-from app.services import (common, concern_service, faculty_service, feedback_service,
+from app.services import (announcement_service, common, concern_service, faculty_service, feedback_service,
                           pdf_service, report_service, reservation_service)
 
 router = APIRouter(prefix="/api", tags=["api"], dependencies=[Depends(csrf_protect)])
@@ -192,6 +192,15 @@ def my_records(kind: str, user: CurrentUser = Depends(role_required("student", "
 def my_faculty(user: CurrentUser = Depends(role_required("instructor")),
                db: Session = Depends(get_db)):
     return {"rows": faculty_service.records_for_email(db, user.email)}
+
+
+@router.get("/announcements")
+def active_announcements(user: CurrentUser = Depends(login_required),
+                         db: Session = Depends(get_db)):
+    """Current announcements for every signed-in user (web and mobile app)."""
+    return {"rows": [{k: r[k] for k in ("id", "title", "category", "body", "start_date",
+                                         "end_date")}
+                     for r in announcement_service.list_active(db)]}
 
 
 # ------------------------------------------------------------------ files
