@@ -2,7 +2,7 @@
 models.py - PostgreSQL tables.
 
 users, admin_credentials, concerns, reports, feedback, reservations,
-faculty_reports, rooms, campus_info, announcements.
+faculty_reports, rooms, campus_info, announcements, knowledge_documents.
 
 (Faculty availability, rooms and campus information used to be CSV files.
 They are normal tables now, so every part of the system reads one database.)
@@ -171,6 +171,28 @@ class Announcement(Base):
     start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)   # show from
     end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)     # show until
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
+
+
+class KnowledgeDocument(Base):
+    """One public NEMSU document (news article, memorandum, later Facebook post, PDF...).
+
+    This is the knowledge base the RAG step will search. `source_url` is unique so the
+    same announcement is never stored twice. `source_type` says where it came from:
+    nemsu_news, nemsu_memo (later: facebook, pdf).
+    """
+    __tablename__ = "knowledge_documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    source_url: Mapped[str] = mapped_column(String(2000), nullable=False, unique=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    source_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    author: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now,
+                                                 nullable=False)
 
 
 # Topics are unique ignoring upper/lower case.

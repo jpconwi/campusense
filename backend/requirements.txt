@@ -10,6 +10,7 @@ python-dotenv>=1.0
 argon2-cffi>=23.1
 reportlab>=4.0
 huggingface_hub>=0.24
+beautifulsoup4>=4.12
 
 # only for the tests
 pytest>=8.0

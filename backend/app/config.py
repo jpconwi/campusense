@@ -114,3 +114,21 @@ def ensure_folders():
     for folder in (UPLOAD_DIR, REPORTS_DIR / "faculty", REPORTS_DIR / "concerns",
                    REPORTS_DIR / "reports", REPORTS_DIR / "feedback"):
         folder.mkdir(parents=True, exist_ok=True)
+
+
+# ------------------------------------------------- NEMSU knowledge base (collector)
+# Public, official sources only. Nothing here is a secret; change them in .env if the
+# NEMSU websites move.
+NEMSU_NEWS_BASE = os.getenv("NEMSU_NEWS_BASE", "https://nemsu.edu.ph").strip().rstrip("/")
+NEMSU_MEMO_BASE = os.getenv("NEMSU_MEMO_BASE", "https://memo.nemsu.edu.ph").strip().rstrip("/")
+# how many newsroom list pages one sync looks at (the sync stops earlier when a page has nothing new)
+NEMSU_NEWS_PAGES = int(os.getenv("NEMSU_NEWS_PAGES", "3"))
+# upper limit of NEW articles saved per sync, so one run stays short
+NEMSU_MAX_NEW_PER_SYNC = int(os.getenv("NEMSU_MAX_NEW_PER_SYNC", "25"))
+NEMSU_COLLECT_DELAY = float(os.getenv("NEMSU_COLLECT_DELAY", "1.0"))     # seconds between requests
+NEMSU_COLLECT_TIMEOUT = float(os.getenv("NEMSU_COLLECT_TIMEOUT", "20"))
+# lets a scheduler (Render cron job, cron-job.org) call POST /api/nemsu/sync/scheduled with
+# the header  X-Sync-Token: <this value>.  Empty = that route is switched off (404).
+NEMSU_SYNC_TOKEN = os.getenv("NEMSU_SYNC_TOKEN", "").strip()
+# which sources a sync reads: "news", "memo" or "news,memo". Remove one if its website is down.
+NEMSU_SOURCES = [x.strip().lower() for x in os.getenv("NEMSU_SOURCES", "news,memo").split(",") if x.strip()]

@@ -20,7 +20,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app import config
 from app.database import init_db
-from app.routers import admin, admin_login, api, auth, mobile_auth
+from app.routers import admin, admin_login, api, auth, mobile_auth, nemsu
 from app.services.common import ValidationError
 
 
@@ -72,6 +72,7 @@ def create_app():
     app.include_router(mobile_auth.router)
     app.include_router(admin_login.router)
     app.include_router(admin.router)
+    app.include_router(nemsu.router)
     app.include_router(api.router)
 
     # ---------------------------------------------------- error handlers
