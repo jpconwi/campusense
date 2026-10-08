@@ -287,3 +287,25 @@ def test_home_counts_and_unknown_kind(student):
     student.post("/api/concerns", data=concern_form())
     assert student.get("/api/home").json()["counts"]["concerns"] == 1
     assert student.get("/api/me/records/nonsense").status_code == 404
+
+
+def test_other_campus_gets_google_map_card(student):
+    r = student.post("/api/ask", json={"question": "Where is Bislig campus?"}).json()
+    assert r["type"] == "map"
+    assert r["map"]["title"] == "NEMSU Bislig Campus"
+    assert "output=embed" in r["map"]["embed_url"]
+    assert "8.2474349,126.2751908" in r["map"]["url"]
+    # Tandag still gets its own map
+    t = student.post("/api/ask", json={"question": "where is nemsu"}).json()
+    assert t["type"] == "map" and "9.0394399" in t["map"]["url"]
+
+
+def test_campus_places_get_map_cards(student):
+    def ask(q):
+        return student.post("/api/ask", json={"question": q}).json()
+    r = ask("Where is the library?")
+    assert r["type"] == "map" and r["map"]["title"] == "Library"
+    assert "output=embed" in r["map"]["embed_url"]
+    assert ask("map of the 2nd canteen")["map"]["title"] == "2nd Canteen"
+    assert ask("where is the gate")["type"] == "message"        # asks which gate
+    assert ask("what time does the library open")["type"] != "map"

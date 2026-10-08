@@ -12,6 +12,32 @@ CAMPUS_EMBED_URL = "https://www.google.com/maps?q=9.0394399,126.2160314&z=17&out
 CAMPUS_LATITUDE = 9.0394399
 CAMPUS_LONGITUDE = 126.2160314
 
+def _map_urls(lat, lng):
+    """Open-in-Google-Maps link and in-chat embed link for coordinates."""
+    return (f"https://www.google.com/maps?q={lat},{lng}",
+            f"https://www.google.com/maps?q={lat},{lng}&z=16&output=embed")
+
+
+# Other NEMSU campuses. key = word used to detect the campus in a question.
+OTHER_CAMPUSES = {
+    "bislig": ("NEMSU Bislig Campus", "Bislig City", 8.2474349, 126.2751908),
+    "cantilan": ("NEMSU Cantilan Campus", "Cantilan", 9.3373033, 125.9707638),
+    "tagbina": ("NEMSU Tagbina Campus", "Tagbina", 8.4523092, 126.164603),
+    "lianga": ("NEMSU Lianga Campus", "Lianga", 8.6339419, 126.0936177),
+    "san miguel": ("NEMSU San Miguel Campus", "San Miguel", 8.9653061, 125.9600723),
+    "cagwait": ("NEMSU Cagwait Campus", "Cagwait", 8.9152674, 126.3006748),
+    "marihatag": ("NEMSU Marihatag Extension Campus", "Marihatag", 8.8021993, 126.293691),
+}
+
+
+def other_campus_map(key):
+    """(answer text, title, map url, embed url) for one of the other campuses."""
+    title, town, lat, lng = OTHER_CAMPUSES[key]
+    url, embed = _map_urls(lat, lng)
+    text = f"{title} is in {town}, Surigao del Sur, Philippines. Here is the map:"
+    return text, title, url, embed
+
+
 CAMPUS_LOCATION_TEXT = (
     "NEMSU Tandag Main Campus is in Tandag City, Surigao del Sur, Philippines. "
     "Here is the map:"

@@ -12,9 +12,10 @@ from app.ai import intent as intents
 from app.ai import response
 from app.ai.context import build_system_prompt, build_user_context
 from app.model.systemAi import ask_model
-from app.prompts.locationPrompt import CAMPUS_EMBED_URL, CAMPUS_LOCATION_TEXT, CAMPUS_MAP_URL
+from app.prompts.locationPrompt import (CAMPUS_EMBED_URL, CAMPUS_LOCATION_TEXT,
+                                        CAMPUS_MAP_URL, other_campus_map)
 from app.prompts.systemPrompt import OFF_TOPIC_RESPONSE
-from app.services import campus_service, common, faculty_service, room_service
+from app.services import campus_service, common, faculty_service, place_service, room_service
 from app.services.campus_service import normalize
 
 CAMPUS_KEYWORDS = [
@@ -122,6 +123,17 @@ def ask_ai(db, question, user):
 
     if name == "campus_location":               # fixed answer + map, never the LLM
         return response.map_card(CAMPUS_LOCATION_TEXT, CAMPUS_MAP_URL, CAMPUS_EMBED_URL)
+
+    if name == "other_campus_location":         # map card for another NEMSU campus
+        text, title, url, embed = other_campus_map(found["campus"])
+        return response.map_card(text, url, embed, title=title)
+
+    if name == "place_location":                # gate, canteen, building ... map card
+        text, title, url, embed = place_service.place_map(found["place"])
+        return response.map_card(text, url, embed, title=title)
+
+    if name == "place_ask":                     # "gate" / "canteen" -> which one?
+        return response.message(place_service.ask_which_text(found))
 
     if name == "private":
         return response.message(response.PRIVATE_REFUSAL)

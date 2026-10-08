@@ -110,6 +110,34 @@ SUB_AREA_WORDS = [
 ]
 
 
+def other_campus_key(q):
+    """'where is bislig campus', 'map of cantilan' -> 'bislig' / 'cantilan'.
+
+    Returns None when no single campus is named, or when the question is about
+    something else at that campus (dean, programs...), so only location-style
+    questions or a bare campus name get a map.
+    """
+    from app.prompts.locationPrompt import OTHER_CAMPUSES
+    found = [k for k in OTHER_CAMPUSES if has(q, k)]
+    if len(found) != 1:
+        return None
+    if has(q, *LOCATION_ASK, "maps", "google map", "google maps") or len(q.split()) <= 4:
+        return found[0]
+    return None
+
+
+def place_request(q):
+    """'where is the library', 'map of 1st gate', 'cbm building' -> place_service result.
+
+    Needs a location-style word (where, map, directions...) or a very short
+    message, so 'what time does the library open' does not get a map.
+    """
+    from app.services import place_service
+    if has(q, *LOCATION_ASK, "maps", "google map", "google maps") or len(q.split()) <= 4:
+        return place_service.find_place(q)
+    return None
+
+
 def is_campus_location(q):
     """'where is nemsu', 'map of tandag campus', 'how do i get to the campus'."""
     if has(q, *SUB_AREA_WORDS):
@@ -246,6 +274,18 @@ def detect(db, question, role):
 
     if has(q, *ABSENCE_PATTERNS):
         return {"intent": "faculty_absence"}
+
+    # where is one of the OTHER campuses -> map card for that campus
+    campus_key = other_campus_key(q)
+    if campus_key:
+        return {"intent": "other_campus_location", "campus": campus_key}
+
+    # where is a place inside the campus (gate, canteen, building ...) -> map card
+    place = place_request(q)
+    if place and "place" in place:
+        return {"intent": "place_location", "place": place["place"]}
+    if place and "ask" in place:
+        return {"intent": "place_ask", "ask": place["ask"], "label": place["label"]}
 
     # where is the campus / show the map
     if is_campus_location(q):
