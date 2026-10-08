@@ -110,6 +110,32 @@ SUB_AREA_WORDS = [
 ]
 
 
+def _looks_like_form(q):
+    """Same checks detect() uses for the reservation / concern / feedback / report forms."""
+    if has(q, "reserve", "reserving", "reservation", "book a", "book the", "booking"):
+        return True
+    wants_report = has(q, "report", "file", "submit", "complain", "complaint")
+    if has(q, *PROBLEM_WORDS) or (wants_report and has(q, "concern", "problem", "issue",
+                                                       "complaint", *OBJECT_WORDS)):
+        return True
+    return has(q, "feedback", "suggestion", "suggest", "compliment", "comment",
+               "report", "incident")
+
+
+def rooms_request(q, original):
+    """'what are available rooms', 'available rooms in cbm', 'list of rooms'."""
+    if _looks_like_form(q) or room_service.extract_room_code(original):
+        return None
+    if not has(q, "room", "rooms", "classroom", "classrooms"):
+        return None
+    if not has(q, "available", "availability", "vacant", "free", "list", "show", "what",
+               "which", "all", "any", "open", "unoccupied", "rooms"):
+        return None
+    return {"words": q.split(),
+            "available": has(q, "available", "availability", "vacant", "free",
+                             "open", "unoccupied")}
+
+
 def other_campus_key(q):
     """'where is bislig campus', 'map of cantilan' -> 'bislig' / 'cantilan'.
 
@@ -118,6 +144,8 @@ def other_campus_key(q):
     questions or a bare campus name get a map.
     """
     from app.prompts.locationPrompt import OTHER_CAMPUSES
+    if _looks_like_form(q):
+        return None
     found = [k for k in OTHER_CAMPUSES if has(q, k)]
     if len(found) != 1:
         return None
@@ -133,8 +161,13 @@ def place_request(q):
     message, so 'what time does the library open' does not get a map.
     """
     from app.services import place_service
-    if (has(q, *LOCATION_ASK, "maps", "google map", "google maps") or len(q.split()) <= 4
-            or place_service.is_only_a_place_name(q)):
+    if _looks_like_form(q) or rooms_request(q, q):
+        return None
+    asks_where = has(q, *LOCATION_ASK, "maps", "google map", "google maps")
+    if not asks_where and has(q, "available", "availability", "open", "closed", "hours",
+                              "schedule", "time", "reserve"):
+        return None                      # "is the library available?" is not a map question
+    if asks_where or len(q.split()) <= 4 or place_service.is_only_a_place_name(q):
         return place_service.find_place(q)
     return None
 
@@ -275,6 +308,11 @@ def detect(db, question, role):
 
     if has(q, *ABSENCE_PATTERNS):
         return {"intent": "faculty_absence"}
+
+    # "available rooms", "rooms in cbm" -> the real room list from the database
+    rooms = rooms_request(q, original)
+    if rooms:
+        return {"intent": "rooms_list", **rooms}
 
     # where is one of the OTHER campuses -> map card for that campus
     campus_key = other_campus_key(q)

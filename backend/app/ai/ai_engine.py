@@ -124,16 +124,25 @@ def ask_ai(db, question, user):
     if name == "campus_location":               # fixed answer + map, never the LLM
         return response.map_card(CAMPUS_LOCATION_TEXT, CAMPUS_MAP_URL, CAMPUS_EMBED_URL)
 
+    if name == "rooms_list":                    # real rooms from the admin's room list
+        return response.message(room_service.rooms_answer(
+            room_service.list_rooms(db), found["words"], found["available"]))
+
     if name == "other_campus_location":         # map card for another NEMSU campus
         text, title, url, embed = other_campus_map(found["campus"])
         return response.map_card(text, url, embed, title=title)
 
     if name == "place_location":                # gate, canteen, building ... map card
         text, title, url, embed = place_service.place_map(found["place"])
+        info = campus_service.lookup(db, question)    # keep the written description too
+        if info and "http" not in info:
+            text = info
         return response.map_card(text, url, embed, title=title)
 
     if name == "place_ask":                     # "gate" / "canteen" -> which one?
-        return response.message(place_service.ask_which_text(found))
+        info = campus_service.lookup(db, question)
+        hint = place_service.ask_which_text(found)
+        return response.message(f"{info}\n\n{hint}" if info and "http" not in info else hint)
 
     if name == "private":
         return response.message(response.PRIVATE_REFUSAL)

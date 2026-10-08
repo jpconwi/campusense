@@ -290,13 +290,13 @@ def test_home_counts_and_unknown_kind(student):
 
 
 def test_other_campus_gets_google_map_card(student):
-    r = student.post("/api/ask", json={"question": "Where is Bislig campus?"}).json()
+    r = student.ask("Where is Bislig campus?")
     assert r["type"] == "map"
     assert r["map"]["title"] == "NEMSU Bislig Campus"
     assert "output=embed" in r["map"]["embed_url"]
     assert "8.2474349,126.2751908" in r["map"]["url"]
     # Tandag still gets its own map
-    t = student.post("/api/ask", json={"question": "where is nemsu"}).json()
+    t = student.ask("where is nemsu")
     assert t["type"] == "map" and "9.0394399" in t["map"]["url"]
 
 
@@ -319,3 +319,13 @@ def test_pdf_is_rebuilt_when_the_server_lost_the_file(admin, student):
     r = admin.get(body["pdf_url"])
     assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
     assert r.content.startswith(b"%PDF")
+
+
+def test_available_rooms_question_lists_real_rooms(admin, student):
+    admin.post("/api/admin/rooms", json={"room_id": "CBM-101", "name": "CBM Room 101",
+                                         "building": "CBM Building", "capacity": "40",
+                                         "status": "Available"})
+    r = student.ask("available rooms in cbm")
+    assert r["type"] == "message" and "CBM Room 101" in r["answer"]
+    r = student.ask("what are available rooms?")
+    assert "CBM Room 101" in r["answer"]

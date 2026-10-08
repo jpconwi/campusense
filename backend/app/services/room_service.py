@@ -74,3 +74,58 @@ def room_reply(room):
         if room.get(key):
             parts.append(f"{label}: {room[key]}")
     return "\n".join(parts)
+
+
+# ------------------------------------------------------------ room lists
+_ROOM_STOPWORDS = {
+    "what", "are", "is", "the", "available", "availability", "rooms", "room", "classroom",
+    "classrooms", "in", "at", "of", "any", "there", "list", "show", "me", "all", "which",
+    "vacant", "free", "open", "now", "today", "right", "can", "i", "use", "building", "a",
+    "an", "and", "for", "do", "you", "have", "unoccupied", "currently", "tell", "nemsu",
+    "campus", "tandag", "please", "to", "on", "my", "our", "need", "looking", "find",
+}
+_FREE_WORDS = ("avail", "vacant", "free", "open", "unoccupied")
+
+
+def _is_free(room):
+    status = (room.get("status") or "").lower()
+    return any(w in status for w in _FREE_WORDS) and "not " not in status \
+        and "unavail" not in status
+
+
+def _room_line(r):
+    details = [x for x in (r.get("building"), r.get("room_type"),
+                           f"capacity {r['capacity']}" if r.get("capacity") else "",
+                           r.get("equipment")) if x]
+    status = r.get("status") or "status not set"
+    return f"- **{r['name'] or r['room_id']}** ({r['room_id']}): " + \
+        ", ".join(details + [status])
+
+
+def rooms_answer(rooms, question_words, wants_available):
+    """Pure function (easy to test): rooms = list of room dicts, question_words = tokens."""
+    if not rooms:
+        return ("There are no rooms in the campus room list yet. An administrator can add "
+                "them in the admin dashboard under Rooms.")
+    words = [w for w in question_words if w not in _ROOM_STOPWORDS and len(w) > 1]
+    scope = ""
+    if words:
+        def matches(r):
+            text = f" {r['building']} {r['name']} {r['room_id']} {r['room_type']} ".lower()
+            text = " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
+            return any(f" {w} " in f" {text} " for w in words)
+        found = [r for r in rooms if matches(r)]
+        if not found:
+            buildings = sorted({r["building"] for r in rooms if r["building"]})
+            hint = f" Rooms are recorded for: {', '.join(buildings)}." if buildings else ""
+            return f"I don't have any rooms recorded for \"{' '.join(words)}\".{hint}"
+        rooms, scope = found, f" in {' '.join(words).upper()}"
+    if wants_available:
+        free = [r for r in rooms if _is_free(r)]
+        if free:
+            return f"Available rooms{scope}:\n" + "\n".join(_room_line(r) for r in free[:20]) + \
+                (f"\n...and {len(free) - 20} more." if len(free) > 20 else "")
+        return (f"No room{scope} is marked as available right now. Here are the rooms "
+                f"I have{scope}:\n" + "\n".join(_room_line(r) for r in rooms[:20]))
+    return f"Rooms{scope}:\n" + "\n".join(_room_line(r) for r in rooms[:20]) + \
+        (f"\n...and {len(rooms) - 20} more." if len(rooms) > 20 else "")
