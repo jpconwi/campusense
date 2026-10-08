@@ -309,3 +309,13 @@ def test_campus_places_get_map_cards(student):
     assert ask("map of the 2nd canteen")["map"]["title"] == "2nd Canteen"
     assert ask("where is the gate")["type"] == "message"        # asks which gate
     assert ask("what time does the library open")["type"] != "map"
+
+
+def test_pdf_is_rebuilt_when_the_server_lost_the_file(admin, student):
+    """Render wipes the disk on every deploy; the admin must still open the PDF."""
+    from app.services import concern_service
+    body = student.post("/api/concerns", data=concern_form()).json()
+    concern_service.pdf_path(body["id"]).unlink()                 # simulate a redeploy
+    r = admin.get(body["pdf_url"])
+    assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
+    assert r.content.startswith(b"%PDF")

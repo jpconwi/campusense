@@ -44,3 +44,43 @@ def generate_pdf(path, title, rows):
     pdf.setFont("Helvetica-Oblique", 9)
     pdf.drawString(left, max(y, 50), "Generated automatically by CampusSense AI.")
     pdf.save()
+
+
+# ---------------------------------------------------------------------------
+# On Render (and most hosts) the disk is wiped on every deploy/restart, but the
+# database is kept. So a PDF that is missing on disk is simply drawn again from
+# its database row the next time someone opens it.
+def _rows_for(kind, r):
+    if kind == "concerns":
+        return "Campus Concern Report", [
+            ("Concern ID", r["id"]), ("Name", r["reporter_name"]), ("Email", r["reporter_email"]),
+            ("Location", r["location"]), ("Room", r["room"] or "-"),
+            ("Concern Type", r["concern_type"]), ("Description", r["description"]),
+            ("Date", r["concern_date"]), ("Submitted At", r["created_at"]),
+            ("Status", r["status"])]
+    if kind == "reports":
+        return "Campus Report", [
+            ("Report ID", r["id"]), ("Reporter", r["reporter_name"]), ("Email", r["reporter_email"]),
+            ("Location", r["location"]), ("Area", r["area"] or "-"), ("Room", r["room"] or "-"),
+            ("Report Type", r["report_type"]), ("Description", r["description"]),
+            ("Date", r["report_date"]), ("Submitted At", r["created_at"]),
+            ("Status", r["status"])]
+    if kind == "feedback":
+        return "Campus Feedback", [
+            ("Feedback ID", r["id"]), ("Name", r["name"]), ("Email", r["email"]),
+            ("Area / Facility", r["area"]), ("Feedback Type", r["feedback_type"]),
+            ("Message", r["message"]), ("Date", r["feedback_date"]),
+            ("Submitted At", r["created_at"]), ("Status", r["status"])]
+    return "Faculty Availability Report", [          # faculty
+        ("Report ID", r["display_id"]), ("Instructor", r["instructor"]),
+        ("Reason", r["reason"]), ("Date of Absence", r["start_date"]),
+        ("Expected Return", r["expected_return"]),
+        ("Submitted At", r["submitted_at"]), ("Status", r["status"])]
+
+
+def ensure_pdf(kind, row, path):
+    """Make sure the PDF file exists; draw it again from `row` if the disk lost it."""
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        title, rows = _rows_for(kind, row)
+        generate_pdf(path, title, rows)

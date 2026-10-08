@@ -16,7 +16,7 @@ from app.ai.ai_engine import ask_ai
 from app.database import get_db
 from app.security import CurrentUser, csrf_protect, login_required, role_required
 from app.services import (common, concern_service, faculty_service, feedback_service,
-                          report_service, reservation_service)
+                          pdf_service, report_service, reservation_service)
 
 router = APIRouter(prefix="/api", tags=["api"], dependencies=[Depends(csrf_protect)])
 
@@ -216,6 +216,7 @@ def pdf(kind: str, record_id: str, user: CurrentUser = Depends(login_required),
         if record is None or not _owns_faculty_record(user, record):
             raise HTTPException(404, "That page was not found.")
         path = faculty_service.pdf_path(record["id"])
+        pdf_service.ensure_pdf("faculty", record, path)
     else:
         builders = {"concerns": concern_service.pdf_path,
                     "reports": report_service.pdf_path,
@@ -226,8 +227,7 @@ def pdf(kind: str, record_id: str, user: CurrentUser = Depends(login_required),
         if row is None or (not user.is_admin and row["user_id"] != user.id):
             raise HTTPException(404, "That page was not found.")
         path = builders[kind](row["id"])
-    if not path.exists():
-        raise HTTPException(404, "That page was not found.")
+        pdf_service.ensure_pdf(kind, row, path)
     return FileResponse(path, media_type="application/pdf")
 
 
@@ -244,7 +244,8 @@ def upload(filename: str, user: CurrentUser = Depends(login_required),
             owner_id = db.execute(select(model.user_id).where(
                 model.image_filename == filename).limit(1)).scalar_one_or_none()
             if owner_id is not None:
-                if user.is_admin or owner_id == user.id:
-                    return FileResponse(config.UPLOAD_DIR / filename)
+                image_path = config.UPLOAD_DIR / filename
+                if (user.is_admin or owner_id == user.id) and image_path.exists():
+                    return FileResponse(image_path)
                 break
     raise HTTPException(404, "That page was not found.")

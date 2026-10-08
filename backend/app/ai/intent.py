@@ -133,7 +133,8 @@ def place_request(q):
     message, so 'what time does the library open' does not get a map.
     """
     from app.services import place_service
-    if has(q, *LOCATION_ASK, "maps", "google map", "google maps") or len(q.split()) <= 4:
+    if (has(q, *LOCATION_ASK, "maps", "google map", "google maps") or len(q.split()) <= 4
+            or place_service.is_only_a_place_name(q)):
         return place_service.find_place(q)
     return None
 

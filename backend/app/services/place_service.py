@@ -42,7 +42,8 @@ PLACES = {
     "cas": ("CAS Building", 9.0391116, 126.2148098,
             ["cas building", "college of arts and sciences building", "cas"]),
     "admin": ("NEMSU Administration Building", 9.0384389, 126.2148704,
-              ["nemsu administration building", "administration building", "admin building"]),
+              ["nemsu administration building", "administration building", "admin building",
+               "administration office", "admin office"]),
     "research": ("Research Building", 9.039209, 126.214379,
                  ["research building"]),
     "law": ("Law Building", 9.039377, 126.214173, ["law building", "college of law"]),
@@ -54,8 +55,10 @@ PLACES = {
                ["university mini hostel", "university mini hotel", "mini hostel",
                 "mini hotel", "hostel"]),
     "president": ("Office of the University President", 9.0402325, 126.2156249,
-                  ["office of the university president", "university president office",
-                   "president office", "university president"]),
+                  ["office of the university president", "office of the president",
+                   "university president office", "university presidents office",
+                   "presidents office", "president office", "university president",
+                   "president"]),
     "hrm": ("HRM Main Building", 9.040409, 126.21608,
             ["hrm main building", "hrm building", "hrm"]),
     "igp": ("IGP Office", 9.0403246, 126.2158972, ["igp office", "igp"]),
@@ -73,7 +76,7 @@ PLACES = {
 # a general word that could mean several places -> we ask which one
 GROUPS = {
     "gate": (["gate1", "gate2", "gate3"], ["gate", "gates"]),
-    "canteen": (["canteen1", "canteen2"], ["canteen", "canteens"]),
+    "canteen": (["canteen1", "canteen2"], ["canteen", "canteens", "cafeteria"]),
     "shed": (["alumni_shed", "ssg_shed"], ["study shed", "shed"]),
     "basketball": (["basketball1", "basketball2"], ["basketball court", "basketball"]),
     "court": (["takraw", "basketball1", "basketball2", "volleyball"], ["court", "courts"]),
@@ -119,6 +122,12 @@ def find_place(q):
         if _first_pos(padded, words):
             return {"ask": keys, "label": label}
     return None
+
+
+def is_only_a_place_name(q):
+    """True when the whole message is just a place name, e.g. 'office of the university president'."""
+    q = q[4:] if q.startswith("the ") else q
+    return any(q == w for _, _, _, words in PLACES.values() for w in words)
 
 
 def ask_which_text(found):
