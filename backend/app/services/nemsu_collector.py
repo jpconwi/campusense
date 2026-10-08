@@ -255,6 +255,27 @@ def _urls_from_page_json(soup, base):
     return urls
 
 
+def _exact_article_from_page_json(soup):
+    """nemsu.edu.ph (Inertia): the real article is props.article.contentHtml. Returns
+    (content, author, published) or None."""
+    data = _page_json(soup)
+    props = data.get("props") if isinstance(data, dict) else None
+    art = props.get("article") if isinstance(props, dict) else None
+    if not (isinstance(art, dict) and isinstance(art.get("contentHtml"), str) and art["contentHtml"].strip()):
+        return None
+    text = clean_text(BeautifulSoup(html_lib.unescape(art["contentHtml"]), "html.parser").get_text("\n"))
+    office = art.get("office") if isinstance(art.get("office"), str) else None
+    published = None
+    raw = str(art.get("date") or "").strip()
+    for fmt in ("%b %d, %Y", "%B %d, %Y"):                      # the site writes 'Sep 1, 2025'
+        try:
+            published = datetime.strptime(raw, fmt)
+            break
+        except ValueError:
+            pass
+    return text, office, published or parse_date(raw)
+
+
 def _article_from_page_json(soup):
     """(content, author, published) taken from the page's JSON data, or None."""
     data = _page_json(soup)
@@ -378,6 +399,7 @@ def parse_news_article(html, url):
         return None
     published = _published_from_page(soup)
     from_json = _article_from_page_json(soup)
+    exact = _exact_article_from_page_json(soup)
     for tag in soup(_NOISE_TAGS):
         tag.decompose()
     box = soup.find("article") or soup.find("main") or soup.body or soup
@@ -409,6 +431,8 @@ def parse_news_article(html, url):
     content = clean_text("\n".join(lines))
     if from_json and len(from_json[0]) > len(content) + 40:     # the page is built by JavaScript
         content, author, published = from_json[0], author or from_json[1], published or from_json[2]
+    if exact:                                                   # the site's own article field always wins
+        content, author, published = exact[0], exact[1] or author, exact[2] or published
     return CollectedDoc(title=title, content=content, source_url=url,
                         published_at=published, source_type=NEWS, author=author)
 

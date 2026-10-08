@@ -40,7 +40,7 @@ def build_user_context(user):
     return {"role": user.role if user else "student"}
 
 
-def build_system_prompt(db, role):
+def build_system_prompt(db, role, extra=None):
     parts = [SYSTEM_PROMPT, NEMSU_PROMPT, LOCATION_PROMPT, AREA_PROMPT, ROOM_PROMPT]
 
     rooms = room_service.list_rooms(db)
@@ -60,6 +60,9 @@ def build_system_prompt(db, role):
         parts.append("CURRENT ANNOUNCEMENTS (posted by campus administrators; share them when "
                      "relevant and never invent details they do not give):\n" +
                      announcement_service.for_prompt(posted))
+
+    if extra:                                   # e.g. NEMSU news articles found for this question
+        parts.append(extra)
 
     parts += [ROLE_PROMPTS.get(role, STUDENT_PROMPT), CONCERN_PROMPT, REPORT_PROMPT,
               FEEDBACK_PROMPT, RESERVATION_PROMPT]

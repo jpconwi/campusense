@@ -16,7 +16,7 @@ from app.prompts.locationPrompt import (CAMPUS_EMBED_URL, CAMPUS_LOCATION_TEXT,
                                         CAMPUS_MAP_URL, other_campus_map)
 from app.prompts.systemPrompt import OFF_TOPIC_RESPONSE
 from app.services import (announcement_service, campus_service, common, faculty_service,
-                          place_service, room_service)
+                          knowledge_service, place_service, room_service)
 from app.services.campus_service import normalize
 
 CAMPUS_KEYWORDS = [
@@ -126,7 +126,12 @@ def ask_ai(db, question, user):
         return response.map_card(CAMPUS_LOCATION_TEXT, CAMPUS_MAP_URL, CAMPUS_EMBED_URL)
 
     if name == "announcements":                 # what the admin posted: news, events, champions
-        return response.message(announcement_service.chat_reply(db, found["category"]))
+        text = announcement_service.chat_reply(db, found["category"])
+        if found["category"] in (None, "News", "Update"):     # plus the newest NEMSU Newsroom articles
+            newest = knowledge_service.latest(db, 3)
+            if newest:
+                text += "\n\n" + knowledge_service.latest_text(newest)
+        return response.message(text)
 
     if name == "rooms_list":                    # real rooms from the admin's room list
         return response.message(room_service.rooms_answer(
@@ -192,6 +197,14 @@ def ask_ai(db, question, user):
             return response.message(room_service.room_reply(room))
         return response.message(
             f"I don't have a record for Room {code} in the campus room data.")
+
+    # ---- NEMSU news collected from the Newsroom (knowledge_documents)
+    docs = knowledge_service.search(db, question)
+    if docs:
+        context = build_user_context(user)
+        prompt = build_system_prompt(db, context["role"], extra=knowledge_service.for_prompt(docs))
+        answer = ask_model(prompt, question) or knowledge_service.fallback_answer(docs)
+        return response.message(answer + "\n\n" + knowledge_service.sources_text(docs))
 
     # ---- strict off-topic protection
     if not _is_campus_related(question):

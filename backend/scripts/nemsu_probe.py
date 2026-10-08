@@ -45,7 +45,7 @@ def probe(client, url):
     visible = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", text, flags=re.S | re.I)
     visible = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", visible)).strip()
     print("  visible text starts:", visible[:200] or "(empty)")
-    if url.rstrip("/") == NEWS + "/news":
+    if url.rstrip("/") == NEWS + "/news" or "/news/" in url:
         inspect_page_data(client, str(r.url), text)
 
 
@@ -103,10 +103,13 @@ def inspect_page_data(client, url, text):
         print("    (none)")
 
 
+import sys
+
 def main():
+    urls = sys.argv[1:] or URLS          # use addresses typed after the command, else the default list
     with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=30, follow_redirects=True,
                       transport=httpx.HTTPTransport(retries=2)) as client:
-        for url in URLS:
+        for url in urls:
             probe(client, url)
 
 
