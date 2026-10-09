@@ -202,7 +202,7 @@ def ask_ai(db, question, user):
     docs = knowledge_service.search(db, question)
     if docs:
         context = build_user_context(user)
-        prompt = build_system_prompt(db, context["role"], extra=knowledge_service.for_prompt(docs))
+        prompt = build_system_prompt(db, context["role"], news=knowledge_service.for_prompt(docs))
         answer = ask_model(prompt, question) or knowledge_service.fallback_answer(docs)
         return response.message(answer + "\n\n" + knowledge_service.sources_text(docs))
 
