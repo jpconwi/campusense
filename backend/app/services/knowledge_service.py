@@ -141,7 +141,12 @@ def sources_text(docs):
 def fallback_answer(docs):
     """Used when the language model is unavailable: show the best article directly."""
     d = docs[0]
-    text = d["passage"][:700].rstrip()
+    text = d["passage"]
+    if len(text) > 700:                          # cut at the end of a sentence, never mid-word
+        cut = text[:700]
+        end = max(cut.rfind(". "), cut.rfind(".\n"), cut.rfind("! "), cut.rfind("? "))
+        text = (cut[:end + 1] if end > 250 else cut.rsplit(" ", 1)[0]).rstrip() + (
+            "" if end > 250 else "...")
     return f"Here is what I found in the NEMSU news:\n\n{d['title']}\n{text}"
 
 

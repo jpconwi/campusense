@@ -66,10 +66,21 @@ class CollectedDoc:
 
 
 # ------------------------------------------------------------------ text helpers
+def fix_mojibake(text):
+    """Repair text that was UTF-8 but got read as Windows-1252 ('â€“' -> '-', 'â€™' -> apostrophe)."""
+    if not text or not re.search("[\u00c2\u00c3\u00e2][\u0080-\u00ff\u0152-\u2122]", text):
+        return text
+    try:
+        fixed = text.encode("cp1252").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return text
+    return fixed
+
+
 def clean_text(text):
     """Plain text: fancy Unicode letters become normal ones (NFKC turns the bold
     'North' that NEMSU's Facebook-style titles use into 'North'), blank space tidied."""
-    text = unicodedata.normalize("NFKC", text or "").replace("\xa0", " ")
+    text = unicodedata.normalize("NFKC", fix_mojibake(text or "")).replace("\xa0", " ")
     out, blank = [], False
     for line in text.splitlines():
         line = re.sub(r"[ \t]+", " ", line).strip()
