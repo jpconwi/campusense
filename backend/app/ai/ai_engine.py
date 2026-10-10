@@ -224,6 +224,8 @@ def ask_ai(db, question, user):
 
     # ---- NEMSU news collected from the Newsroom (knowledge_documents)
     docs = knowledge_service.search(db, question)
+    if docs and knowledge_service.wants_number(question):    # "how many ...?" needs a figure
+        docs = knowledge_service.with_figures(docs)
     if docs:
         context = build_user_context(user)
         prompt = build_system_prompt(db, context["role"], news=knowledge_service.for_prompt(docs))

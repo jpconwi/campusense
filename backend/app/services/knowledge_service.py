@@ -31,7 +31,7 @@ STOP = {
     "does", "did", "has", "have", "will", "can", "you", "your", "our", "this", "that", "there",
     "about", "tell", "please", "any", "with", "from", "into", "than", "then", "its", "his",
     "her", "they", "them", "now", "today", "tomorrow", "know", "want", "need", "get", "give",
-    "show", "list", "main", "history", "about", "background", "philippine", "philippines", "filipino", "time", "year", "years", "date",
+    "show", "list", "main", "many", "much", "number", "total", "count", "history", "about", "background", "philippine", "philippines", "filipino", "time", "year", "years", "date",
     "day", "week", "month", "now", "latest", "new", "next", "upcoming", "currently", "news", "update",
     "updates", "nemsu", "campus", "tandag", "school", "university", "is", "in", "of", "to",
     "a", "an", "on", "at", "be", "me", "my", "it", "do", "i", "or", "by", "as",
@@ -235,3 +235,15 @@ def article_reply(doc, limit=1500):
     text = cut_at_sentence(tidy(doc.get("content")).strip(), limit)
     date = f" ({_date(doc)})" if _date(doc) else ""
     return f"{tidy(doc['title'])}{date}\n\n{text}\n\nFull article:\n{doc['source_url']}"
+
+_QUANTITY = re.compile(r"\b(how many|how much|number of|total number|how large)\b", re.I)
+
+
+def wants_number(question):
+    """'How many faculty?' needs a figure; an article without any digit cannot answer it."""
+    return bool(_QUANTITY.search(question or ""))
+
+
+def with_figures(docs):
+    """Keep only the documents whose passage contains a number."""
+    return [d for d in docs if re.search(r"\d", d.get("passage", ""))]

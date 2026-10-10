@@ -646,13 +646,37 @@ _MAX_PAGE_CHARS = 20000
 
 _PLAIN_KEYS = {"name", "title", "heading", "description", "content", "text", "body",
                "label", "subtitle", "summary", "details", "value", "item", "items", "data"}
+_LABEL_KEYS = ("label", "title", "name", "heading")
+_NUMBER_KEYS = ("value", "count", "total", "number", "figure", "stat")
+_NOT_A_FACT = re.compile(r"(^|_)(id|order|sort|position|width|height|index|priority|status|"
+                         r"lat|lng|latitude|longitude|size|page|per_page|zoom)$|_id$", re.I)
+
+
+def _number(value):
+    """int/float (or a string like '11,732') -> display text, else None. Years stay plain."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        value = value.strip().replace(",", "")
+        if not re.fullmatch(r"-?\d+(\.\d+)?", value):
+            return None
+        value = float(value) if "." in value else int(value)
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and value.is_integer():
+            value = int(value)
+        return str(value) if isinstance(value, float) or 1900 <= value <= 2100 else f"{value:,}"
+    return None
 
 
 def _json_strings(obj, key=None):
-    """Readable text values inside nested JSON (skips links, ids, css classes, images).
-    A short value keeps its field name ("dean": "Dr. X" -> "Dean: Dr. X") so the AI
-    can tell who holds which position."""
+    """Readable text AND numbers inside nested JSON (skips links, ids, css classes, images).
+    A short value keeps its field name ("dean": "Dr. X" -> "Dean: Dr. X"), and a stat such
+    as {"label": "Faculty and Staff", "value": 562} becomes "Faculty and Staff: 562"."""
     if isinstance(obj, dict):
+        label = next((obj[k] for k in _LABEL_KEYS if isinstance(obj.get(k), str)), None)
+        stat = next((_number(obj[k]) for k in _NUMBER_KEYS if _number(obj.get(k)) is not None), None)
+        if label and stat is not None:
+            yield f"{clean_text(label)}: {stat}"
         for k, v in obj.items():
             if str(k).lower() in _JSON_SKIP_KEYS:
                 continue
@@ -660,6 +684,11 @@ def _json_strings(obj, key=None):
     elif isinstance(obj, list):
         for v in obj:
             yield from _json_strings(v, key)
+    elif isinstance(obj, (int, float)) and not isinstance(obj, bool):
+        num = _number(obj)
+        if num is not None and isinstance(key, str) and not _NOT_A_FACT.search(key) \
+                and key.lower() not in _PLAIN_KEYS:
+            yield f"{key.replace('_', ' ').replace('-', ' ').strip().title()}: {num}"
     elif isinstance(obj, str):
         text = obj.strip()
         if "<" in text and ">" in text:                     # a bit of HTML -> its text
