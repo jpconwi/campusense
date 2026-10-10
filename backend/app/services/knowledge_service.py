@@ -155,3 +155,30 @@ def latest_text(docs):
     lines = [f"- {d['title']}" + (f" ({_date(d)})" if _date(d) else "") + f"\n  {d['source_url']}"
              for d in docs]
     return "Latest from the NEMSU Newsroom:\n" + "\n".join(lines)
+
+
+# ---- "give me the text / details of that news"
+_DETAIL_WORDS = {"text", "content", "description", "details", "detail", "full", "summary",
+                 "summarize", "summarise", "read", "explain", "more"}
+_REF_WORDS = {"news", "article", "story", "post", "announcement", "that", "this", "it", "those"}
+
+
+def wants_article_text(question):
+    """True for follow-ups such as 'give me the text of that news' or 'give me the description'.
+    The chatbot has no memory, so these are answered with the newest NEMSU article."""
+    words = normalize(question).split()
+    has_detail = any(w in _DETAIL_WORDS for w in words)
+    has_ref = any(w in _REF_WORDS for w in words)
+    return has_detail and (has_ref or len(words) <= 4)
+
+
+def article_reply(doc, limit=1500):
+    """The article text (cut at the end of a sentence) with a link to the full article."""
+    text = (doc.get("content") or "").strip()
+    if len(text) > limit:
+        cut = text[:limit]
+        end = max(cut.rfind(". "), cut.rfind(".\n"), cut.rfind("! "), cut.rfind("? "))
+        text = (cut[:end + 1] if end > limit // 3 else cut.rsplit(" ", 1)[0]).rstrip() + (
+            "" if end > limit // 3 else "...")
+    date = f" ({_date(doc)})" if _date(doc) else ""
+    return f"{doc['title']}{date}\n\n{text}\n\nFull article:\n{doc['source_url']}"

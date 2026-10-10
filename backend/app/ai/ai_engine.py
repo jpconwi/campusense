@@ -115,6 +115,11 @@ def ask_ai(db, question, user):
     if name == "greeting":
         return _greeting(role)
 
+    if knowledge_service.wants_article_text(question):      # "give me the text of that news"
+        newest = knowledge_service.latest(db, 1)
+        if newest:
+            return response.message(knowledge_service.article_reply(newest[0]))
+
     if name == "my_info":                       # the user's OWN details only
         if found["what"] == "email":
             return response.message(f"Your account email is {user.email}.")
@@ -126,11 +131,16 @@ def ask_ai(db, question, user):
         return response.map_card(CAMPUS_LOCATION_TEXT, CAMPUS_MAP_URL, CAMPUS_EMBED_URL)
 
     if name == "announcements":                 # what the admin posted: news, events, champions
-        text = announcement_service.chat_reply(db, found["category"])
-        if found["category"] in (None, "News", "Update"):     # plus the newest NEMSU Newsroom articles
-            newest = knowledge_service.latest(db, 3)
+        rows = announcement_service.list_active(db)
+        if found["category"]:
+            rows = [r for r in rows if r["category"] == found["category"]]
+        newest = knowledge_service.latest(db, 3) if found["category"] in (None, "News", "Update") else []
+        if rows or not newest:                    # what the admin posted (or the usual "none" message)
+            text = announcement_service.chat_reply(db, found["category"])
             if newest:
                 text += "\n\n" + knowledge_service.latest_text(newest)
+        else:                                     # nothing posted by an admin: show the Newsroom only
+            text = knowledge_service.latest_text(newest)
         return response.message(text)
 
     if name == "rooms_list":                    # real rooms from the admin's room list
