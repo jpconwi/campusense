@@ -4,8 +4,8 @@ services/knowledge_service.py - lets the chatbot use the NEMSU articles saved in
 
 Simple keyword search (no embeddings, no new services):
   * a word that appears in the article TITLE counts 3, in the BODY counts 1
-  * a document needs at least 2 different matching words (or one title word and
-    a score of 4), so unrelated questions never pull in an article
+  * a document needs at least 2 different matching words and a score of 5, so
+    unrelated questions never pull in an article
   * the best passages of the best documents are given to the language model,
     which is told to answer ONLY from them
 """
@@ -20,7 +20,7 @@ from app.services.campus_service import normalize
 
 MAX_DOCS = 3                 # articles given to the AI per question
 MAX_CHARS_PER_DOC = 1200     # passage length per article
-MIN_SCORE = 4
+MIN_SCORE = 5
 SCAN_LIMIT = 600             # newest documents that are searched
 
 STOP = {
@@ -28,7 +28,8 @@ STOP = {
     "does", "did", "has", "have", "will", "can", "you", "your", "our", "this", "that", "there",
     "about", "tell", "please", "any", "with", "from", "into", "than", "then", "its", "his",
     "her", "they", "them", "now", "today", "tomorrow", "know", "want", "need", "get", "give",
-    "show", "list", "latest", "new", "next", "upcoming", "currently", "news", "update",
+    "show", "list", "philippine", "philippines", "filipino", "time", "year", "years", "date",
+    "day", "week", "month", "now", "latest", "new", "next", "upcoming", "currently", "news", "update",
     "updates", "nemsu", "campus", "tandag", "school", "university", "is", "in", "of", "to",
     "a", "an", "on", "at", "be", "me", "my", "it", "do", "i", "or", "by", "as",
     # common Filipino / Bisaya filler words
@@ -55,10 +56,10 @@ def score(words, title, content):
     """(score, matched) for one document."""
     t, c = _words(title), _words(content)
     matched = [w for w in words if w in t or w in c]
-    points = sum(3 if w in t else 1 for w in matched)
-    in_title = any(w in t for w in matched)
-    ok = len(matched) >= 2 or (in_title and points >= MIN_SCORE)
-    return (points if ok and points >= MIN_SCORE else 0), matched
+    # a word in the title is worth 3, and 1 more if the body also has it; body only = 1
+    points = sum((3 + (1 if w in c else 0)) if w in t else 1 for w in matched)
+    ok = len(matched) >= 2 and points >= MIN_SCORE
+    return (points if ok else 0), matched
 
 
 def best_passage(content, words, limit=MAX_CHARS_PER_DOC):

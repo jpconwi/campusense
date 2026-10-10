@@ -66,15 +66,39 @@ class CollectedDoc:
 
 
 # ------------------------------------------------------------------ text helpers
-def fix_mojibake(text):
-    """Repair text that was UTF-8 but got read as Windows-1252 ('â€“' -> '-', 'â€™' -> apostrophe)."""
-    if not text or not re.search("[\u00c2\u00c3\u00e2][\u0080-\u00ff\u0152-\u2122]", text):
-        return text
+_MOJIBAKE = re.compile("[\u00c2\u00c3\u00e2\u00f0][\u0080-\u00ff\u0152\u0153\u0160\u0161\u0178\u017d\u017e\u0192\u02c6\u02dc\u2013-\u203a\u20ac\u2122]")
+
+
+def _byte_of(ch):
+    """The byte that Windows-1252 (or Latin-1 for its 5 empty slots) shows as this character."""
     try:
-        fixed = text.encode("cp1252").decode("utf-8")
-    except (UnicodeEncodeError, UnicodeDecodeError):
+        return ch.encode("cp1252")
+    except UnicodeEncodeError:
+        return ch.encode("latin-1") if ord(ch) < 256 else None
+
+
+def fix_mojibake(text):
+    """Repair text that was UTF-8 but got read as Windows-1252, e.g. 'â€"' -> a dash and
+    the bold 'ð...' blocks -> the real bold letters. Text that is already fine is returned as is."""
+    if not text or not _MOJIBAKE.search(text):
         return text
-    return fixed
+    out, buf = [], bytearray()
+
+    def flush():
+        if buf:
+            out.append(bytes(buf).decode("utf-8", errors="replace"))
+            buf.clear()
+
+    for ch in text:
+        raw = _byte_of(ch) if ord(ch) > 127 else None
+        if raw is not None:
+            buf.extend(raw)
+        else:
+            flush()
+            out.append(ch)
+    flush()
+    fixed = "".join(out)
+    return text if "\ufffd" in fixed and "\ufffd" not in text else fixed
 
 
 def clean_text(text):
