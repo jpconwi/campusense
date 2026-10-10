@@ -38,6 +38,43 @@ STOP = {
 }
 
 
+# Older syncs saved typographic marks as 'â€' + letters (and NFKC turned the trade-mark sign
+# into the letters 'TM'). These are the usual ones; tidy() puts the real characters back.
+_LEFTOVERS = [("\u00e2\u20acTM", "\u2019"), ("\u00e2\u20ac\u201c", "\u2013"),
+              ("\u00e2\u20ac\u201d", "\u2014"), ("\u00e2\u20ac\u0153", "\u201c"),
+              ("\u00e2\u20ac\u009d", "\u201d"), ("\u00e2\u20ac\u00a6", "\u2026"),
+              ("\u00e2\u20ac\u02dc", "\u2018"), ("\u00e2\u20ac", "\u2019")]
+
+
+def tidy(text):
+    """Repair the leftovers above (safe on text that is already fine)."""
+    for bad, good in _LEFTOVERS:
+        text = (text or "").replace(bad, good)
+    return text or ""
+
+
+_ABBREVIATIONS = ("dr", "mr", "mrs", "ms", "sr", "jr", "hon", "atty", "engr", "prof", "no", "st",
+                  "vs", "gen", "col", "dir", "asst", "assoc", "rep", "sen", "gov", "cong", "capt", "lt", "inc", "ph")
+
+
+def cut_at_sentence(text, limit):
+    """Shorten text to about `limit` characters, ending on a full sentence (not after 'Dr.')."""
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    best = -1
+    for m in re.finditer(r"[.!?][\"')\]]?(?=\s)", cut):
+        word = re.search(r"(\w+)\W*$", cut[:m.start()])
+        if m.group(0).startswith(".") and word and word.group(1).lower() in _ABBREVIATIONS:
+            continue
+        if len(word.group(1) if word else "") == 1 and m.group(0).startswith("."):
+            continue                                     # an initial such as 'Romeo S.'
+        best = m.end()
+    if best > limit // 3:
+        return cut[:best].rstrip()
+    return cut.rsplit(" ", 1)[0].rstrip() + "..."
+
+
 def _stem(word):
     return word[:-1] if len(word) > 3 and word.endswith("s") else word
 
@@ -64,7 +101,7 @@ def score(words, title, content):
 
 def best_passage(content, words, limit=MAX_CHARS_PER_DOC):
     """The paragraphs of an article that mention most of the question's words."""
-    parts = [p.strip() for p in (content or "").split("\n") if p.strip()]
+    parts = [p.strip() for p in tidy(content).split("\n") if p.strip()]
     if not parts:
         return ""
     if sum(len(p) for p in parts) <= limit:
@@ -124,7 +161,7 @@ def for_prompt(docs):
     """Text block that goes into the AI's system prompt."""
     blocks = []
     for i, d in enumerate(docs, 1):
-        blocks.append(f"[{i}] {d['title']} ({_date(d) or 'no date'})\n{d['passage']}")
+        blocks.append(f"[{i}] {tidy(d['title'])} ({_date(d) or 'no date'})\n{d['passage']}")
     return (
         "OFFICIAL NEMSU NEWS (collected from the NEMSU Newsroom). Answer the question ONLY "
         "from these articles. If they do not contain the answer, say you could not find it "
@@ -134,7 +171,7 @@ def for_prompt(docs):
 
 def sources_text(docs):
     """Source lines added under the answer so students can open the full article."""
-    lines = [f"- {d['title']}" + (f" ({_date(d)})" if _date(d) else "") + f"\n  {d['source_url']}"
+    lines = [f"- {tidy(d['title'])}" + (f" ({_date(d)})" if _date(d) else "") + f"\n  {d['source_url']}"
              for d in docs]
     return "Source" + ("s" if len(docs) > 1 else "") + ":\n" + "\n".join(lines)
 
@@ -142,17 +179,12 @@ def sources_text(docs):
 def fallback_answer(docs):
     """Used when the language model is unavailable: show the best article directly."""
     d = docs[0]
-    text = d["passage"]
-    if len(text) > 700:                          # cut at the end of a sentence, never mid-word
-        cut = text[:700]
-        end = max(cut.rfind(". "), cut.rfind(".\n"), cut.rfind("! "), cut.rfind("? "))
-        text = (cut[:end + 1] if end > 250 else cut.rsplit(" ", 1)[0]).rstrip() + (
-            "" if end > 250 else "...")
-    return f"Here is what I found in the NEMSU news:\n\n{d['title']}\n{text}"
+    text = cut_at_sentence(d["passage"], 900)
+    return f"Here is what I found in the NEMSU news:\n\n{tidy(d['title'])}\n{text}"
 
 
 def latest_text(docs):
-    lines = [f"- {d['title']}" + (f" ({_date(d)})" if _date(d) else "") + f"\n  {d['source_url']}"
+    lines = [f"- {tidy(d['title'])}" + (f" ({_date(d)})" if _date(d) else "") + f"\n  {d['source_url']}"
              for d in docs]
     return "Latest from the NEMSU Newsroom:\n" + "\n".join(lines)
 
@@ -174,11 +206,6 @@ def wants_article_text(question):
 
 def article_reply(doc, limit=1500):
     """The article text (cut at the end of a sentence) with a link to the full article."""
-    text = (doc.get("content") or "").strip()
-    if len(text) > limit:
-        cut = text[:limit]
-        end = max(cut.rfind(". "), cut.rfind(".\n"), cut.rfind("! "), cut.rfind("? "))
-        text = (cut[:end + 1] if end > limit // 3 else cut.rsplit(" ", 1)[0]).rstrip() + (
-            "" if end > limit // 3 else "...")
+    text = cut_at_sentence(tidy(doc.get("content")).strip(), limit)
     date = f" ({_date(doc)})" if _date(doc) else ""
-    return f"{doc['title']}{date}\n\n{text}\n\nFull article:\n{doc['source_url']}"
+    return f"{tidy(doc['title'])}{date}\n\n{text}\n\nFull article:\n{doc['source_url']}"

@@ -13,9 +13,29 @@ const FORM_TYPES = {
 const timeNow = () => new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
 // ---------- Markdown (safe: React escapes every piece of text) ----------
+// Web addresses in an answer become real links (only http/https, so nothing unsafe can run).
+const URL_RE = /(https?:\/\/[^\s<>"]*[^\s<>".,;:!?)\]'])/g;
+
+function linkLabel(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname.endsWith("nemsu.edu.ph") && u.pathname.startsWith("/news/")) return "Read the full article \u2197";
+    return u.hostname + (u.pathname.length > 1 ? "/\u2026" : "");
+  } catch {
+    return url;
+  }
+}
+
+function Linked({ text }) {
+  return text.split(URL_RE).map((part, i) =>
+    /^https?:\/\//.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer">{linkLabel(part)}</a>
+      : <Fragment key={i}>{part}</Fragment>);
+}
+
 function Inline({ text }) {
   return text.split(/(\*\*.+?\*\*)/g).map((part, i) =>
-    /^\*\*.+\*\*$/.test(part) ? <strong key={i}>{part.slice(2, -2)}</strong> : <Fragment key={i}>{part}</Fragment>);
+    /^\*\*.+\*\*$/.test(part) ? <strong key={i}>{part.slice(2, -2)}</strong> : <Linked key={i} text={part} />);
 }
 
 function Markdown({ text }) {
