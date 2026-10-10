@@ -90,7 +90,7 @@ function MapCard({ map }) {
 }
 
 // ---------- one row in the conversation ----------
-function Row({ item }) {
+function Row({ item, onSuggest }) {
   const ai = item.role === "ai";
   return (
     <div className={"message " + item.role}>
@@ -102,6 +102,13 @@ function Row({ item }) {
         {item.kind === "text" && (
           <div className={"bubble" + (item.error ? " error" : "") + (ai && !item.error ? " rich" : "")}>
             {ai && !item.error ? <Markdown text={item.text} /> : item.text}
+          </div>
+        )}
+        {item.kind === "text" && item.suggestions && item.suggestions.length > 0 && (
+          <div className="chips-row" style={{ flexWrap: "wrap" }}>
+            {item.suggestions.map((q) => (
+              <button key={q} className="chip" type="button" onClick={() => onSuggest(q)}>{q}</button>
+            ))}
           </div>
         )}
         {item.kind === "form" && (
@@ -154,7 +161,7 @@ export default function Chat() {
     try {
       const data = await api("/api/ask", { method: "POST", json: { question } });
       remove(typing);
-      add({ role: "ai", kind: "text", text: data.answer, time: timeNow() });
+      add({ role: "ai", kind: "text", text: data.answer, suggestions: data.suggestions, time: timeNow() });
       if (data.type === "map" && data.map) {
         add({ role: "ai", kind: "map", map: data.map });
       }
@@ -206,7 +213,7 @@ export default function Chat() {
                 {user.role === "student" && <p className="side-note">You can ask "Is Sir JP available today?" to check whether an instructor is in school.</p>}
               </div>
             )}
-            {items.map((item) => <Row key={item.id} item={item} />)}
+            {items.map((item) => <Row key={item.id} item={item} onSuggest={(q) => send(q)} />)}
             <div ref={bottom} />
           </div>
         </div>

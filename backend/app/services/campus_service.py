@@ -7,6 +7,7 @@ keywords are separated by ";"  and "a+b" means both words must appear.
 """
 
 import csv
+import difflib
 import re
 
 from sqlalchemy import func, select
@@ -86,3 +87,70 @@ def lookup(db: Session, question):
         if score > best_score:
             best, best_score = row, score
     return best["answer"] if best else None
+
+# ---------------------------------------------------------------- typo tolerance
+# Words that say nothing about WHICH fact is wanted.
+_FILLER = {
+    "a", "an", "the", "of", "is", "are", "was", "were", "what", "whats", "who", "where",
+    "when", "why", "how", "do", "does", "did", "can", "tell", "me", "about", "give",
+    "show", "please", "pls", "to", "in", "on", "for", "and", "or", "i", "my", "you",
+    "your", "it", "this", "that", "info", "information", "there", "any", "some",
+}
+_GENERIC = {"nemsu", "campus", "university", "tandag", "school"}
+
+
+def _word_hit(word, vocab):
+    """2 = exact, 1 = close spelling (typo), 0 = no match."""
+    if word in vocab:
+        return 2
+    if len(word) < 3:
+        return 0
+    cutoff = 0.85 if len(word) <= 4 else 0.8
+    return 1 if difflib.get_close_matches(word, vocab, n=1, cutoff=cutoff) else 0
+
+
+def _row_vocab(row):
+    words = set(normalize(row.get("topic")).split())
+    for item in (row.get("keywords") or "").split(";"):
+        for part in item.split("+"):
+            words.update(normalize(part).split())
+    return words
+
+
+def _rank_rows(db, question):
+    """[(score, row)] best first, for rows sharing at least one real word
+    (exact or misspelt) with the question. Used for typo matching and suggestions."""
+    words = [w for w in normalize(question).split() if w not in _FILLER and len(w) >= 3]
+    key = [w for w in words if w not in _GENERIC]
+    ranked = []
+    if not key:
+        return ranked
+    for row in list_info(db):
+        vocab = list(_row_vocab(row))
+        hits = [_word_hit(w, vocab) for w in key]
+        matched = sum(1 for h in hits if h)
+        if not matched:
+            continue
+        coverage = matched / len(key)
+        ranked.append((coverage * 10 + sum(hits), coverage, row))
+    ranked.sort(key=lambda t: -t[0])
+    return ranked
+
+
+def lookup_fuzzy(db, question):
+    """Answer for a misspelt question (\"nemsu hym\" -> hymn, \"nemsu policy\" ->
+    quality policy). Only answers when ONE topic is clearly the best match."""
+    ranked = _rank_rows(db, question)
+    if not ranked:
+        return None
+    score, coverage, row = ranked[0]
+    if coverage < 0.6:
+        return None
+    if len(ranked) > 1 and ranked[1][0] >= score - 0.5:     # two topics tie -> ask instead
+        return None
+    return row["answer"]
+
+
+def suggest_topics(db, question, limit=3):
+    """Topic names the user probably meant; shown as 'Did you mean ...?' buttons."""
+    return [row["topic"] for _, cov, row in _rank_rows(db, question) if cov >= 0.5][:limit]

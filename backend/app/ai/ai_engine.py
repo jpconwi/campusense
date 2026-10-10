@@ -8,6 +8,8 @@ Order of work for every question:
   4. only then the Hugging Face model
 """
 
+import difflib
+
 from app.ai import intent as intents
 from app.ai import response
 from app.ai.context import build_system_prompt, build_user_context
@@ -35,8 +37,16 @@ CAMPUS_KEYWORDS = [
 ]
 
 
+_CAMPUS_WORDS = sorted({w for k in CAMPUS_KEYWORDS for w in normalize(k).split() if len(w) >= 5})
+
+
 def _is_campus_related(question):
-    return intents.has(normalize(question), *CAMPUS_KEYWORDS)
+    q = normalize(question)
+    if intents.has(q, *CAMPUS_KEYWORDS):
+        return True
+    # misspelt campus word, e.g. "libary", "canten", "reservaton"
+    return any(len(w) >= 5 and difflib.get_close_matches(w, _CAMPUS_WORDS, n=1, cutoff=0.84)
+               for w in q.split())
 
 
 def _greeting(role):
@@ -196,6 +206,10 @@ def ask_ai(db, question, user):
     if info:
         return response.message(info)
 
+    info = campus_service.lookup_fuzzy(db, question)        # wrong spelling / short wording
+    if info:
+        return response.message(info)
+
     posted = announcement_service.match(db, intents.normalize(question))
     if posted:                                  # e.g. "when does the local mast start?"
         return response.message(posted)
@@ -218,9 +232,15 @@ def ask_ai(db, question, user):
 
     # ---- strict off-topic protection
     if not _is_campus_related(question):
+        suggestions = campus_service.suggest_topics(db, question)
+        if suggestions:                           # misspelt campus topic, not off-topic
+            return response.clarify(suggestions)
         return response.message(OFF_TOPIC_RESPONSE)
 
     # ---- the language model (role only, no private details)
     context = build_user_context(user)
     answer = ask_model(build_system_prompt(db, context["role"]), question)
-    return response.message(answer or response.NO_INFO)
+    if not answer or response.NO_INFO.lower() in answer.lower():
+        # nothing found (or the model gave up): ask the user to clarify
+        return response.clarify(campus_service.suggest_topics(db, question))
+    return response.message(answer)
