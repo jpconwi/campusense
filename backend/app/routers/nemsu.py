@@ -4,6 +4,7 @@ routers/nemsu.py - the NEMSU knowledge base: sync the public announcements and l
   POST /api/nemsu/sync              admin (signed in + CSRF) - run a sync now
         ?pages=3                    how many newsroom list pages to read (1-30)
         &dry_run=true               collect but do NOT save (to test the collector)
+        &sources=page               only the official website pages (news, memo, page)
   POST /api/nemsu/sync/scheduled    for a scheduler. Needs the header  X-Sync-Token: <NEMSU_SYNC_TOKEN>
                                     from .env. Without NEMSU_SYNC_TOKEN set it is switched off (404).
   GET  /api/nemsu/documents         admin - the newest saved documents (to check the result)
@@ -26,8 +27,10 @@ router = APIRouter(prefix="/api/nemsu", tags=["nemsu"])
 
 @router.post("/sync", dependencies=[Depends(admin_required), Depends(csrf_protect)])
 def sync_now(pages: int = Query(None, ge=1, le=30), dry_run: bool = False,
+             sources: str = Query(None, description="e.g. page  or  news,memo,page"),
              db: Session = Depends(get_db)):
-    return nemsu_collector.sync(db, pages=pages, dry_run=dry_run)
+    wanted = [x for x in (sources or "").split(",") if x.strip()] or None
+    return nemsu_collector.sync(db, pages=pages, dry_run=dry_run, sources=wanted)
 
 
 @router.post("/sync/scheduled")

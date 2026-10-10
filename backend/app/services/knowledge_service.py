@@ -21,6 +21,9 @@ from app.services.campus_service import normalize
 MAX_DOCS = 3                 # articles given to the AI per question
 MAX_CHARS_PER_DOC = 1200     # passage length per article
 MIN_SCORE = 5
+PAGE_MIN_SCORE = 4          # official website pages: one strong title word is enough
+PAGE_CHARS_PER_DOC = 2500   # official pages are longer, so give the AI more of them
+OFFICIAL = "nemsu_page"
 SCAN_LIMIT = 600             # newest documents that are searched
 
 STOP = {
@@ -89,13 +92,16 @@ def _words(text):
     return {_stem(w) for w in normalize(text).split()}
 
 
-def score(words, title, content):
+def score(words, title, content, official=False):
     """(score, matched) for one document."""
     t, c = _words(title), _words(content)
     matched = [w for w in words if w in t or w in c]
     # a word in the title is worth 3, and 1 more if the body also has it; body only = 1
     points = sum((3 + (1 if w in c else 0)) if w in t else 1 for w in matched)
     ok = len(matched) >= 2 and points >= MIN_SCORE
+    if official and ((matched and points >= PAGE_MIN_SCORE)      # "who is the president"
+                     or len(matched) >= 2):                      # "who is the dean of cite"
+        ok = True
     return (points if ok else 0), matched
 
 
@@ -128,21 +134,40 @@ def rank(rows, question, limit=MAX_DOCS):
         return []
     hits = []
     for r in rows:
-        points, matched = score(words, r["title"], r["content"])
+        official = r.get("source_type") == OFFICIAL
+        points, matched = score(words, r["title"], r["content"], official)
         if points:
             hits.append((points, r["published_at"] or 0, r, matched))
     hits.sort(key=lambda h: (-h[0], -(h[1].timestamp() if h[1] else 0)))
-    return [dict(h[2], score=h[0], passage=best_passage(h[2]["content"], h[3]))
+    return [dict(h[2], score=h[0],
+                 passage=best_passage(h[2]["content"], h[3],
+                                      PAGE_CHARS_PER_DOC if h[2].get("source_type") == OFFICIAL
+                                      else MAX_CHARS_PER_DOC))
             for h in hits[:limit]]
 
 
-def _rows(db: Session, limit=SCAN_LIMIT):
-    q = select(KnowledgeDocument.title, KnowledgeDocument.content, KnowledgeDocument.source_url,
-               KnowledgeDocument.published_at, KnowledgeDocument.source_type) \
+def _select():
+    return select(KnowledgeDocument.title, KnowledgeDocument.content, KnowledgeDocument.source_url,
+                  KnowledgeDocument.published_at, KnowledgeDocument.source_type)
+
+
+def _as_dicts(result):
+    return [dict(title=t, content=c, source_url=u, published_at=p, source_type=s)
+            for t, c, u, p, s in result]
+
+
+def _rows(db: Session, limit=SCAN_LIMIT, official=True):
+    """Newest news/memos, plus (when official=True) ALL official website pages, which
+    have no date and would otherwise fall off the end of a long newest-first list."""
+    q = _select().where(KnowledgeDocument.source_type != OFFICIAL) \
         .order_by(KnowledgeDocument.published_at.desc().nullslast(),
                   KnowledgeDocument.id.desc()).limit(limit)
-    return [dict(title=t, content=c, source_url=u, published_at=p, source_type=s)
-            for t, c, u, p, s in db.execute(q)]
+    rows = _as_dicts(db.execute(q))
+    if official:
+        pages = _select().where(KnowledgeDocument.source_type == OFFICIAL) \
+            .order_by(KnowledgeDocument.id)
+        rows += _as_dicts(db.execute(pages))
+    return rows
 
 
 def search(db: Session, question, limit=MAX_DOCS):
@@ -150,7 +175,7 @@ def search(db: Session, question, limit=MAX_DOCS):
 
 
 def latest(db: Session, limit=3):
-    return _rows(db, limit)
+    return _rows(db, limit, official=False)               # "latest news" never lists pages
 
 
 def _date(d):
@@ -163,9 +188,10 @@ def for_prompt(docs):
     for i, d in enumerate(docs, 1):
         blocks.append(f"[{i}] {tidy(d['title'])} ({_date(d) or 'no date'})\n{d['passage']}")
     return (
-        "OFFICIAL NEMSU NEWS (collected from the NEMSU Newsroom). Answer the question ONLY "
-        "from these articles. If they do not contain the answer, say you could not find it "
-        "in the latest NEMSU news. Never invent names, dates or numbers.\n\n"
+        "OFFICIAL NEMSU INFORMATION (NEMSU Newsroom articles and pages of the official NEMSU "
+        "website). Answer the question ONLY from these sources. If they do not contain the "
+        "answer, say you could not find it in the official NEMSU information. Never invent "
+        "names, dates, positions or numbers.\n\n"
         + "\n\n".join(blocks))
 
 
@@ -180,7 +206,7 @@ def fallback_answer(docs):
     """Used when the language model is unavailable: show the best article directly."""
     d = docs[0]
     text = cut_at_sentence(d["passage"], 900)
-    return f"Here is what I found in the NEMSU news:\n\n{tidy(d['title'])}\n{text}"
+    return f"Here is what I found in the official NEMSU information:\n\n{tidy(d['title'])}\n{text}"
 
 
 def latest_text(docs):

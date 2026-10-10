@@ -75,18 +75,23 @@ def _has_phrase(q, phrase):
 
 
 def lookup(db: Session, question):
-    """Return the best matching campus answer, or None."""
-    q = normalize(question)
+    """Return the best matching campus answer, or None.
+
+    Misspelt words are corrected first, and words that only say "nemsu"/"what is"
+    count for little, so "what is nemsu hymn" finds the hymn, not "About NEMSU"."""
+    rows = list_info(db)
+    q = normalize(_correct_spelling(rows, question))
     best, best_score = None, 0
-    for row in list_info(db):
+    for row in rows:
         score = 0
         for item in (row.get("keywords") or "").split(";"):
             parts = [normalize(p) for p in item.split("+") if normalize(p)]
             if parts and all(_has_phrase(q, p) for p in parts):
-                score = max(score, sum(2 * len(p.split()) for p in parts))
+                score = max(score, sum(_phrase_weight(p) for p in parts))
         if score > best_score:
             best, best_score = row, score
     return best["answer"] if best else None
+
 
 # ---------------------------------------------------------------- typo tolerance
 # Words that say nothing about WHICH fact is wanted.
@@ -97,6 +102,28 @@ _FILLER = {
     "your", "it", "this", "that", "info", "information", "there", "any", "some",
 }
 _GENERIC = {"nemsu", "campus", "university", "tandag", "school"}
+
+
+def _phrase_weight(phrase):
+    """Real topic words count 2 each; filler/generic-only phrases ("what is nemsu") count 1."""
+    real = [w for w in phrase.split() if w not in _FILLER and w not in _GENERIC]
+    return 2 * len(real) if real else 1
+
+
+def _correct_spelling(rows, question):
+    """Replace words not known anywhere in the campus data by their closest known
+    word (hym -> hymn, valus -> values). Unknown words with no close match stay."""
+    known = set(_FILLER) | _GENERIC
+    for row in rows:
+        known |= _row_vocab(row)
+    out = []
+    for w in normalize(question).split():
+        if w not in known and len(w) >= 3:
+            cutoff = 0.85 if len(w) <= 4 else 0.8
+            m = difflib.get_close_matches(w, list(known), n=1, cutoff=cutoff)
+            w = m[0] if m else w
+        out.append(w)
+    return " ".join(out)
 
 
 def _word_hit(word, vocab):

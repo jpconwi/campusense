@@ -131,4 +131,4 @@ NEMSU_COLLECT_TIMEOUT = float(os.getenv("NEMSU_COLLECT_TIMEOUT", "20"))
 # the header  X-Sync-Token: <this value>.  Empty = that route is switched off (404).
 NEMSU_SYNC_TOKEN = os.getenv("NEMSU_SYNC_TOKEN", "").strip()
 # which sources a sync reads: "news", "memo" or "news,memo". Remove one if its website is down.
-NEMSU_SOURCES = [x.strip().lower() for x in os.getenv("NEMSU_SOURCES", "news,memo").split(",") if x.strip()]
+NEMSU_SOURCES = [x.strip().lower() for x in os.getenv("NEMSU_SOURCES", "news,memo,page").split(",") if x.strip()]

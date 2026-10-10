@@ -36,6 +36,7 @@ from app.models import KnowledgeDocument
 
 NEWS = "nemsu_news"
 MEMO = "nemsu_memo"
+PAGE = "nemsu_page"
 USER_AGENT = "Mozilla/5.0 (compatible; NEMSAI-Collector/1.0; NEMSU student project; public pages only)"
 
 _MONTHS = ("January|February|March|April|May|June|July|August|September|October|"
@@ -632,6 +633,149 @@ def collect_memos(fetcher, existing, pages, budget):
     return fresh[:budget], stats
 
 
+# ------------------------------------------------------------------ source 3: official website pages
+_JSON_SKIP_KEYS = {
+    "url", "href", "src", "image", "images", "img", "logo", "icon", "slug", "id", "class",
+    "classes", "component", "version", "csrf", "csrf_token", "ziggy", "auth", "errors",
+    "flash", "route", "path", "link", "links", "created_at", "updated_at", "deleted_at",
+    "type", "target", "color", "style", "key", "token", "locale", "canonical",
+}
+_SITE_SUFFIX = re.compile(r"\s*[|\u2013\u2014-]\s*NEMSU\s*$", re.I)
+_MAX_PAGE_CHARS = 20000
+
+
+_PLAIN_KEYS = {"name", "title", "heading", "description", "content", "text", "body",
+               "label", "subtitle", "summary", "details", "value", "item", "items", "data"}
+
+
+def _json_strings(obj, key=None):
+    """Readable text values inside nested JSON (skips links, ids, css classes, images).
+    A short value keeps its field name ("dean": "Dr. X" -> "Dean: Dr. X") so the AI
+    can tell who holds which position."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if str(k).lower() in _JSON_SKIP_KEYS:
+                continue
+            yield from _json_strings(v, k)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from _json_strings(v, key)
+    elif isinstance(obj, str):
+        text = obj.strip()
+        if "<" in text and ">" in text:                     # a bit of HTML -> its text
+            text = BeautifulSoup(html_lib.unescape(text), "html.parser").get_text("\n")
+        label = ""
+        if isinstance(key, str) and key.lower() not in _PLAIN_KEYS and not key.isdigit():
+            label = key.replace("_", " ").replace("-", " ").strip().title()
+        for line in clean_text(text).split("\n"):
+            if _readable(line):
+                yield f"{label}: {line}" if label and len(line) <= 150 else line
+
+
+def _readable(line):
+    """True for text a person would read; False for links, paths, ids and css classes."""
+    if len(line) < 3 or not re.search(r"[A-Za-z]", line):
+        return False
+    if re.match(r"^(https?:|/|storage/|data:|#)", line, re.I):
+        return False
+    if " " not in line and "@" not in line and re.match(r"^[a-z0-9_.:/\-]+$", line):
+        return False                                         # slug / css class / token
+    return True
+
+
+def _page_title(soup, url):
+    node = soup.find("title")
+    title = clean_text(node.get_text()) if node else ""
+    title = _SITE_SUFFIX.sub("", title).strip()
+    if not title:
+        h1 = soup.find("h1")
+        title = clean_text(h1.get_text()) if h1 else ""
+    if not title:
+        title = url.rstrip("/").rsplit("/", 1)[-1].replace("-", " ").title()
+    return title
+
+
+def parse_official_page(html, url):
+    """One official website page -> CollectedDoc. Reads the visible text AND the data a
+    JavaScript (Inertia) page ships inside the HTML, then removes duplicate lines."""
+    soup = BeautifulSoup(html, "html.parser")
+    title = _page_title(soup, url)
+    meta = soup.find("meta", attrs={"name": "description"})
+    description = clean_text(meta.get("content", "")) if meta else ""
+    data = _page_json(soup)
+    json_lines = list(_json_strings(data.get("props") if isinstance(data, dict) else data)) \
+        if data else []
+    for tag in soup(_NOISE_TAGS):
+        tag.decompose()
+    box = soup.find("main") or soup.find("article") or soup.body or soup
+    html_lines = [ln for ln in clean_text(box.get_text("\n")).split("\n")]
+    lines, seen = [], set()
+    for line in [description, *html_lines, *json_lines]:
+        key = line.lower().strip()
+        if not key:
+            if lines and lines[-1]:
+                lines.append("")
+            continue
+        if key in seen or key == title.lower():
+            continue
+        seen.add(key)
+        lines.append(line.strip())
+    content = clean_text("\n".join(lines))[:_MAX_PAGE_CHARS]
+    return CollectedDoc(title=title, content=content, source_url=url, published_at=None,
+                        source_type=PAGE)
+
+
+def drop_shared_lines(docs, share=0.5, minimum_docs=4):
+    """Menus, footers and site-wide settings repeat on every page. A line found on at
+    least half of the pages says nothing about ONE page, so it is removed."""
+    if len(docs) < minimum_docs:
+        return docs
+    count = {}
+    for d in docs:
+        for line in {ln.strip().lower() for ln in d.content.split("\n") if ln.strip()}:
+            count[line] = count.get(line, 0) + 1
+    limit = max(2, share * len(docs))
+    for d in docs:
+        kept = [ln for ln in d.content.split("\n")
+                if not ln.strip() or count.get(ln.strip().lower(), 0) < limit]
+        d.content = clean_text("\n".join(kept))
+    return docs
+
+
+def official_page_urls():
+    from app.services.official_pages import OFFICIAL_PAGES
+    urls, seen = [], set()
+    for raw in OFFICIAL_PAGES:
+        url = urlunsplit(urlsplit(raw.strip())._replace(fragment="")).rstrip("/")
+        if url and url not in seen:
+            seen.add(url)
+            urls.append(url)
+    return urls
+
+
+def collect_pages(fetcher, existing, pages, budget):
+    """Reads the fixed list of official pages (not limited by the news budget)."""
+    stats = {"found": 0, "skipped_existing": 0, "errors": []}
+    urls = official_page_urls()
+    stats["found"] = len(urls)
+    docs = []
+    for url in urls:
+        if url in existing:
+            stats["skipped_existing"] += 1
+            continue
+        try:
+            doc = parse_official_page(fetcher.get(url).text, url)
+        except (httpx.HTTPError, CollectorError) as exc:
+            stats["errors"].append(f"{url}: {exc}")
+            continue
+        if len(doc.content) < 80:
+            stats["errors"].append(f"{url}: no readable text found (page built by JavaScript "
+                                   f"with no embedded data?)")
+            continue
+        docs.append(doc)
+    return drop_shared_lines(docs), stats
+
+
 # ------------------------------------------------------------------ saving + the sync
 def _hash(doc):
     return hashlib.sha256(f"{doc.title}\n{doc.content}".encode("utf-8")).hexdigest()
@@ -656,7 +800,8 @@ def save_documents(db: Session, docs):
     return saved
 
 
-SOURCES = (("nemsu_news", collect_news), ("nemsu_memo", collect_memos))
+SOURCES = (("nemsu_news", collect_news), ("nemsu_memo", collect_memos),
+           ("nemsu_page", collect_pages))
 
 
 def sync(db, *, pages=None, dry_run=False, client=None, delay=None, sources=None):
@@ -668,7 +813,7 @@ def sync(db, *, pages=None, dry_run=False, client=None, delay=None, sources=None
     wanted = {x.strip().lower() for x in (sources or config.NEMSU_SOURCES)}
     active = [(n, c) for n, c in SOURCES if n.replace("nemsu_", "") in wanted]
     if not active:
-        raise CollectorError("No source selected. Use news, memo or news,memo.")
+        raise CollectorError("No source selected. Use news, memo, page or a mix like news,memo,page.")
     existing = set(db.execute(select(KnowledgeDocument.source_url)).scalars()) if db is not None else set()
     fetcher = Fetcher(client=client, delay=delay)
     summary = {"success": True, "new_documents": 0, "skipped_existing": 0,
@@ -685,7 +830,8 @@ def sync(db, *, pages=None, dry_run=False, client=None, delay=None, sources=None
                 summary["sources"][name] = {"new": 0, "error": repr(exc)}
                 continue
             saved = len(docs) if dry_run else save_documents(db, docs)
-            budget -= len(docs)
+            if name != PAGE:                              # official pages have their own list
+                budget -= len(docs)
             summary["new_documents"] += saved
             summary["skipped_existing"] += stats["skipped_existing"]
             summary["errors"] += stats["errors"]

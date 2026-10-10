@@ -43,3 +43,11 @@ Do not loop inside the web service (the free plan sleeps and 2 workers would bot
 * Phase 3 (RAG): chunk `content`, embed, vector search (pgvector), inject into the Hugging Face prompt, cite `source_url`.
 * Facebook / PDFs: add a function that returns `CollectedDoc(... source_type="facebook")` and append it to `SOURCES`
   in `nemsu_collector.py`. The table needs no change.
+
+## Official website pages (source `page`)
+
+The chatbot also reads fixed pages of nemsu.edu.ph (leadership, colleges, research, campuses).
+The list is `app/services/official_pages.py` - add a link there to teach the AI a new page.
+Run a sync (`POST /api/nemsu/sync?sources=page`, add `&dry_run=true` to test without saving).
+Pages are saved once; to re-read a changed page, delete its row in `knowledge_documents`.
+`NEMSU_SOURCES` now defaults to `news,memo,page`.

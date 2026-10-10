@@ -230,6 +230,11 @@ def ask_ai(db, question, user):
         answer = ask_model(prompt, question) or knowledge_service.fallback_answer(docs)
         return response.message(answer + "\n\n" + knowledge_service.sources_text(docs))
 
+    # ---- vague follow-ups ("is that so?", "really?") -> ask what they mean
+    if intents.has(normalize(question), "is that so", "is that true", "really", "thats it",
+                   "that is it", "is that all", "what do you mean", "huh"):
+        return response.clarify()
+
     # ---- strict off-topic protection
     if not _is_campus_related(question):
         suggestions = campus_service.suggest_topics(db, question)
