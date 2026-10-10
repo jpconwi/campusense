@@ -156,8 +156,8 @@ class CampusInfo(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     topic: Mapped[str] = mapped_column(String(80), nullable=False)
-    keywords: Mapped[str] = mapped_column(String(200), nullable=False)
-    answer: Mapped[str] = mapped_column(String(600), nullable=False)
+    keywords: Mapped[str] = mapped_column(String(500), nullable=False)
+    answer: Mapped[str] = mapped_column(String(2000), nullable=False)
 
 
 class Announcement(Base):

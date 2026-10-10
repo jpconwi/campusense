@@ -31,6 +31,19 @@ def init_db():
     """Create the tables if they do not exist yet, then seed campus information."""
     from app import models  # noqa: F401  (registers the tables)
     Base.metadata.create_all(engine)
+    _widen_campus_info_columns()
     from app.services import campus_service
     with SessionLocal() as db:
         campus_service.seed_if_empty(db)
+
+
+def _widen_campus_info_columns():
+    """create_all() never alters an existing table, so widen the old
+    varchar(200)/varchar(600) columns on databases created before the change.
+    Safe to run on every start (widening to the same size is a no-op)."""
+    if engine.dialect.name != "postgresql":
+        return
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE campus_info ALTER COLUMN keywords TYPE VARCHAR(500)"))
+        conn.execute(text("ALTER TABLE campus_info ALTER COLUMN answer TYPE VARCHAR(2000)"))

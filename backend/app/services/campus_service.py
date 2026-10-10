@@ -52,8 +52,8 @@ def list_info(db: Session):
 
 def add_info(db: Session, form):
     topic = clean_text(form.get("topic"), "Topic", 80)
-    keywords = clean_text(form.get("keywords"), "Keywords", 200)
-    answer = clean_text(form.get("answer"), "Answer", 600)
+    keywords = clean_text(form.get("keywords"), "Keywords", 500)
+    answer = clean_text(form.get("answer"), "Answer", 2000)
     exists = db.execute(select(CampusInfo.id).where(
         func.lower(CampusInfo.topic) == topic.lower())).first()
     if exists:
