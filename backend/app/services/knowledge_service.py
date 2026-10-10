@@ -28,7 +28,7 @@ STOP = {
     "does", "did", "has", "have", "will", "can", "you", "your", "our", "this", "that", "there",
     "about", "tell", "please", "any", "with", "from", "into", "than", "then", "its", "his",
     "her", "they", "them", "now", "today", "tomorrow", "know", "want", "need", "get", "give",
-    "show", "list", "philippine", "philippines", "filipino", "time", "year", "years", "date",
+    "show", "list", "main", "history", "about", "background", "philippine", "philippines", "filipino", "time", "year", "years", "date",
     "day", "week", "month", "now", "latest", "new", "next", "upcoming", "currently", "news", "update",
     "updates", "nemsu", "campus", "tandag", "school", "university", "is", "in", "of", "to",
     "a", "an", "on", "at", "be", "me", "my", "it", "do", "i", "or", "by", "as",
