@@ -21,10 +21,32 @@ BACKEND = ROOT / "backend"
 sys.path.insert(0, str(BACKEND))
 
 # --- secrets -> environment variables, BEFORE backend/app/config.py is imported
+# Backend settings are also found inside a table (e.g. when DATABASE_URL was pasted
+# below the [auth] header by mistake).
+_BACKEND_KEYS = {"DATABASE_URL", "MODEL", "API_KEY", "ADMIN_EMAILS", "ALLOWED_EMAIL_DOMAIN",
+                 "COOKIE_SECURE", "ADMIN_PASSWORD", "NEMSU_NEWS_BASE", "NEMSU_SOURCES"}
+
+
+def _secrets_to_env(items, top=True):
+    for key, val in items:
+        name = str(key).upper()
+        if hasattr(val, "items"):
+            _secrets_to_env(val.items(), top=False)
+        elif (top or name in _BACKEND_KEYS) and isinstance(val, (str, int, float, bool)):
+            os.environ.setdefault(name, str(val).strip())
+
+
+def _secret_names():
+    """Names only (never values) - shown when the database can't be reached."""
+    try:
+        return {str(k): (sorted(map(str, v.keys())) if hasattr(v, "keys") else "(value)")
+                for k, v in st.secrets.items()}
+    except Exception:
+        return "no secrets found"
+
+
 try:
-    for _key, _val in st.secrets.items():
-        if isinstance(_val, (str, int, float, bool)):
-            os.environ.setdefault(str(_key).upper(), str(_val))
+    _secrets_to_env(st.secrets.items())
 except Exception:
     pass
 os.environ.setdefault("ADMIN_LOGIN_SECRET", "streamlit-not-used")   # React-only admin URL
@@ -465,6 +487,8 @@ def main():
         st.error("Could not connect to the database.")
         st.code(f"host={url.host}  port={url.port}  database={url.database}  user={url.username}")
         st.code(str(getattr(error, "orig", error))[:600])
+        st.write("Secret names the app can see (values hidden):")
+        st.json(_secret_names())
         st.caption("host=localhost means DATABASE_URL was not read from Secrets. "
                    "A host without '.render.com' is Render's internal URL - use the External one.")
         st.stop()
