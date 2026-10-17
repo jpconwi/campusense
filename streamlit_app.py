@@ -456,7 +456,18 @@ def page_campus_info(user):
 
 # ------------------------------------------------------------------- main
 def main():
-    _startup()
+    from sqlalchemy.engine import make_url
+    from sqlalchemy.exc import OperationalError
+    try:
+        _startup()
+    except OperationalError as error:
+        url = make_url(config.DATABASE_URL)
+        st.error("Could not connect to the database.")
+        st.code(f"host={url.host}  port={url.port}  database={url.database}  user={url.username}")
+        st.code(str(getattr(error, "orig", error))[:600])
+        st.caption("host=localhost means DATABASE_URL was not read from Secrets. "
+                   "A host without '.render.com' is Render's internal URL - use the External one.")
+        st.stop()
     user = get_current_user()
     if user.role is None:
         role_screen(user)
