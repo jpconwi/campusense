@@ -93,6 +93,52 @@ TYPE_MAP = [
 ]
 
 
+CONCERN_WORDS = ["concern", "concerns", "problem", "problems", "issue", "issues",
+                 "complaint", "complaints"]
+# "i have a concern in the cite cr", "problem with the aircon"
+CONCERN_OWNERSHIP = ["i have", "ive got", "i got", "there is", "theres", "there are",
+                     "may concern", "gusto ko", "want to", "wanna", "need to",
+                     "would like to", "like to"]
+
+LOST_WORDS = ["lost", "loss", "lose", "losing", "missing", "misplaced", "nawala",
+              "nawalan", "nawad an", "nawagtang", "naiwan", "left behind", "stolen",
+              "nakawan", "gikawat", "ninakaw"]
+FOUND_WORDS = ["found", "nakita", "nakit an", "nakakita"]
+ITEM_WORDS = [
+    "phone", "cellphone", "cell phone", "mobile", "smartphone", "wallet", "bag",
+    "backpack", "id", "ids", "umbrella", "key", "keys", "laptop", "tablet", "ipad",
+    "charger", "earphones", "earphone", "earbuds", "airpods", "headphones",
+    "calculator", "notebook", "book", "books", "flash drive", "flashdrive", "usb",
+    "watch", "glasses", "eyeglasses", "jacket", "tumbler", "bottle", "money",
+    "cp", "selpon", "pitaka", "payong", "susi", "gamit", "things", "belongings",
+]
+
+
+def lost_found_request(q):
+    """'i loss my phone', 'lost my wallet', 'i found an id' -> 'lost' / 'found' / None.
+
+    A lost word alone ('i am lost', 'lost connection') is NOT enough: an item word
+    must be there too, so directions questions keep working.
+    """
+    if not has(q, *ITEM_WORDS):
+        return None
+    if has(q, *LOST_WORDS):
+        return "lost"
+    if has(q, *FOUND_WORDS):
+        return "found"
+    return None
+
+
+def concern_request(q):
+    """'i have concern in the cite cr', 'problem with the aircon', 'may concern ako'."""
+    if not has(q, *CONCERN_WORDS):
+        return False
+    if has(q, "how do i", "how to", "how can i", "what is", "what are", "what does"):
+        return False
+    return bool(has(q, *CONCERN_OWNERSHIP, *OBJECT_WORDS, *FACILITY_WORDS)
+                or extract_area(q) or extract_concern_type(q))
+
+
 LOCATION_ASK = [
     "where", "wheres", "location", "locate", "address", "direction", "directions",
     "map", "how to get", "how do i get", "how to go", "how do i go", "way to",
@@ -113,6 +159,8 @@ SUB_AREA_WORDS = [
 def _looks_like_form(q):
     """Same checks detect() uses for the reservation / concern / feedback / report forms."""
     if has(q, "reserve", "reserving", "reservation", "book a", "book the", "booking"):
+        return True
+    if lost_found_request(q) or concern_request(q):
         return True
     wants_report = has(q, "report", "file", "submit", "complain", "complaint")
     if has(q, *PROBLEM_WORDS) or (wants_report and has(q, "concern", "problem", "issue",
@@ -257,6 +305,13 @@ def _prefill(q, original, kind):
         if ctype and kind == "concern":
             prefill["concern_type"] = ctype
         prefill["description"] = original.strip()[:500]
+    elif kind == "lost_found":
+        if code:
+            prefill["room"] = f"Room {code}"
+        if area:
+            prefill["location"] = area
+        prefill["report_type"] = "Lost & Found"
+        prefill["description"] = original.strip()[:500]
     elif kind == "feedback":
         if area:
             prefill["area"] = area
@@ -355,6 +410,12 @@ def detect(db, question, role):
     if is_campus_location(q):
         return {"intent": "campus_location"}
 
+    # lost / found belongings -> report form (type: Lost & Found)
+    lost = lost_found_request(q)
+    if lost:
+        return {"intent": "lost_item", "kind": lost,
+                "prefill": _prefill(q, original, "lost_found")}
+
     # forms
     if has(q, "reserve", "reserving", "reservation", "book a", "book the", "booking"):
         return {"intent": "reservation_form",
@@ -362,8 +423,9 @@ def detect(db, question, role):
 
     problem = has(q, *PROBLEM_WORDS)
     wants_report = has(q, "report", "file", "submit", "complain", "complaint")
-    if problem or (wants_report and has(q, "concern", "problem", "issue", "complaint",
-                                        *OBJECT_WORDS)):
+    if problem or concern_request(q) or (
+            wants_report and has(q, "concern", "problem", "issue", "complaint",
+                                 *OBJECT_WORDS)):
         return {"intent": "concern_form", "prefill": _prefill(q, original, "concern")}
 
     if has(q, "feedback", "suggestion", "suggest", "compliment", "comment"):

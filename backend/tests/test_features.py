@@ -356,3 +356,19 @@ def test_admin_announcements_feed_the_ai(admin, student):
     assert "October 20" in m
     assert [r["title"] for r in student.get("/api/announcements").json()["rows"]] \
         == ["Intramurals Champions", "Local MAST starts October 20"]
+
+
+def test_lost_items_and_plain_concerns_from_chat(student, admin):
+    lost = student.ask("i loss my phone")                       # typo of "lost"
+    assert lost["type"] == "report_form"
+    assert lost["prefill"]["report_type"] == "Lost & Found"
+    assert student.ask("nawala akong payong")["type"] == "report_form"
+    assert student.ask("i found an id in the library")["type"] == "report_form"
+    assert admin.ask("i lost my wallet")["type"] == "message"   # admins: no student form
+    assert student.ask("i am lost")["type"] != "report_form"    # no item -> not a lost item
+
+    c = student.ask("i have concern in the cite cr")            # no "report"/"broken" word
+    assert c["type"] == "concern_form"
+    assert c["prefill"]["location"] == "CITE / ICT area"
+    assert c["prefill"]["concern_type"] == "Plumbing"
+    assert student.ask("i have concern in cite toilet")["type"] == "concern_form"

@@ -9,7 +9,7 @@ import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
 
 const CONCERN_TYPES = ["Equipment", "Electrical", "Plumbing", "Furniture", "Building / Structure", "Cleanliness", "Safety", "Other"];
-const REPORT_TYPES = ["Maintenance", "Safety", "Security", "Cleanliness", "Equipment", "Other"];
+const REPORT_TYPES = ["Maintenance", "Safety", "Security", "Cleanliness", "Equipment", "Lost & Found", "Other"];
 const FEEDBACK_TYPES = ["Compliment", "Suggestion", "Complaint", "Other"];
 
 export const FORMS = {

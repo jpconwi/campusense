@@ -10,7 +10,7 @@ from app.services.pdf_service import generate_pdf
 from app.services.upload_service import save_image
 
 REPORT_TYPES = ["Maintenance", "Safety", "Security", "Cleanliness",
-                "Equipment", "Other"]
+                "Equipment", "Lost & Found", "Other"]
 
 
 def pdf_path(report_id):

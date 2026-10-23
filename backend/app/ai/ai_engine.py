@@ -112,6 +112,21 @@ def _form_reply(user, found):
     return response.form(kind, texts[kind][role], found.get("prefill"))
 
 
+def _lost_item_reply(role, found):
+    """Lost or found belongings: the campus report form, type 'Lost & Found'."""
+    if role == "admin":
+        return response.message(
+            "Lost and found items are submitted as reports. You can ask me to show "
+            "pending reports, or open Reports in the Admin Dashboard.")
+    if found["kind"] == "found":
+        text = ("Thank you for picking that up. Please fill in the report form below so "
+                "the owner can be traced, and keep the item safe until it is claimed.")
+    else:
+        text = ("Sorry to hear that. Please fill in the report form below with what you "
+                "lost, where and when you last had it, so it can be checked.")
+    return response.form("report_form", text, found.get("prefill"))
+
+
 def ask_ai(db, question, user):
     """Main function. `user` is the authenticated CurrentUser from the server."""
     question = str(question or "").strip()[:500]
@@ -197,6 +212,9 @@ def ask_ai(db, question, user):
         return response.message(
             "Only instructors can submit faculty availability reports. You can ask me "
             "whether an instructor is available, for example: \"Is Sir JP available today?\"")
+
+    if name == "lost_item":
+        return _lost_item_reply(role, found)
 
     if name in ("concern_form", "report_form", "feedback_form", "reservation_form"):
         return _form_reply(user, found)
