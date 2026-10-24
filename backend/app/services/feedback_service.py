@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app import config
 from app.models import Feedback
 from app.services import common
-from app.services.common import clean_choice, clean_date, clean_text, now
+from app.services.common import clean_choice_other, clean_date, clean_text, now
 from app.services.pdf_service import generate_pdf
 
 FEEDBACK_TYPES = ["Compliment", "Suggestion", "Complaint", "Other"]
@@ -17,7 +17,7 @@ def pdf_path(feedback_id):
 
 def create_feedback(db: Session, user, form):
     area = clean_text(form.get("area"), "Area / Facility", 120)
-    feedback_type = clean_choice(form.get("feedback_type"), "Feedback type", FEEDBACK_TYPES)
+    feedback_type = clean_choice_other(form, "feedback_type", "Feedback type", FEEDBACK_TYPES)
     message = clean_text(form.get("message"), "Message", 2000)
     feedback_date = clean_date(form.get("feedback_date"), "Date", allow_future=False)
 

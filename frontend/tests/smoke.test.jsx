@@ -133,11 +133,15 @@ describe("student", () => {
   it("every normal page renders without errors", async () => {
     signedInAs("student");
     for (const [path, heading] of [["/", "Welcome, Sam"], ["/profile", "Profile"], ["/reports", "My Reports"],
-                                   ["/feedback", "Feedback"], ["/reservations", "Reservations"]]) {
+                                   ["/feedback", "Feedback"]]) {
       open(path);
       expect(await screen.findByRole("heading", { level: 2, name: heading })).toBeInTheDocument();
       cleanup();
     }
+    // students cannot reserve: the page sends them back home
+    open("/reservations");
+    expect(await screen.findByText("Welcome, Sam")).toBeInTheDocument();
+    cleanup();
     expect(errors).toEqual([]);
   });
 });

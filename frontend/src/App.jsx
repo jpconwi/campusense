@@ -48,7 +48,7 @@ export default function App() {
         <Route path="/concerns" element={page(<MyList kind="concerns" />, person)} />
         <Route path="/reports" element={page(<MyList kind="reports" />, person)} />
         <Route path="/feedback" element={page(<MyList kind="feedback" />, person)} />
-        <Route path="/reservations" element={page(<MyList kind="reservations" />, person)} />
+        <Route path="/reservations" element={page(<MyList kind="reservations" />, ["instructor"])} />
         <Route path="/faculty" element={page(<Faculty />, ["instructor"])} />
 
         <Route path="/admin" element={page(<AdminDashboard />, ["admin"])} />

@@ -129,6 +129,11 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
         const value = (values[f.name] || "").trim();
         if (f.required && !value) missing[f.name] = true;
         data.append(f.name, value);
+        if (f.type === "select" && value === "Other") {        // "Other": the user types what it is
+          const typed = (values[f.name + "_other"] || "").trim();
+          if (!typed) missing[f.name + "_other"] = true;
+          data.append(f.name + "_other", typed);
+        }
       }
     });
     setInvalid(missing);
@@ -157,10 +162,20 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
       return <textarea {...common} value={values[f.name]} onChange={(e) => set(f.name, e.target.value)} />;
     if (f.type === "select")
       return (
-        <select {...common} value={values[f.name]} onChange={(e) => set(f.name, e.target.value)}>
-          <option value="">Choose...</option>
-          {f.options.map((o) => <option key={o}>{o}</option>)}
-        </select>
+        <>
+          <select {...common} value={values[f.name]} onChange={(e) => set(f.name, e.target.value)}>
+            <option value="">Choose...</option>
+            {f.options.map((o) => <option key={o}>{o}</option>)}
+          </select>
+          {values[f.name] === "Other" && (
+            <input type="text" disabled={done} maxLength={50} style={{ marginTop: 8 }}
+                   className={invalid[f.name + "_other"] ? "invalid" : ""}
+                   placeholder={`Type your ${f.label.toLowerCase()} *`}
+                   aria-label={`Other ${f.label.toLowerCase()}`}
+                   value={values[f.name + "_other"] || ""}
+                   onChange={(e) => set(f.name + "_other", e.target.value)} />
+          )}
+        </>
       );
     if (f.type === "file")
       return <input {...common} type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"

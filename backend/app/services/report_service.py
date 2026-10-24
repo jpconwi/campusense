@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app import config
 from app.models import Report
 from app.services import common
-from app.services.common import clean_choice, clean_date, clean_text, now
+from app.services.common import clean_choice_other, clean_date, clean_text, now
 from app.services.pdf_service import generate_pdf
 from app.services.upload_service import save_image
 
@@ -21,7 +21,7 @@ def create_report(db: Session, user, form, image_file):
     location = clean_text(form.get("location"), "Location", 120)
     area = clean_text(form.get("area"), "Area", 120, required=False)
     room = clean_text(form.get("room"), "Room", 60, required=False)
-    report_type = clean_choice(form.get("report_type"), "Report type", REPORT_TYPES)
+    report_type = clean_choice_other(form, "report_type", "Report type", REPORT_TYPES)
     description = clean_text(form.get("description"), "Description", 2000)
     report_date = clean_date(form.get("report_date"), "Date", allow_future=False)
     image = save_image(image_file)

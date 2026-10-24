@@ -23,7 +23,9 @@ export default function Home() {
         <Link className="tile" to="/concerns"><strong>My Concerns</strong><span>Report a problem. {counts.concerns} pending.</span></Link>
         <Link className="tile" to="/reports"><strong>My Reports</strong><span>Submit a campus report. {counts.reports} pending.</span></Link>
         <Link className="tile" to="/feedback"><strong>Feedback</strong><span>Share your thoughts about a campus area.</span></Link>
-        <Link className="tile" to="/reservations"><strong>Reservations</strong><span>Request a room or facility. {counts.reservations} pending.</span></Link>
+        {user.role === "instructor" && (
+          <Link className="tile" to="/reservations"><strong>Reservations</strong><span>Request a room or facility. {counts.reservations} pending.</span></Link>
+        )}
         {user.role === "instructor" && (
           <Link className="tile" to="/faculty"><strong>Faculty Availability</strong><span>Report an absence or mark yourself available.</span></Link>
         )}

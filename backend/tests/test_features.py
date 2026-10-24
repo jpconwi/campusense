@@ -86,16 +86,31 @@ def reservation(**over):
     return data
 
 
-def test_reservation_is_pending_and_validated(student):
-    r = student.post("/api/reservations", data=reservation())
+def test_reservation_is_pending_and_validated(instructor):
+    r = instructor.post("/api/reservations", data=reservation())
     assert r.status_code == 200 and r.json()["status"] == "Pending"
-    bad = student.post("/api/reservations", data=reservation(start_time="11:00", end_time="09:00"))
+    bad = instructor.post("/api/reservations", data=reservation(start_time="11:00", end_time="09:00"))
     assert bad.status_code == 400 and "after the start" in bad.json()["error"]
-    past = student.post("/api/reservations", data=reservation(reservation_date="2020-01-01"))
+    past = instructor.post("/api/reservations", data=reservation(reservation_date="2020-01-01"))
     assert past.status_code == 400
 
 
-def test_admin_approval_and_overlap(student, student2, admin):
+def test_students_cannot_reserve(student):
+    r = student.post("/api/reservations", data=reservation())
+    assert r.status_code == 403 and "instructors" in r.json()["error"].lower()
+    assert student.get("/api/me/records/reservations").status_code == 403
+    nav = [item["path"] for item in student.get("/api/auth/me").json()["nav"]]
+    assert "/reservations" not in nav
+
+
+def test_chat_tells_students_reservations_are_for_instructors(student):
+    answer = student.post("/api/ask", json={"question": "I want to reserve a room"}).json()
+    assert answer["type"] != "reservation_form"
+    assert "instructor" in answer["answer"].lower()
+
+
+def test_admin_approval_and_overlap(instructor, instructor2, admin):
+    student, student2 = instructor, instructor2
     a = student.post("/api/reservations", data=reservation()).json()["id"]
     b = student2.post("/api/reservations", data=reservation(start_time="10:00", end_time="12:00")).json()["id"]
     assert admin.post(f"/api/admin/records/reservations/{a}/status", json={"status": "Approved"}).status_code == 200
@@ -256,7 +271,8 @@ def test_forms_from_chat(student, instructor, admin):
     assert c["prefill"]["room"] == "Room 204" and c["prefill"]["concern_type"] == "Equipment"
     assert instructor.ask("The electric fan is broken")["type"] == "concern_form"
     assert student.ask("I want to give feedback about the library")["type"] == "feedback_form"
-    assert student.ask("Can I reserve a laboratory?")["type"] == "reservation_form"
+    assert student.ask("Can I reserve a laboratory?")["type"] == "message"      # students cannot reserve
+    assert instructor.ask("Can I reserve a laboratory?")["type"] == "reservation_form"
     assert admin.ask("Can I reserve a laboratory?")["type"] == "message"     # admins: no student form
 
 
@@ -372,3 +388,22 @@ def test_lost_items_and_plain_concerns_from_chat(student, admin):
     assert c["prefill"]["location"] == "CITE / ICT area"
     assert c["prefill"]["concern_type"] == "Plumbing"
     assert student.ask("i have concern in cite toilet")["type"] == "concern_form"
+
+
+# ---------------------------------------------------------- "Other" type text
+def test_other_type_needs_typed_text(student):
+    base = concern_form(concern_type="Other")
+    r = student.post("/api/concerns", data=base)
+    assert r.status_code == 400                                   # "Other" with nothing typed
+    r = student.post("/api/concerns", data={**base, "concern_type_other": "Broken clock"})
+    assert r.status_code == 200
+    rows = student.get("/api/me/records/concerns").json()["rows"]
+    assert rows[0]["concern_type"] == "Other: Broken clock"
+
+    rep = {"location": "Gate", "report_type": "Other", "report_type_other": "Stray dog",
+           "description": "Dog near gate", "report_date": TODAY}
+    assert student.post("/api/reports", data=rep).status_code == 200
+    fb = {"area": "Library", "feedback_type": "Other", "feedback_type_other": "Question",
+          "message": "Hello", "feedback_date": TODAY}
+    assert student.post("/api/feedback", data=fb).status_code == 200
+    assert student.post("/api/feedback", data={**fb, "feedback_type_other": ""}).status_code == 400

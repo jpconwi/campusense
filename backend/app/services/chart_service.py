@@ -39,7 +39,11 @@ def _counts(db: Session, table, column):
     col = getattr(MODELS[table], column)
     n = func.count().label("n")
     rows = db.execute(select(col, n).group_by(col).order_by(n.desc(), col)).all()
-    return [(k or "(none)", c) for k, c in rows]
+    merged = {}
+    for k, c in rows:                         # "Other: something typed" counts as "Other"
+        key = "Other" if (k or "").startswith("Other: ") else (k or "(none)")
+        merged[key] = merged.get(key, 0) + c
+    return sorted(merged.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
 # ------------------------------------------------------------------ donut

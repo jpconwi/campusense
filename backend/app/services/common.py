@@ -93,6 +93,19 @@ def clean_choice(value, label, options):
     return value
 
 
+def clean_choice_other(form, field, label, options):
+    """Like clean_choice, but when the user picks "Other" they must type what it is.
+
+    The typed text arrives in form["<field>_other"] and is stored as "Other: <text>"
+    (the column is 60 characters, so the text is limited to 50).
+    """
+    choice = clean_choice(form.get(field), label, options)
+    if choice != "Other":
+        return choice
+    typed = clean_text(form.get(field + "_other"), f"Other {label.lower()}", 50)
+    return f"Other: {typed}"
+
+
 def clean_date(value, label, allow_future=True, allow_past=True):
     """Returns a datetime.date."""
     value = (value or "").strip()

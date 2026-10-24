@@ -125,10 +125,11 @@ function Row({ item, onSuggest }) {
 }
 
 const QUICK = [
-  "How do I reserve a room or facility?", "What equipment can I borrow?",
+  "What equipment can I borrow?",
   "How do I report a broken facility?", "Where is the NEMSU Tandag campus?", "Where is the library?",
   "Which canteen is near the CBM area?",
 ];
+const RESERVE_QUICK = "How do I reserve a room or facility?";   // instructors only
 
 export default function Chat() {
   const { user } = useAuth();
@@ -186,7 +187,7 @@ export default function Chat() {
   const extra = user.role === "admin"
     ? ["Show pending reports", "Show pending concerns"] : ["Show my pending concerns"];
   const CARDS = [
-    ["Reserve a facility", "How do I reserve a room or facility?"],
+    ...(user.role === "instructor" ? [["Reserve a facility", RESERVE_QUICK]] : []),
     ["Report a concern", "How do I report a broken facility?"],
     ["Find a campus location", "Where is the NEMSU Tandag campus?"],
     ["Borrow equipment", "What equipment can I borrow?"],

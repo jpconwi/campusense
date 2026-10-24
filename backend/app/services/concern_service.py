@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app import config
 from app.models import Concern
 from app.services import common
-from app.services.common import clean_choice, clean_date, clean_text, now
+from app.services.common import clean_choice_other, clean_date, clean_text, now
 from app.services.pdf_service import generate_pdf
 from app.services.upload_service import save_image
 
@@ -21,7 +21,7 @@ def create_concern(db: Session, user, form, image_file):
     """Name and email always come from the logged-in account."""
     location = clean_text(form.get("location"), "Location / Area", 120)
     room = clean_text(form.get("room"), "Room", 60, required=False)
-    concern_type = clean_choice(form.get("concern_type"), "Concern type", CONCERN_TYPES)
+    concern_type = clean_choice_other(form, "concern_type", "Concern type", CONCERN_TYPES)
     description = clean_text(form.get("description"), "Description", 2000)
     concern_date = clean_date(form.get("concern_date"), "Date", allow_future=False)
     image = save_image(image_file)

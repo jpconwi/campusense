@@ -142,5 +142,10 @@ def instructor():
 
 
 @pytest.fixture
+def instructor2():
+    return make_user("ivy@nemsu.edu.ph", "instructor", "Ivy Instructor")
+
+
+@pytest.fixture
 def admin():
     return make_user("admin@nemsu.edu.ph", "admin", "Ada Admin")

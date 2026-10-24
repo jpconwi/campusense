@@ -34,7 +34,7 @@ NAV = {
     "student": [
         ("Home", "/"), ("Campus AI", "/ai"), ("My Reports", "/reports"),
         ("My Concerns", "/concerns"), ("Feedback", "/feedback"),
-        ("Reservations", "/reservations"), ("Profile", "/profile"),
+        ("Profile", "/profile"),
     ],
     "instructor": [
         ("Home", "/"), ("Campus AI", "/ai"), ("My Reports", "/reports"),

@@ -32,6 +32,15 @@ USER_KINDS = {
 }
 PDF_KINDS = ("concerns", "reports", "feedback")
 
+NO_STUDENT_RESERVATION = "Only instructors and faculty can reserve rooms or facilities."
+
+
+def instructor_for_reservation(user: CurrentUser = Depends(login_required)) -> CurrentUser:
+    """Reservations are for instructors / faculty only. Students get a clear message."""
+    if user.role != "instructor":
+        raise HTTPException(403, NO_STUDENT_RESERVATION)
+    return user
+
 # very small rate limit so nobody can drain the AI quota: 20 questions / minute
 _recent = defaultdict(deque)
 
@@ -78,12 +87,13 @@ def ask(body: AskBody, user: CurrentUser = Depends(login_required), db: Session 
 @router.post("/concerns")
 def submit_concern(
         location: str = Form(""), room: str = Form(""), concern_type: str = Form(""),
+        concern_type_other: str = Form(""),
         description: str = Form(""), concern_date: str = Form(""),
         image: Optional[UploadFile] = File(None),
         user: CurrentUser = Depends(role_required("student", "instructor")),
         db: Session = Depends(get_db)):
     form = {"location": location, "room": room, "concern_type": concern_type,
-            "description": description, "concern_date": concern_date}
+            "concern_type_other": concern_type_other, "description": description, "concern_date": concern_date}
     row = concern_service.create_concern(db, user, form, image)
     return _ok(row, "Your concern has been submitted. Its status is Pending.", "concerns")
 
@@ -91,11 +101,13 @@ def submit_concern(
 @router.post("/reports")
 def submit_report(
         location: str = Form(""), area: str = Form(""), room: str = Form(""),
-        report_type: str = Form(""), description: str = Form(""), report_date: str = Form(""),
+        report_type: str = Form(""), report_type_other: str = Form(""),
+        description: str = Form(""), report_date: str = Form(""),
         image: Optional[UploadFile] = File(None),
         user: CurrentUser = Depends(role_required("student", "instructor")),
         db: Session = Depends(get_db)):
     form = {"location": location, "area": area, "room": room, "report_type": report_type,
+            "report_type_other": report_type_other,
             "description": description, "report_date": report_date}
     row = report_service.create_report(db, user, form, image)
     return _ok(row, "Your report has been submitted. Its status is Pending.", "reports")
@@ -103,11 +115,12 @@ def submit_report(
 
 @router.post("/feedback")
 def submit_feedback(
-        area: str = Form(""), feedback_type: str = Form(""), message: str = Form(""),
-        feedback_date: str = Form(""),
+        area: str = Form(""), feedback_type: str = Form(""), feedback_type_other: str = Form(""),
+        message: str = Form(""), feedback_date: str = Form(""),
         user: CurrentUser = Depends(role_required("student", "instructor")),
         db: Session = Depends(get_db)):
-    form = {"area": area, "feedback_type": feedback_type, "message": message,
+    form = {"area": area, "feedback_type": feedback_type,
+            "feedback_type_other": feedback_type_other, "message": message,
             "feedback_date": feedback_date}
     row = feedback_service.create_feedback(db, user, form)
     return _ok(row, "Thank you! Your feedback has been submitted.", "feedback")
@@ -117,7 +130,7 @@ def submit_feedback(
 def submit_reservation(
         facility: str = Form(""), purpose: str = Form(""), reservation_date: str = Form(""),
         start_time: str = Form(""), end_time: str = Form(""), additional_info: str = Form(""),
-        user: CurrentUser = Depends(role_required("student", "instructor")),
+        user: CurrentUser = Depends(instructor_for_reservation),
         db: Session = Depends(get_db)):
     form = {"facility": facility, "purpose": purpose, "reservation_date": reservation_date,
             "start_time": start_time, "end_time": end_time, "additional_info": additional_info}
@@ -172,8 +185,9 @@ def check_faculty(name: str = "", user: CurrentUser = Depends(login_required),
 # ------------------------------------------- pages for students/instructors
 @router.get("/home")
 def home(user: CurrentUser = Depends(login_required), db: Session = Depends(get_db)):
+    kinds = [k for k in USER_KINDS if k != "reservations" or user.role == "instructor"]
     return {"counts": {k: common.count_rows(db, k, status="Pending", user_id=user.id)
-                       for k in USER_KINDS}}
+                       for k in kinds}}
 
 
 @router.get("/me/records/{kind}")
@@ -181,6 +195,8 @@ def my_records(kind: str, user: CurrentUser = Depends(role_required("student", "
                db: Session = Depends(get_db)):
     if kind not in USER_KINDS:
         raise HTTPException(404, "That page was not found.")
+    if kind == "reservations" and user.role != "instructor":
+        raise HTTPException(403, NO_STUDENT_RESERVATION)
     return {
         "kind": kind, "spec": USER_KINDS[kind], "pdf": kind in PDF_KINDS,
         "rows": common.list_rows(db, kind, user_id=user.id),

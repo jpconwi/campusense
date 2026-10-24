@@ -53,7 +53,7 @@ def _greeting(role):
     base = ("Hello! I'm NEMSAI, the NEMSU Tandag Main Campus assistant. "
             "I can help with campus locations, rooms, facilities and equipment")
     extra = {
-        "student": ", reservations, concerns, reports, feedback and instructor "
+        "student": ", concerns, reports, feedback and instructor "
                    "availability.",
         "instructor": ", reservations, concerns, reports, feedback and your "
                       "faculty availability reports.",
@@ -89,6 +89,12 @@ def _form_reply(user, found):
             "Admins manage submissions from the Admin Dashboard. You can ask me to "
             "show pending reports or concerns.")
 
+    if kind == "reservation_form" and role != "instructor":
+        return response.message(
+            "Sorry, room and facility reservations are only for instructors and faculty. "
+            "If you need a room for a class or activity, please ask your instructor to "
+            "reserve it. I can still help you report a concern or send feedback.")
+
     texts = {
         "concern_form": {
             "student": "I can help you report this campus concern. Please complete the form below.",
@@ -103,8 +109,6 @@ def _form_reply(user, found):
             "instructor": "I'd be glad to take your feedback. Please complete the form below.",
         },
         "reservation_form": {
-            "student": "I can help you send a reservation request. It stays pending until an "
-                       "administrator approves it. Please complete the form below.",
             "instructor": "I can help you send a reservation request. It stays pending until an "
                           "administrator approves it. Please complete the form below.",
         },

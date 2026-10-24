@@ -34,12 +34,12 @@ export default function RoleSelect() {
 
           <div className="role-card">
             <h3>Student</h3>
-            <p>Ask campus questions, report concerns, give feedback and request reservations.</p>
+            <p>Ask campus questions, report concerns and give feedback.</p>
             <button className="btn" type="button" onClick={() => choose("student")}>Continue</button>
           </div>
           <div className="role-card">
             <h3>Instructor</h3>
-            <p>Everything students can do, plus faculty availability and absence reports.</p>
+            <p>Everything students can do, plus room reservations, faculty availability and absence reports.</p>
             <button className="btn" type="button" onClick={() => choose("instructor")}>Continue</button>
           </div>
           <button className="btn ghost small" type="button" onClick={logout}>Use a different account</button>
