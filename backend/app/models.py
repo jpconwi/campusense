@@ -197,3 +197,26 @@ class KnowledgeDocument(Base):
 
 # Topics are unique ignoring upper/lower case.
 Index("uq_campus_topic_lower", func.lower(CampusInfo.topic), unique=True)
+
+class ChatSession(Base):
+    """One saved conversation with NEMSAI. Deleted automatically after CHAT_HISTORY_DAYS."""
+    __tablename__ = "chat_sessions"
+    __table_args__ = (Index("idx_chat_sessions_user", "user_id", "updated_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    __table_args__ = (Index("idx_chat_messages_session", "session_id", "id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False)
+    role: Mapped[str] = mapped_column(String(10), nullable=False)          # "user" or "ai"
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    payload: Mapped[Optional[str]] = mapped_column(Text)                   # JSON: type, map, suggestions
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)

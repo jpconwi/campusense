@@ -117,11 +117,27 @@ function Row({ item, onSuggest }) {
           </div>
         )}
         {item.kind === "map" && <MapCard map={item.map} />}
+        {item.kind === "note" && <div className="bubble rich"><em>{item.text}</em></div>}
         {item.kind === "success" && <SuccessCard result={item.result} />}
         {(item.kind === "text") && <div className="time">{item.time}</div>}
       </div>
     </div>
   );
+}
+
+// turn the saved messages of an old chat back into rows
+function restore(messages) {
+  const rows = [];
+  let id = 1;
+  const push = (item) => rows.push({ id: id++, ...item });
+  for (const m of messages) {
+    const time = new Date(m.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    if (m.role === "user") { push({ role: "user", kind: "text", text: m.text, time }); continue; }
+    push({ role: "ai", kind: "text", text: m.text, suggestions: m.suggestions, time });
+    if (m.type === "map" && m.map) push({ role: "ai", kind: "map", map: m.map });
+    if (FORM_TYPES[m.type]) push({ role: "ai", kind: "note", text: "A form was shown here. Ask again to open a new one." });
+  }
+  return { rows, next: id };
 }
 
 const QUICK = [
@@ -133,16 +149,29 @@ const RESERVE_QUICK = "How do I reserve a room or facility?";   // instructors o
 
 export default function Chat() {
   const { user } = useAuth();
-  const { chatKey } = useOutletContext();
+  const { chatKey, openId, onSaved } = useOutletContext();
   const [items, setItems] = useState([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const bottom = useRef(null);
   const input = useRef(null);
   const nextId = useRef(1);
+  const sessionId = useRef(null);                      // the saved chat we are talking in
 
   useEffect(() => { document.title = "Campus AI | NEMSU"; }, []);
-  useEffect(() => { setItems([]); setText(""); input.current && input.current.focus(); }, [chatKey]);   // "New chat"
+  useEffect(() => {                                    // "New chat" or a chat picked from the history
+    let alive = true;
+    setItems([]); setText(""); sessionId.current = null; nextId.current = 1;
+    if (openId) {
+      api(`/api/chats/${openId}`).then((d) => {
+        if (!alive) return;
+        const { rows, next } = restore(d.messages);
+        sessionId.current = d.id; nextId.current = next; setItems(rows);
+      }).catch(() => { if (alive) onSaved(); });       // deleted meanwhile: just refresh the list
+    }
+    input.current && input.current.focus();
+    return () => { alive = false; };
+  }, [chatKey]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { bottom.current && bottom.current.scrollIntoView({ block: "end" }); }, [items]);
   useEffect(() => {                                    // grow the box while typing
     const el = input.current;
@@ -160,8 +189,9 @@ export default function Chat() {
     setBusy(true);
     const typing = add({ role: "ai", kind: "typing" });
     try {
-      const data = await api("/api/ask", { method: "POST", json: { question } });
+      const data = await api("/api/ask", { method: "POST", json: { question, session_id: sessionId.current } });
       remove(typing);
+      if (data.session_id) { sessionId.current = data.session_id; onSaved(); }
       add({ role: "ai", kind: "text", text: data.answer, suggestions: data.suggestions, time: timeNow() });
       if (data.type === "map" && data.map) {
         add({ role: "ai", kind: "map", map: data.map });

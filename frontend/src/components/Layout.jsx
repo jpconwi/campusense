@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth.jsx";
+import { api } from "../api.js";
 
 /** Header + navigation + flash messages around every signed-in page. */
 export function Header({ children }) {
@@ -55,21 +56,75 @@ function Icon({ d }) {
   );
 }
 
+/** Sidebar list of saved chats (kept for a few days, then deleted automatically). */
+function ChatHistory({ activeId, tick, onOpen, onDeleted }) {
+  const [data, setData] = useState({ chats: [], keep_days: 3 });
+
+  useEffect(() => {
+    let alive = true;
+    api("/api/chats").then((d) => { if (alive) setData(d); }).catch(() => {});
+    return () => { alive = false; };
+  }, [tick]);
+
+  async function remove(e, id) {
+    e.stopPropagation();
+    try { await api(`/api/chats/${id}`, { method: "DELETE" }); } catch { /* already gone */ }
+    setData((d) => ({ ...d, chats: d.chats.filter((c) => c.id !== id) }));
+    onDeleted(id);
+  }
+  async function clearAll() {
+    if (!window.confirm("Delete all of your saved chats?")) return;
+    try { await api("/api/chats", { method: "DELETE" }); } catch { /* ignore */ }
+    setData((d) => ({ ...d, chats: [] }));
+    onDeleted(null);
+  }
+
+  return (
+    <section className="sb-history lbl" aria-label="Chat history">
+      <div className="sb-history-head">
+        <strong>Chat history</strong>
+        {data.chats.length > 0 && <button type="button" className="sb-clear" onClick={clearAll}>Clear all</button>}
+      </div>
+      {data.chats.length === 0 ? (
+        <p className="sb-history-empty">No saved chats yet.</p>
+      ) : (
+        <ul className="sb-history-list">
+          {data.chats.map((c) => (
+            <li key={c.id}>
+              <button type="button" className={"sb-chat" + (c.id === activeId ? " active" : "")}
+                      onClick={() => onOpen(c.id)} title={c.title}>
+                <span className="sb-chat-title">{c.title}</span>
+                <span className="sb-chat-del" role="button" tabIndex={0} aria-label={`Delete chat ${c.title}`}
+                      onClick={(e) => remove(e, c.id)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") remove(e, c.id); }}>&times;</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="sb-history-note">Chats are deleted automatically after {data.keep_days} days.</p>
+    </section>
+  );
+}
+
 export default function Layout() {
   const { user, nav, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [chatKey, setChatKey] = useState(0);
+  const [chat, setChat] = useState({ key: 0, id: null });   // key changes = open / reset the chat window
+  const [historyTick, setHistoryTick] = useState(0);          // bump = reload the history list
   const [collapsed, setCollapsed] = useState(false);   // desktop: icons only
   const [open, setOpen] = useState(false);             // mobile: drawer
 
   useEffect(() => { setOpen(false); }, [location.pathname]);
 
-  function newChat() {
-    setChatKey((k) => k + 1);
+  function openChat(id) {                // id = null starts a new chat
+    setChat((c) => ({ key: c.key + 1, id }));
     if (location.pathname !== "/ai") navigate("/ai");
     setOpen(false);
   }
+  const newChat = () => openChat(null);
+  const afterDelete = (id) => { if (id === null || id === chat.id) setChat((c) => ({ key: c.key + 1, id: null })); };
 
   const showNav = user && user.role;
   const initials = (user?.name || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
@@ -101,6 +156,9 @@ export default function Layout() {
             ))}
           </nav>
         )}
+        {showNav && (
+          <ChatHistory activeId={chat.id} tick={historyTick} onOpen={openChat} onDeleted={afterDelete} />
+        )}
         {user && (
           <div className="sb-bottom">
             <div className="sb-user" title={user.email}>
@@ -127,7 +185,7 @@ export default function Layout() {
           </button>
         </div>
         <Flashes />
-        <Outlet context={{ chatKey }} />
+        <Outlet context={{ chatKey: chat.key, openId: chat.id, onSaved: () => setHistoryTick((t) => t + 1) }} />
       </div>
     </div>
   );

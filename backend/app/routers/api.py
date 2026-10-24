@@ -15,7 +15,7 @@ from app import config
 from app.ai.ai_engine import ask_ai
 from app.database import get_db
 from app.security import CurrentUser, csrf_protect, login_required, role_required
-from app.services import (announcement_service, common, concern_service, faculty_service, feedback_service,
+from app.services import (announcement_service, chat_history_service, common, concern_service, faculty_service, feedback_service,
                           pdf_service, report_service, reservation_service)
 
 router = APIRouter(prefix="/api", tags=["api"], dependencies=[Depends(csrf_protect)])
@@ -67,6 +67,7 @@ def _ok(row, message, pdf_kind=None):
 # ------------------------------------------------------------------- chat
 class AskBody(BaseModel):
     question: str = ""
+    session_id: Optional[int] = None          # the saved chat this question belongs to
 
 
 @router.post("/ask")
@@ -77,10 +78,43 @@ def ask(body: AskBody, user: CurrentUser = Depends(login_required), db: Session 
     if _too_many(user.id):
         raise HTTPException(429, "Please wait a moment before asking again.")
     try:
-        return ask_ai(db, question, user)
+        answer = ask_ai(db, question, user)
     except Exception as error:               # never leak details to the browser
         print("AI ERROR:", repr(error))
         raise HTTPException(500, "Something went wrong. Please try again.")
+    try:                                      # saving history must never break the chat
+        answer["session_id"] = chat_history_service.save_exchange(
+            db, user.id, body.session_id, question, answer)
+    except Exception as error:
+        db.rollback()
+        print("CHAT HISTORY ERROR:", repr(error))
+    return answer
+
+
+# ----------------------------------------------------------- chat history
+@router.get("/chats")
+def chat_list(user: CurrentUser = Depends(login_required), db: Session = Depends(get_db)):
+    return {"chats": chat_history_service.list_chats(db, user.id),
+            "keep_days": config.CHAT_HISTORY_DAYS}
+
+
+@router.get("/chats/{chat_id}")
+def chat_open(chat_id: int, user: CurrentUser = Depends(login_required),
+              db: Session = Depends(get_db)):
+    return chat_history_service.get_chat(db, user.id, chat_id)
+
+
+@router.delete("/chats/{chat_id}")
+def chat_delete(chat_id: int, user: CurrentUser = Depends(login_required),
+                db: Session = Depends(get_db)):
+    chat_history_service.delete_chat(db, user.id, chat_id)
+    return {"success": True}
+
+
+@router.delete("/chats")
+def chat_delete_all(user: CurrentUser = Depends(login_required), db: Session = Depends(get_db)):
+    chat_history_service.delete_all(db, user.id)
+    return {"success": True}
 
 
 # ------------------------------------------------------------------ forms

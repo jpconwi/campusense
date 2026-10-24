@@ -8,6 +8,7 @@ If the React app was built (frontend/dist exists) FastAPI serves it too, so one
 process runs the whole site. Otherwise run the Vite dev server (see README).
 """
 
+import asyncio
 import secrets
 from contextlib import asynccontextmanager
 
@@ -15,12 +16,14 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import config
 from app.database import init_db
 from app.routers import admin, admin_login, api, auth, mobile_auth, nemsu
+from app.services import chat_history_service
 from app.services.common import ValidationError
 
 
@@ -32,7 +35,17 @@ async def lifespan(app: FastAPI):
                            f"{config.ADMIN_MIN_PASSWORD} characters.")
     init_db()
     print(f"Admin login: {config.PUBLIC_URL}{config.ADMIN_LOGIN_URL}  (keep this private)")
-    yield
+
+    async def cleanup_loop():          # saved chats older than CHAT_HISTORY_DAYS are deleted
+        while True:
+            await run_in_threadpool(chat_history_service.purge_old_safely)
+            await asyncio.sleep(3600)
+
+    cleanup = asyncio.create_task(cleanup_loop())
+    try:
+        yield
+    finally:
+        cleanup.cancel()
 
 
 def create_app():

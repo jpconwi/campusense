@@ -407,3 +407,56 @@ def test_other_type_needs_typed_text(student):
           "message": "Hello", "feedback_date": TODAY}
     assert student.post("/api/feedback", data=fb).status_code == 200
     assert student.post("/api/feedback", data={**fb, "feedback_type_other": ""}).status_code == 400
+
+
+# ------------------------------------------------------------- chat history
+def test_chat_history_is_saved_and_reopened_after_logout(student):
+    a = student.post("/api/ask", json={"question": "Where is the library?"}).json()
+    sid = a["session_id"]
+    b = student.post("/api/ask", json={"question": "Which canteen is near the CBM area?",
+                                       "session_id": sid}).json()
+    assert b["session_id"] == sid                               # same conversation
+    chats = student.get("/api/chats").json()
+    assert [c["id"] for c in chats["chats"]] == [sid] and chats["keep_days"] == 3
+    assert chats["chats"][0]["title"] == "Where is the library?"
+
+    # sign out and in again: the history is still there
+    student.post("/api/auth/logout")
+    opened = type(student)()
+    opened.google_login("sam@nemsu.edu.ph", "Sam Student")
+    chat = opened.get(f"/api/chats/{sid}").json()
+    assert [m["role"] for m in chat["messages"]] == ["user", "ai", "user", "ai"]
+    assert "Library" in chat["messages"][1]["text"]
+
+
+def test_chat_history_is_private_and_deletable(student, student2):
+    sid = student.post("/api/ask", json={"question": "Where is the library?"}).json()["session_id"]
+    assert student2.get("/api/chats").json()["chats"] == []
+    assert student2.get(f"/api/chats/{sid}").status_code == 400          # not theirs
+    assert student2.delete(f"/api/chats/{sid}").status_code == 400
+    # a stolen session id just starts a new chat for the other person
+    other = student2.post("/api/ask", json={"question": "Hi", "session_id": sid}).json()["session_id"]
+    assert other != sid
+    assert student.delete(f"/api/chats/{sid}").status_code == 200
+    assert student.get("/api/chats").json()["chats"] == []
+    student.post("/api/ask", json={"question": "Where is the library?"})
+    assert student.delete("/api/chats").status_code == 200
+    assert student.get("/api/chats").json()["chats"] == []
+
+
+def test_old_chats_are_deleted_automatically(student, db):
+    from datetime import datetime, timedelta
+    from app.models import ChatMessage, ChatSession
+    old = student.post("/api/ask", json={"question": "Where is the library?"}).json()["session_id"]
+    fresh = student.post("/api/ask", json={"question": "Which canteen is near the CBM area?"}).json()["session_id"]
+    stale = datetime.now() - timedelta(days=3, hours=1)
+    row = db.get(ChatSession, old)
+    row.updated_at = row.created_at = stale
+    for m in db.query(ChatMessage).filter(ChatMessage.session_id == old):
+        m.created_at = stale
+    db.commit()
+    ids = [c["id"] for c in student.get("/api/chats").json()["chats"]]
+    assert ids == [fresh]                                                # the 3-day-old chat is gone
+    db.expire_all()
+    assert db.get(ChatSession, old) is None
+    assert db.query(ChatMessage).filter(ChatMessage.session_id == old).count() == 0

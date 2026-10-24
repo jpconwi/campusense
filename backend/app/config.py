@@ -65,6 +65,8 @@ SESSION_HOURS = 8
 # blocks them immediately, because the user is re-read from the database every request).
 MOBILE_TOKEN_DAYS = int(os.getenv("MOBILE_TOKEN_DAYS", "14"))
 MAX_UPLOAD_MB = 5
+# Saved chats are deleted automatically after this many days (default 3).
+CHAT_HISTORY_DAYS = max(1, int(os.getenv("CHAT_HISTORY_DAYS", "3")))
 
 
 # ---------------------------------------------------- secret admin login URL
