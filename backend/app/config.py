@@ -40,8 +40,25 @@ def _database_url():
 DATABASE_URL = _database_url()
 
 # ------------------------------------------------------------- settings
-MODEL = os.getenv("MODEL")
+# ---- AI providers, tried in this order: Hugging Face > Cloudflare > Groq > Google > OpenRouter
+# (a provider without a key is skipped). See backend/.env.example.
+MODEL = os.getenv("MODEL")                 # older names, still work for Hugging Face
 API_KEY = os.getenv("API_KEY")
+HUGGINGFACE_API_KEY = (os.getenv("HF_API_KEY") or os.getenv("HUGGINGFACE_API_KEY") or API_KEY or "").strip()
+HUGGINGFACE_MODEL = os.getenv("HF_MODEL") or os.getenv("HUGGINGFACE_MODEL") or MODEL
+
+CLOUDFLARE_API_KEY = (os.getenv("CLOUDFLARE_API_KEY") or os.getenv("CLOUDFLARE_API_TOKEN") or "").strip()
+CLOUDFLARE_ACCOUNT_ID = (os.getenv("CLOUDFLARE_ACCOUNT_ID") or "").strip()
+CLOUDFLARE_MODEL = os.getenv("CLOUDFLARE_MODEL")
+
+GROQ_API_KEY = (os.getenv("GROQ_API_KEY") or "").strip()
+GROQ_MODEL = os.getenv("GROQ_MODEL")
+
+GOOGLE_API_KEY = (os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "").strip()
+GOOGLE_MODEL = os.getenv("GOOGLE_MODEL") or os.getenv("GEMINI_MODEL")
+
+OPENROUTER_API_KEY = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")

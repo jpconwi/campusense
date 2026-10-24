@@ -24,7 +24,10 @@ sys.path.insert(0, str(BACKEND))
 # Backend settings are also found inside a table (e.g. when DATABASE_URL was pasted
 # below the [auth] header by mistake).
 _BACKEND_KEYS = {"DATABASE_URL", "MODEL", "API_KEY", "ADMIN_EMAILS", "ALLOWED_EMAIL_DOMAIN",
-                 "COOKIE_SECURE", "ADMIN_PASSWORD", "NEMSU_NEWS_BASE", "NEMSU_SOURCES"}
+                 "COOKIE_SECURE", "ADMIN_PASSWORD", "NEMSU_NEWS_BASE", "NEMSU_SOURCES",
+                 "HF_API_KEY", "HF_MODEL", "CLOUDFLARE_API_KEY", "CLOUDFLARE_ACCOUNT_ID",
+                 "CLOUDFLARE_MODEL", "GROQ_API_KEY", "GROQ_MODEL", "GOOGLE_API_KEY",
+                 "GOOGLE_MODEL", "OPENROUTER_API_KEY", "OPENROUTER_MODEL"}
 
 
 def _secrets_to_env(items, top=True):

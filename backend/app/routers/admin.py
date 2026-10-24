@@ -36,6 +36,14 @@ def _strings(body):
     return {str(k): ("" if v is None else str(v)) for k, v in (body or {}).items()}
 
 
+# --------------------------------------------------------- AI provider chain
+@router.get("/ai-status")
+def ai_status():
+    """Which AI providers are set up, in the order they are tried. Never shows keys."""
+    from app.model import systemAi
+    return {"providers": systemAi.chain_status()}
+
+
 # ------------------------------------------------------------- dashboard
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db)):

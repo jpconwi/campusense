@@ -5,7 +5,8 @@ Order of work for every question:
   1. rule-based intent (greeting, private data, records, faculty, forms)
   2. campus information and room data from the CSV files
   3. strict off-topic check
-  4. only then the Hugging Face model
+  4. only then the language model: Hugging Face first, then Cloudflare, Groq,
+     Google and OpenRouter as automatic fallbacks (see model/systemAi.py)
 """
 
 import difflib

@@ -22,6 +22,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app import config
 from app.database import init_db
+from app.model import systemAi as system_ai
 from app.routers import admin, admin_login, api, auth, mobile_auth, nemsu
 from app.services import chat_history_service
 from app.services.common import ValidationError
@@ -35,6 +36,7 @@ async def lifespan(app: FastAPI):
                            f"{config.ADMIN_MIN_PASSWORD} characters.")
     init_db()
     print(f"Admin login: {config.PUBLIC_URL}{config.ADMIN_LOGIN_URL}  (keep this private)")
+    print("AI providers (in order):", system_ai.describe_chain())
 
     async def cleanup_loop():          # saved chats older than CHAT_HISTORY_DAYS are deleted
         while True:
