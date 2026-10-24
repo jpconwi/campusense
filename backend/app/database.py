@@ -32,9 +32,11 @@ def init_db():
     from app import models  # noqa: F401  (registers the tables)
     Base.metadata.create_all(engine)
     _widen_campus_info_columns()
-    from app.services import campus_service
+    _add_sentiment_columns()
+    from app.services import campus_service, sentiment_service
     with SessionLocal() as db:
         campus_service.seed_if_empty(db)
+        sentiment_service.backfill(db)
 
 
 def _widen_campus_info_columns():
@@ -47,3 +49,15 @@ def _widen_campus_info_columns():
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE campus_info ALTER COLUMN keywords TYPE VARCHAR(500)"))
         conn.execute(text("ALTER TABLE campus_info ALTER COLUMN answer TYPE VARCHAR(2000)"))
+
+
+def _add_sentiment_columns():
+    """create_all() never alters an existing table, so add the sentiment columns to
+    databases created before sentiment analysis existed. Safe to run on every start."""
+    if engine.dialect.name != "postgresql":
+        return
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        for table in ("concerns", "reports", "feedback"):
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS sentiment VARCHAR(10)"))
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS sentiment_score INTEGER"))

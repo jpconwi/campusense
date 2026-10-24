@@ -6,6 +6,7 @@ from app import config
 from app.models import Report
 from app.services import common
 from app.services.common import clean_choice_other, clean_date, clean_text, now
+from app.services import sentiment_service
 from app.services.pdf_service import generate_pdf
 from app.services.upload_service import save_image
 
@@ -26,11 +27,13 @@ def create_report(db: Session, user, form, image_file):
     report_date = clean_date(form.get("report_date"), "Date", allow_future=False)
     image = save_image(image_file)
 
+    mood = sentiment_service.analyze(description)
     stamp = now()
     row = Report(user_id=user.id, reporter_name=user.name, reporter_email=user.email,
                  location=location, area=area, room=room, report_type=report_type,
                  description=description, report_date=report_date, image_filename=image,
-                 status="Pending", created_at=stamp, updated_at=stamp)
+                 status="Pending", sentiment=mood["label"], sentiment_score=mood["score"],
+                 created_at=stamp, updated_at=stamp)
     db.add(row)
     db.commit()
 

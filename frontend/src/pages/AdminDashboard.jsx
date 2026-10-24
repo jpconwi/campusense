@@ -30,10 +30,28 @@ export default function AdminDashboard() {
       <div className="chart-grid">
         <div className="card chart-card"><h3>Concerns by status</h3><Donut chart={c.concern_status} /></div>
         <div className="card chart-card"><h3>Reports by status</h3><Donut chart={c.report_status} /></div>
+        <div className="card chart-card"><h3>Feedback sentiment</h3><Donut chart={c.feedback_sentiment} /></div>
+        <div className="card chart-card"><h3>Concern tone</h3><Donut chart={c.concern_sentiment} /></div>
         <div className="card chart-card"><h3>Faculty reports</h3><Donut chart={c.faculty_status} /></div>
         <div className="card chart-card"><h3>Concerns by type</h3><HBars items={c.concern_types} /></div>
         <div className="card chart-card"><h3>Reports by type</h3><HBars items={c.report_types} /></div>
         <div className="card chart-card"><h3>Top locations (concerns + reports)</h3><HBars items={c.locations} /></div>
+      </div>
+
+      <div className="card">
+        <h3>Negative feedback needing attention</h3>
+        {d.negative_feedback.length ? (
+          <>
+            <div className="table-wrap"><table>
+              <thead><tr><th>ID</th><th>Name</th><th>Area</th><th>Type</th><th>Message</th><th>Sentiment</th><th>Submitted</th></tr></thead>
+              <tbody>{d.negative_feedback.map((r) => (
+                <tr key={r.id}><td>{r.id}</td><td>{r.name}</td><td>{r.area}</td><td>{r.feedback_type}</td><td className="desc">{short(r.message)}</td>
+                  <td><span className="badge sent-negative" title={`Score ${r.sentiment_score}`}>{r.sentiment}</span></td><td>{r.created_at}</td></tr>
+              ))}</tbody>
+            </table></div>
+            <p style={{ marginTop: 10 }}><Link to="/admin/feedback?sentiment=Negative">See all negative feedback</Link></p>
+          </>
+        ) : <p className="empty">No pending negative feedback.</p>}
       </div>
 
       <div className="card">

@@ -59,6 +59,8 @@ class Concern(Base):
     concern_date: Mapped[date] = mapped_column(Date, nullable=False)
     image_filename: Mapped[Optional[str]] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(30), default="Pending", nullable=False)
+    sentiment: Mapped[Optional[str]] = mapped_column(String(10))        # Positive / Neutral / Negative / Mixed
+    sentiment_score: Mapped[Optional[int]] = mapped_column(Integer)      # -100 .. 100
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
 
@@ -79,6 +81,8 @@ class Report(Base):
     report_date: Mapped[date] = mapped_column(Date, nullable=False)
     image_filename: Mapped[Optional[str]] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(30), default="Pending", nullable=False)
+    sentiment: Mapped[Optional[str]] = mapped_column(String(10))        # Positive / Neutral / Negative / Mixed
+    sentiment_score: Mapped[Optional[int]] = mapped_column(Integer)      # -100 .. 100
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
 
@@ -96,6 +100,8 @@ class Feedback(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
     feedback_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(String(30), default="Pending", nullable=False)
+    sentiment: Mapped[Optional[str]] = mapped_column(String(10))        # Positive / Neutral / Negative / Mixed
+    sentiment_score: Mapped[Optional[int]] = mapped_column(Integer)      # -100 .. 100
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
 

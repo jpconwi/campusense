@@ -21,6 +21,7 @@ STATUS_COLORS = {
     "Resolved": "#2e9b57", "Rejected": "#b3121c", "Reviewed": "#2e9b57",
     "Approved": "#2e9b57", "Cancelled": "#8a8cab",
     "Absent": "#b3121c", "Available": "#2e9b57",
+    "Positive": "#2e9b57", "Neutral": "#8a8cab", "Negative": "#b3121c", "Mixed": "#f2b705",
 }
 SERIES = [  # trend chart: (table, label, color)
     ("concerns", "Concerns", "#17119e"),
@@ -30,7 +31,8 @@ SERIES = [  # trend chart: (table, label, color)
 ]
 # fixed names only - SQL is never built from user input
 _GROUP_COLUMNS = {("concerns", "status"), ("reports", "status"),
-                  ("concerns", "concern_type"), ("reports", "report_type")}
+                  ("concerns", "concern_type"), ("reports", "report_type"),
+                  ("feedback", "sentiment"), ("concerns", "sentiment"), ("reports", "sentiment")}
 
 
 def _counts(db: Session, table, column):
@@ -132,6 +134,11 @@ def trend(db: Session, days=14):
 
 
 # ---------------------------------------------------------- faculty table
+def by_sentiment(db, table, title):
+    found = dict(_counts(db, table, "sentiment"))
+    return donut(title, [(s, found.get(s, 0)) for s in ("Positive", "Neutral", "Mixed", "Negative")])
+
+
 def faculty_status(db: Session):
     counts = {}
     for record in faculty_service.load_records(db):
@@ -147,6 +154,8 @@ def dashboard_charts(db: Session):
         "concern_status": by_status(db, "concerns", WORKFLOW_STATUSES),
         "report_status": by_status(db, "reports", WORKFLOW_STATUSES),
         "faculty_status": faculty_status(db),
+        "feedback_sentiment": by_sentiment(db, "feedback", "Feedback sentiment"),
+        "concern_sentiment": by_sentiment(db, "concerns", "Concern tone"),
         "concern_types": hbars(_counts(db, "concerns", "concern_type"), color="#17119e"),
         "report_types": hbars(_counts(db, "reports", "report_type"), color="#d99a00"),
         "locations": hbars(top_locations(db), color="#2a9d8f"),

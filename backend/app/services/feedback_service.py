@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app import config
 from app.models import Feedback
-from app.services import common
+from app.services import common, sentiment_service
 from app.services.common import clean_choice_other, clean_date, clean_text, now
 from app.services.pdf_service import generate_pdf
 
@@ -21,10 +21,12 @@ def create_feedback(db: Session, user, form):
     message = clean_text(form.get("message"), "Message", 2000)
     feedback_date = clean_date(form.get("feedback_date"), "Date", allow_future=False)
 
+    mood = sentiment_service.analyze(message)
     stamp = now()
     row = Feedback(user_id=user.id, name=user.name, email=user.email, area=area,
                    feedback_type=feedback_type, message=message, feedback_date=feedback_date,
-                   status="Pending", created_at=stamp, updated_at=stamp)
+                   status="Pending", sentiment=mood["label"], sentiment_score=mood["score"],
+                   created_at=stamp, updated_at=stamp)
     db.add(row)
     db.commit()
 

@@ -35,7 +35,7 @@ COLUMNS = {
         ("From", "submitter_role", True),
         ("Type", "concern_type", False), ("Location", "location", False),
         ("Room", "room", False), ("Description", "description", False),
-        ("Status", "status", False),
+        ("Sentiment", "sentiment", True), ("Status", "status", False),
     ],
     "reports": [
         ("ID", "id", False), ("Submitted", "created_at", False),
@@ -43,14 +43,16 @@ COLUMNS = {
         ("From", "submitter_role", True),
         ("Type", "report_type", False), ("Location", "location", False),
         ("Area", "area", False), ("Room", "room", False),
-        ("Description", "description", False), ("Status", "status", False),
+        ("Description", "description", False), ("Sentiment", "sentiment", True),
+        ("Status", "status", False),
     ],
     "feedback": [
         ("ID", "id", False), ("Submitted", "created_at", False),
         ("Name", "name", True), ("Email", "email", True),
         ("From", "submitter_role", True),
         ("Area", "area", False), ("Type", "feedback_type", False),
-        ("Message", "message", False), ("Status", "status", False),
+        ("Message", "message", False), ("Sentiment", "sentiment", True),
+        ("Status", "status", False),
     ],
     "reservations": [
         ("ID", "id", False), ("Submitted", "created_at", False),
@@ -159,7 +161,7 @@ def _model(table):
     return MODELS[table]
 
 
-def list_rows(db: Session, table, user_id=None, status=None, limit=None):
+def list_rows(db: Session, table, user_id=None, status=None, limit=None, sentiment=None):
     """Newest first. Optional filter by owner and/or status."""
     model = _model(table)
     query = select(model, User.role).outerjoin(User, User.id == model.user_id)
@@ -167,6 +169,8 @@ def list_rows(db: Session, table, user_id=None, status=None, limit=None):
         query = query.where(model.user_id == user_id)
     if status:
         query = query.where(model.status == status)
+    if sentiment and hasattr(model, "sentiment"):
+        query = query.where(model.sentiment == sentiment)
     query = query.order_by(model.id.desc())
     if limit:
         query = query.limit(int(limit))
@@ -183,11 +187,13 @@ def get_row(db: Session, table, row_id):
     return _add_extras(row_to_dict(obj)) if obj else None
 
 
-def count_rows(db: Session, table, status=None, user_id=None):
+def count_rows(db: Session, table, status=None, user_id=None, sentiment=None):
     model = _model(table)
     query = select(func.count()).select_from(model)
     if status:
         query = query.where(model.status == status)
+    if sentiment:
+        query = query.where(model.sentiment == sentiment)
     if user_id is not None:
         query = query.where(model.user_id == user_id)
     return db.execute(query).scalar_one()

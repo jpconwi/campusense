@@ -49,6 +49,7 @@ def dashboard(db: Session = Depends(get_db)):
         ["Resolved Reports", common.count_rows(db, "reports", "Resolved")],
         ["Faculty Reports", len(faculty)],
         ["Total Feedback", common.count_rows(db, "feedback")],
+        ["Negative Feedback", common.count_rows(db, "feedback", sentiment="Negative")],
         ["Total Reservations", common.count_rows(db, "reservations")],
     ]
     return {
@@ -56,21 +57,26 @@ def dashboard(db: Session = Depends(get_db)):
         "charts": chart_service.dashboard_charts(db),
         "recent_concerns": common.list_rows(db, "concerns", status="Pending", limit=5),
         "recent_reports": common.list_rows(db, "reports", status="Pending", limit=5),
+        "negative_feedback": common.list_rows(db, "feedback", status="Pending", sentiment="Negative", limit=5),
     }
 
 
 # -------------------------------------------------------- record lists
 @router.get("/records/{kind}")
-def records(kind: str, status: Optional[str] = None, db: Session = Depends(get_db)):
+def records(kind: str, status: Optional[str] = None, sentiment: Optional[str] = None,
+            db: Session = Depends(get_db)):
     if kind not in SECTIONS:
         raise HTTPException(404, "That page was not found.")
     if status and status not in common.TABLE_STATUSES[kind]:
         status = None
+    if sentiment not in ("Positive", "Neutral", "Negative", "Mixed"):
+        sentiment = None
     return {
-        "kind": kind, "spec": SECTIONS[kind], "current": status,
+        "kind": kind, "spec": SECTIONS[kind], "current": status, "current_sentiment": sentiment,
+        "has_sentiment": kind != "reservations",
         "statuses": common.TABLE_STATUSES[kind],
         "columns": [[h, k] for h, k, _ in common.COLUMNS[kind]],
-        "rows": common.list_rows(db, kind, status=status),
+        "rows": common.list_rows(db, kind, status=status, sentiment=sentiment),
     }
 
 

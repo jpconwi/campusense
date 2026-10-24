@@ -460,3 +460,56 @@ def test_old_chats_are_deleted_automatically(student, db):
     db.expire_all()
     assert db.get(ChatSession, old) is None
     assert db.query(ChatMessage).filter(ChatMessage.session_id == old).count() == 0
+
+
+# ------------------------------------------------------- sentiment analysis
+def test_sentiment_analyzer_examples():
+    from app.services.sentiment_service import analyze
+    assert analyze("The staff were very helpful, thank you!")["label"] == "Positive"
+    assert analyze("The projector is broken and the room is dirty.")["label"] == "Negative"
+    assert analyze("Not bad")["label"] == "Positive"                       # negation flips
+    assert analyze("This is not good")["label"] == "Negative"
+    assert analyze("Where is the library?")["label"] == "Neutral"
+    assert analyze("Maayo ang library, salamat kaayo")["label"] == "Positive"   # Bisaya
+    assert analyze("Sira ang aircon, sobrang init")["label"] == "Negative"      # Tagalog
+    assert analyze("Friendly staff but the room is very dirty and noisy")["label"] == "Negative"
+    assert analyze("Friendly and helpful staff but slow and dirty rooms, terrible smell")["label"] in ("Mixed", "Negative")
+    assert -100 <= analyze("worst terrible awful")["score"] < 0
+
+
+def test_sentiment_saved_and_admin_only(student, admin):
+    fb = {"area": "Library", "feedback_type": "Compliment", "feedback_date": TODAY,
+          "message": "The librarian was very helpful, thank you!"}
+    assert student.post("/api/feedback", data=fb).status_code == 200
+    student.post("/api/feedback", data={**fb, "feedback_type": "Complaint",
+                                        "message": "The aircon is broken and the room is dirty."})
+    student.post("/api/concerns", data=concern_form(description="The door is not working."))
+
+    rows = admin.get("/api/admin/records/feedback").json()
+    by_label = {r["sentiment"] for r in rows["rows"]}
+    assert by_label == {"Positive", "Negative"}
+    assert ["Sentiment", "sentiment"] in rows["columns"]
+    only_neg = admin.get("/api/admin/records/feedback?sentiment=Negative").json()["rows"]
+    assert len(only_neg) == 1 and only_neg[0]["sentiment"] == "Negative"
+
+    d = admin.get("/api/admin/dashboard").json()
+    assert dict((k, v) for k, v in d["stats"])["Negative Feedback"] == 1
+    assert d["charts"]["feedback_sentiment"]["total"] == 2
+    assert len(d["negative_feedback"]) == 1
+
+    mine = student.get("/api/me/records/feedback").json()                  # students never see it
+    assert all("sentiment" not in r for r in mine["rows"])
+    assert ["Sentiment", "sentiment"] not in mine["columns"]
+
+
+def test_sentiment_backfill_for_old_rows(student, db):
+    from app.models import Feedback
+    from app.services import sentiment_service
+    student.post("/api/feedback", data={"area": "Library", "feedback_type": "Other", "feedback_type_other": "x",
+                                        "feedback_date": TODAY, "message": "Terrible, dirty and rude staff"})
+    row = db.query(Feedback).first()
+    row.sentiment = row.sentiment_score = None
+    db.commit()
+    sentiment_service.backfill(db)
+    db.refresh(row)
+    assert row.sentiment == "Negative" and row.sentiment_score < 0

@@ -6,6 +6,7 @@ from app import config
 from app.models import Concern
 from app.services import common
 from app.services.common import clean_choice_other, clean_date, clean_text, now
+from app.services import sentiment_service
 from app.services.pdf_service import generate_pdf
 from app.services.upload_service import save_image
 
@@ -26,11 +27,13 @@ def create_concern(db: Session, user, form, image_file):
     concern_date = clean_date(form.get("concern_date"), "Date", allow_future=False)
     image = save_image(image_file)
 
+    mood = sentiment_service.analyze(description)
     stamp = now()
     row = Concern(user_id=user.id, reporter_name=user.name, reporter_email=user.email,
                   location=location, room=room, concern_type=concern_type,
                   description=description, concern_date=concern_date, image_filename=image,
-                  status="Pending", created_at=stamp, updated_at=stamp)
+                  status="Pending", sentiment=mood["label"], sentiment_score=mood["score"],
+                  created_at=stamp, updated_at=stamp)
     db.add(row)
     db.commit()
 

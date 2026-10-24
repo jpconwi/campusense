@@ -233,7 +233,8 @@ def my_records(kind: str, user: CurrentUser = Depends(role_required("student", "
         raise HTTPException(403, NO_STUDENT_RESERVATION)
     return {
         "kind": kind, "spec": USER_KINDS[kind], "pdf": kind in PDF_KINDS,
-        "rows": common.list_rows(db, kind, user_id=user.id),
+        "rows": [{k: v for k, v in r.items() if not k.startswith("sentiment")}      # admin-only
+                 for r in common.list_rows(db, kind, user_id=user.id)],
         "columns": [[h, k] for h, k, private in common.COLUMNS[kind] if not private],
     }
 
