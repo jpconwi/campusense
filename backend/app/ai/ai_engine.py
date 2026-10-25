@@ -132,11 +132,27 @@ def _lost_item_reply(role, found):
     return response.form("report_form", text, found.get("prefill"))
 
 
-def ask_ai(db, question, user):
-    """Main function. `user` is the authenticated CurrentUser from the server."""
+def _about_me(role):
+    text = ("I'm NEMSAI, the NEMSU Tandag Main Campus assistant. I'm an AI, so I'm not from "
+            "anywhere, but I live right here on the campus website. Ask me about campus locations, "
+            "rooms, facilities, equipment, concerns, reports, feedback or instructor availability.")
+    return response.message(text)
+
+
+def ask_ai(db, question, user, earlier=None):
+    """Main function. `user` is the authenticated CurrentUser from the server.
+
+    `earlier` = this person's earlier questions in the same chat, newest first. It is only used
+    for short follow-ups such as "asa dapit na?" ("where is it?").
+    """
     question = str(question or "").strip()[:500]
     if not question:
         return response.message("Please enter a question.")
+
+    if earlier and intents.is_location_followup(normalize(question)):
+        for old in earlier:
+            if intents.asks_location(normalize(old)):
+                return ask_ai(db, old, user)        # answer the place they were asking about again
 
     role = user.role if user else "student"
     found = intents.detect(db, question, role)
@@ -144,6 +160,8 @@ def ask_ai(db, question, user):
 
     if name == "greeting":
         return _greeting(role)
+    if name == "about_me":
+        return _about_me(role)
 
     if knowledge_service.wants_article_text(question):      # "give me the text of that news"
         newest = knowledge_service.latest(db, 1)

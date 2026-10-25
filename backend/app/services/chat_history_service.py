@@ -81,6 +81,18 @@ def save_exchange(db: Session, user_id, session_id, question, answer: dict):
     return row.id
 
 
+def recent_questions(db: Session, user_id, session_id, limit=6):
+    """The person's own latest questions in a chat, newest first (for follow-up questions)."""
+    if not session_id:
+        return []
+    row = db.get(ChatSession, session_id)
+    if row is None or row.user_id != user_id:
+        return []
+    return list(db.execute(select(ChatMessage.text).where(
+        ChatMessage.session_id == session_id, ChatMessage.role == "user")
+        .order_by(ChatMessage.id.desc()).limit(limit)).scalars().all())
+
+
 def list_chats(db: Session, user_id):
     purge_old(db)
     rows = db.execute(select(ChatSession).where(ChatSession.user_id == user_id)

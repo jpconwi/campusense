@@ -114,6 +114,14 @@ ITEM_WORDS = [
 ]
 
 
+# "can you help me find my phone?", "gipangita nako akong wallet", "hanap ko ang bag ko"
+FIND_PHRASES = ["find my", "finding my", "look for my", "looking for my", "search for my",
+                "cant find", "cannot find", "can not find", "where is my", "wheres my",
+                "where did i leave", "where did i put", "help me find", "hanap ko", "hinahanap ko",
+                "hinahanap", "gipangita", "nangita", "pangitaa", "asa ang akong", "asa na akong",
+                "nasaan ang", "nasaan na ang"]
+
+
 def lost_found_request(q):
     """'i loss my phone', 'lost my wallet', 'i found an id' -> 'lost' / 'found' / None.
 
@@ -126,6 +134,9 @@ def lost_found_request(q):
         return "lost"
     if has(q, *FOUND_WORDS):
         return "found"
+    # "find my phone" / "where is my wallet": it is the person's own thing, so it is lost
+    if has(q, *FIND_PHRASES) and has(q, "my", "akong", "akoang", "akin", "ko", "nako"):
+        return "lost"
     return None
 
 
@@ -324,6 +335,37 @@ def _prefill(q, original, kind):
 
 
 # ----------------------------------------------------------- main entry
+ABOUT_ME = ["taga asa ka", "taga saan ka", "where are you from", "where do you live",
+            "who made you", "who created you", "who built you", "who developed you",
+            "what is your name", "whats your name", "your name", "unsa imong ngalan",
+            "unsa ngalan nimo", "ano pangalan mo", "ano ang pangalan mo", "are you a robot",
+            "are you ai", "are you a bot", "are you real", "kinsa ka", "unsa ka", "sino ka",
+            "kinsay naghimo nimo", "sino gumawa sayo"]
+GREETING_PHRASES = ["hi", "hello", "hey", "help", "hi there", "hello there", "good morning",
+                    "good afternoon", "good evening", "what can you do", "who are you",
+                    "good day", "kumusta", "kamusta", "musta", "kumusta ka", "maayong buntag",
+                    "maayong hapon", "maayong gabii", "maayong adlaw", "magandang umaga",
+                    "magandang hapon", "magandang gabi", "magandang araw", "uy", "hoy"]
+
+# a short follow-up such as "asa dapit na?" / "where is it?" (no place named in it)
+_FOLLOWUP_FILLER = {"asa", "dapit", "na", "ba", "diin", "nasaan", "saan", "where", "is", "it", "that",
+                    "there", "exactly", "located", "ang", "po", "pa", "kini", "kana", "kadto",
+                    "location", "unsa", "ni", "ha", "gyud", "man", "daw", "ang", "naa", "dapita", "yan"}
+_ASKS_WHERE = ["asa", "where", "nasaan", "saan", "diin", "location", "located", "locate",
+               "find", "map", "directions"]
+
+
+def is_location_followup(q):
+    tokens = q.split()
+    return bool(tokens) and len(tokens) <= 5 and has(q, "asa", "where", "nasaan", "saan", "diin",
+                                                    "dapit", "location") \
+        and all(t in _FOLLOWUP_FILLER for t in tokens)
+
+
+def asks_location(q):
+    return bool(q) and not is_location_followup(q) and bool(has(q, *_ASKS_WHERE))
+
+
 def detect(db, question, role):
     """Return a dict: {"intent": ..., plus extra data}."""
     q = normalize(question)
@@ -334,9 +376,12 @@ def detect(db, question, role):
         return {"intent": "empty"}
 
     # greetings / help
-    if q in ("hi", "hello", "hey", "help", "hi there", "hello there", "good morning",
-             "good afternoon", "good evening", "what can you do", "who are you"):
+    if q in GREETING_PHRASES:
         return {"intent": "greeting"}
+
+    # "taga asa ka?", "what is your name?", "are you a robot?"
+    if has(q, *ABOUT_ME):
+        return {"intent": "about_me"}
 
     # the user's own basic details
     if has(q, "my") and has(q, "email", "role", "account type", "name") \
@@ -346,8 +391,8 @@ def detect(db, question, role):
     if q in ("who am i", "whoami", "what is my role"):
         return {"intent": "my_info", "what": "role"}
 
-    # other people's private data
-    if has(q, "email", "e mail", "emails", "gmail", "password", "passwords",
+    # other people's private data (a lost cellphone is not that)
+    if not lost_found_request(q) and has(q, "email", "e mail", "emails", "gmail", "password", "passwords",
            "google id", "google account", "phone number", "contact number",
            "mobile number", "cellphone", "home address"):
         return {"intent": "private"}

@@ -513,3 +513,28 @@ def test_sentiment_backfill_for_old_rows(student, db):
     sentiment_service.backfill(db)
     db.refresh(row)
     assert row.sentiment == "Negative" and row.sentiment_score < 0
+
+
+# --------------------------------------------- everyday wording (Bisaya / Tagalog / English)
+def test_find_my_phone_opens_the_lost_and_found_form(student):
+    for text in ["can you help me find my phone?", "nawala akong cellphone", "asa ang akong wallet",
+                 "I can't find my bag", "hinahanap ko ang payong ko"]:
+        a = student.ask(text)
+        assert a["type"] == "report_form", text
+        assert a["prefill"]["report_type"] == "Lost & Found"
+    assert student.ask("What is the phone number of the registrar?")["type"] != "report_form"
+
+
+def test_about_the_assistant_and_local_greetings(student):
+    assert "NEMSAI" in student.ask("taga asa ka?")["answer"]
+    assert "NEMSAI" in student.ask("what is your name?")["answer"]
+    assert "NEMSAI" in student.ask("kumusta")["answer"]
+    assert "NEMSAI" in student.ask("maayong buntag")["answer"]
+
+
+def test_where_is_it_follow_up_uses_the_chat(student):
+    sid = student.post("/api/ask", json={"question": "asa ang cite?"}).json()["session_id"]
+    a = student.post("/api/ask", json={"question": "asa dapit na?", "session_id": sid}).json()
+    assert "ICT area" in a["answer"] and "OFF" not in a["answer"].upper()[:3]
+    # with no earlier question there is nothing to refer to
+    assert student.ask("asa dapit na?")["answer"] != a["answer"]
