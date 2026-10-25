@@ -280,7 +280,10 @@ def test_campus_info_and_off_topic_never_use_llm(student, prompts):
     assert "Library is near CAS" in student.ask("Where is the library?")["answer"]
     assert "1st Canteen" in student.ask("Which canteen is near the CBM area?")["answer"]
     assert student.ask("What is Python?")["answer"] == OFF_TOPIC_RESPONSE
-    assert prompts == []
+    # off-topic may only reach the small "what does the person mean?" step, never the full
+    # campus prompt, and that step receives no account details
+    assert all(p.startswith("You help a university campus chatbot understand") for p in prompts)
+    assert not any("sam@nemsu.edu.ph" in p or "Current user role" in p for p in prompts)
 
 
 def test_llm_gets_only_the_role(student, instructor, admin, prompts):
@@ -653,3 +656,61 @@ def test_small_talk_in_bisaya_tagalog_english(student):
     assert student.ask("can we be friends?")["answer"].startswith("Of course, we can be friends")
     assert student.ask("how are you?")["answer"].startswith("I'm doing great")
     assert "😊" in student.ask("hi ❤️😊")["answer"] and "👋" not in student.ask("hi ❤️😊")["answer"]
+
+
+# ----------------------------------------------- understanding like a person (model-assisted)
+def _fake_brain(monkeypatch, rewrite_json=None, chat="Kumusta! Unsay matabang nako nimo?"):
+    from app.ai import ai_engine, understand
+    seen = []
+
+    def brain(system_prompt, question):
+        seen.append((system_prompt, question))
+        if system_prompt.startswith("You help a university campus chatbot understand"):
+            return rewrite_json
+        if system_prompt.startswith("You are NEMSAI, the friendly assistant"):
+            return chat
+        return "MODEL ANSWER"
+    monkeypatch.setattr(ai_engine, "ask_model", brain)
+    return seen
+
+
+def test_emoji_only_message_gets_a_friendly_reply(student):
+    a = student.ask("😊😊")["answer"]
+    assert a.startswith("Hi there! What can I help you with today?") and "😊" in a
+    assert "Sorry" not in a
+
+
+def test_unknown_wording_is_understood_by_the_model_then_handled_by_the_rules(student, monkeypatch):
+    # slang the keyword rules do not know -> the model rewrites it -> the lost & found form opens
+    _fake_brain(monkeypatch, '{"kind":"campus","english":"I lost my phone"}')
+    a = student.ask("naunsa na ni kay wala nako makita akong selpon sa lawak")
+    assert a["type"] == "report_form" and a["prefill"]["report_type"] == "Lost & Found"
+
+
+def test_campus_question_without_keywords_reaches_the_model_with_both_versions(student, monkeypatch):
+    seen = _fake_brain(monkeypatch, '{"kind":"campus","english":"What are the enrollment requirements?"}')
+    assert student.ask("unsay kinahanglan para maka-enroll ko nga bag-o")["answer"] == "MODEL ANSWER"
+    last = seen[-1][1]
+    assert "unsay kinahanglan" in last and "Clear English version: What are the enrollment" in last
+
+
+def test_smalltalk_gets_a_friendly_reply_and_offtopic_is_still_refused(student, monkeypatch):
+    _fake_brain(monkeypatch, '{"kind":"smalltalk","english":"Hello, how are you?"}')
+    assert student.ask("musta bro")["answer"] == "Kumusta! Unsay matabang nako nimo?"
+    _fake_brain(monkeypatch, '{"kind":"offtopic","english":"Who won the NBA finals?"}')
+    assert student.ask("who won the nba finals")["answer"] == OFF_TOPIC_RESPONSE
+
+
+def test_model_down_or_garbage_still_refuses_safely(student, monkeypatch):
+    from app.ai import ai_engine
+    for broken in (lambda s, q: None, lambda s, q: "not json at all", lambda s, q: '{"kind":"campus"}'):
+        monkeypatch.setattr(ai_engine, "ask_model", broken)
+        assert student.ask("zxqv blorp")["answer"] == OFF_TOPIC_RESPONSE
+
+
+def test_follow_up_words_use_the_earlier_questions(student, monkeypatch):
+    seen = _fake_brain(monkeypatch, '{"kind":"campus","english":"Where is the canteen near the library?"}')
+    sid = student.post("/api/ask", json={"question": "where is the library?"}).json()["session_id"]
+    student.post("/api/ask", json={"question": "ug ang kan-anan dapit ana?", "session_id": sid})
+    rewrite_calls = [q for s, q in seen if s.startswith("You help a university campus chatbot")]
+    assert rewrite_calls and "where is the library?" in rewrite_calls[-1]

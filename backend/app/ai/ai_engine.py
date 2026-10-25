@@ -12,7 +12,7 @@ Order of work for every question:
 import difflib
 
 from app.ai import intent as intents
-from app.ai import language, response, style, texts
+from app.ai import language, response, style, texts, understand
 from app.ai.context import build_system_prompt, build_user_context
 from app.model.systemAi import ask_model
 from app.prompts.locationPrompt import (CAMPUS_EMBED_URL, CAMPUS_LOCATION_TEXT,
@@ -141,7 +141,11 @@ def ask_ai(db, question, user, earlier=None):
     return style.add_emoji(result, question)
 
 
-def _answer(db, question, user, earlier, lang):
+def _answer(db, question, user, earlier, lang, rewritten=False, original=None):
+    """`rewritten` = the model already worked out what the person means (see ai/understand.py);
+    `original` = what they really typed (so the final answer is in their language)."""
+    if not normalize(question) and style.EMOJI.search(question):   # "😊😊", "👍"
+        return response.message(texts.en("emoji_only"))
     if earlier and intents.is_location_followup(normalize(question)):
         for old in earlier:
             if intents.asks_location(normalize(old)):
@@ -274,16 +278,24 @@ def _answer(db, question, user, earlier, lang):
                    "that is it", "is that all", "what do you mean", "huh"):
         return response.clarify()
 
-    # ---- strict off-topic protection
-    if not _is_campus_related(question):
+    # ---- not clearly about the campus by keywords: let the model work out what they mean
+    if not rewritten and not _is_campus_related(question):
         suggestions = campus_service.suggest_topics(db, question)
         if suggestions:                           # misspelt campus topic, not off-topic
             return response.clarify(suggestions)
+        view = understand.rewrite(question, earlier, ask_model)
+        if view and view["kind"] == "campus":     # clear English version -> the normal engine
+            return _answer(db, view["english"], user, earlier, lang,
+                           rewritten=True, original=question)
+        if view and view["kind"] == "smalltalk":
+            chat = understand.smalltalk(question, ask_model)
+            return response.message(chat or texts.en("help_ask"))
         return response.message(texts.en("off_topic"))
 
     # ---- the language model (role only, no private details)
     context = build_user_context(user)
-    answer = ask_model(build_system_prompt(db, context["role"]), question)
+    asked = question if not original else f"{original}\n\n[Clear English version: {question}]"
+    answer = ask_model(build_system_prompt(db, context["role"]), asked)
     if not answer or response.NO_INFO.lower() in answer.lower():
         # nothing found (or the model gave up): ask the user to clarify
         return response.clarify(campus_service.suggest_topics(db, question))

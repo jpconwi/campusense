@@ -132,6 +132,10 @@ TEXTS = {
         "Sige, malipay ko nga motabang! Unsang tabang ang imong kinahanglan? Pwede kang mangutana "
         "mahitungod sa mga lokasyon sa campus, kwarto, pasilidad ug kagamitan, mo-report ug concern "
         "o nawala nga gamit, mopadala ug feedback, o mo-check sa availability sa instructor."),
+    "emoji_only": (
+        "Hi there! What can I help you with today?",
+        "Hi! Ano ang maitutulong ko sa iyo ngayon?",
+        "Hi! Unsay matabang nako nimo karon?"),
     "friends": (
         "Of course, we can be friends! I'm NEMSAI, your campus assistant. Just tell me what you "
         "need help with.",
@@ -266,7 +270,7 @@ TEXTS = {
 SERIOUS = {"off_topic", "clarify_some", "clarify_none", "private", "reservation_denied",
            "lost_lost", "lost_found", "lost_admin", "admin_forms", "no_room", "enter_question",
            "hours", "my_email", "my_name", "my_role"}
-FRIENDLY_EMOJI = {"help_ask": "🙂", "friends": "😊", "how_are_you": "😊", "greeting_student": "👋", "greeting_instructor": "👋", "greeting_admin": "👋",
+FRIENDLY_EMOJI = {"emoji_only": "😊", "help_ask": "🙂", "friends": "😊", "how_are_you": "😊", "greeting_student": "👋", "greeting_instructor": "👋", "greeting_admin": "👋",
                   "greeting_default": "👋", "about_me": "😊", "about_system": "😊",
                   "languages": "😊", "thanks": "😊", "campus_location": "📍"}
 
