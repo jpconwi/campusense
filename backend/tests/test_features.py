@@ -532,9 +532,104 @@ def test_about_the_assistant_and_local_greetings(student):
     assert "NEMSAI" in student.ask("maayong buntag")["answer"]
 
 
-def test_where_is_it_follow_up_uses_the_chat(student):
+def test_where_is_it_follow_up_uses_the_chat(student, monkeypatch):
+    from app.ai import ai_engine
+    monkeypatch.setattr(ai_engine, "ask_model", lambda s, q: None)     # no translation: keep the English facts
     sid = student.post("/api/ask", json={"question": "asa ang cite?"}).json()["session_id"]
     a = student.post("/api/ask", json={"question": "asa dapit na?", "session_id": sid}).json()
     assert "ICT area" in a["answer"] and "OFF" not in a["answer"].upper()[:3]
     # with no earlier question there is nothing to refer to
     assert student.ask("asa dapit na?")["answer"] != a["answer"]
+
+
+# ------------------------------------------------ many languages + occasional emojis
+def test_language_detection():
+    from app.ai.language import detect
+    assert detect("Where is the library?") == "en"
+    assert detect("kasabot ka ug tagalog ug bisaya?") == "ceb"
+    assert detect("para saan ito nga system?") == "tl"
+    assert detect("nawala akong phone") == "ceb"
+    assert detect("¿Dónde está la biblioteca?") == "other"
+    assert detect("図書館はどこですか") == "other"
+
+
+def test_the_questions_that_used_to_fail(student):
+    a = student.ask("kasabot ka ug tagalog ug bisaya?")["answer"]
+    assert a.startswith("Oo! Makasabot ko")                                     # in Bisaya
+    assert "Ito ang NEMSAI" in student.ask("para saan ito nga system?")["answer"]   # in Tagalog
+    assert "Kini ang NEMSAI" in student.ask("para asa ni nga system?")["answer"]    # in Bisaya
+    assert "Yes! I understand English" in student.ask("Do you speak Tagalog?")["answer"]
+    hours = student.ask("abri run ang nemsu?")["answer"]
+    assert "nemsu.edu.ph" in hours and "Wala koy opisyal" in hours                # honest, not invented
+    lost = student.ask("nawala akong phone")
+    assert lost["type"] == "report_form" and lost["answer"].startswith("Pasensya sa nahitabo")
+
+
+def test_fixed_replies_follow_the_users_language(student):
+    from app.prompts.systemPrompt import OFF_TOPIC_RESPONSE
+    assert student.ask("What is Python?")["answer"] == OFF_TOPIC_RESPONSE
+    assert student.ask("Unsa ang Python programming language?")["answer"].startswith("Pasensya")
+    assert "Kumusta" in student.ask("maayong buntag")["answer"]
+    assert "Kumusta" in student.ask("magandang umaga")["answer"]
+    assert student.ask("salamat kaayo")["answer"].startswith("Walay sapayan")
+    assert "Ang email sa imong account kay" in student.ask("unsa akong email? my email")["answer"]
+
+
+def test_other_languages_go_through_translation(student, monkeypatch):
+    from app.ai import ai_engine
+    calls = []
+
+    def fake_model(system_prompt, question):
+        calls.append(question)
+        if system_prompt.startswith("Translate the user's message"):
+            return "Where is the library?"
+        if system_prompt.startswith("Translate the following chat reply"):
+            return "TRADUCIDO: " + question[:20]
+        return "MODEL ANSWER"
+    monkeypatch.setattr(ai_engine, "ask_model", fake_model)
+    answer = student.ask("¿Dónde está la biblioteca?")["answer"]
+    assert answer.startswith("TRADUCIDO:") and len(calls) == 2
+    monkeypatch.setattr(ai_engine, "ask_model", lambda s, q: None)           # model down: still answers
+    assert student.ask("¿Dónde está la biblioteca?")["answer"]
+
+
+def test_the_model_is_told_to_use_the_users_language(student):
+    from tests.conftest import PROMPTS
+    student.ask("Unsa ang imong plano sa campus nemsu?")
+    assert any("ALWAYS answer in the language" in p for p in PROMPTS[-1:])
+
+
+def test_emojis_only_sometimes(student):
+    plain = student.ask("hello")["answer"]
+    assert not any(ch in plain for ch in "👋😊🙂")                    # a normal message: no emoji
+    assert "👋" in student.ask("hello 😊")["answer"] or "😊" in student.ask("hello 😊")["answer"]
+    results = [student.ask(f"hello po, thanks haha {i}")["answer"] for i in range(30)]
+    with_emoji = [a for a in results if "👋" in a or "😊" in a or "🙂" in a]
+    assert 5 < len(with_emoji) < 25                                    # "sometimes", not always
+    again = [student.ask(f"hello po, thanks haha {i}")["answer"] for i in range(30)]
+    assert results == again                                            # steady, not random flicker
+
+
+def test_no_emoji_in_serious_replies(student):
+    for text in ["What is Python? 😊", "I want to reserve a room haha 😊", "nawala akong phone 😊",
+                 "my email please 😊"]:
+        a = student.ask(text)
+        assert not any(ch in a["answer"] for ch in "😊🙂👋📍"), text
+    upset = student.ask("hello this is terrible and awful 😡")["answer"]
+    assert "😊" not in upset and "🙂" not in upset
+
+
+def test_greeting_with_friendly_extras_and_translated_campus_answers(student, monkeypatch):
+    from app.ai import ai_engine
+    assert "Kumusta" in student.ask("hello po haha 😊")["answer"] or "Hello" in student.ask("hello po haha 😊")["answer"]
+    assert "NEMSAI" in student.ask("hi nemsai")["answer"]
+
+    seen = []
+
+    def fake_model(system_prompt, question):
+        seen.append((system_prompt[:25], question))
+        return "SA BISAYA: " + question[:15]
+    monkeypatch.setattr(ai_engine, "ask_model", fake_model)
+    answer = student.ask("asa ang library?")["answer"]                  # Bisaya question, English campus data
+    assert answer.startswith("SA BISAYA: ") and "Library" in seen[0][1]
+    assert student.ask("Where is the library?")["answer"].startswith("The Library")   # English stays as is

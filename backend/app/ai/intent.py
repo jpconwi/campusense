@@ -347,6 +347,35 @@ GREETING_PHRASES = ["hi", "hello", "hey", "help", "hi there", "hello there", "go
                     "maayong hapon", "maayong gabii", "maayong adlaw", "magandang umaga",
                     "magandang hapon", "magandang gabi", "magandang araw", "uy", "hoy"]
 
+LANGUAGE_WORDS = ["tagalog", "bisaya", "cebuano", "binisaya", "visaya", "english", "filipino",
+                  "language", "languages", "lenggwahe", "wika", "pinulongan", "taglish"]
+LANGUAGE_ASK = ["kasabot ka", "kasabut ka", "makasabot ka", "makasabut ka", "kabalo ka", "kabalo ka mo",
+                "do you understand", "do you speak", "can you speak", "can you understand",
+                "naiintindihan mo", "naiintindihan mo ba", "marunong ka", "nakakaintindi ka",
+                "what languages", "which languages", "unsa nga language", "anong wika",
+                "anong lenggwahe", "unsang pinulongan"]
+SYSTEM_WORDS = ["this system", "ni nga system", "ning system", "kini nga system", "ito nga system",
+                "system na ito", "this website", "this app", "this chatbot", "this bot", "nemsai"]
+SYSTEM_ASK = ["para asa", "para saan", "what is", "whats", "what does", "unsa", "ano", "purpose",
+              "gamit", "used for", "for what"]
+THANKS = ["thanks", "thank you", "thank u", "salamat", "maraming salamat", "daghang salamat",
+          "salamat kaayo", "ty", "thanks po", "salamat po"]
+HOURS_WORDS = ["open", "opened", "opening", "close", "closed", "closing", "abri", "abli", "abre",
+               "bukas", "sarado", "sirado", "hours", "business hours", "office hours", "what time"]
+HOURS_PLACE = ["nemsu", "campus", "school", "library", "registrar", "office", "eskwelahan",
+               "paaralan", "tandag", "canteen", "gym"]
+
+
+def asks_hours(q):
+    """'abri run ang nemsu?', 'is the library open?' (opening hours are not in the campus data)."""
+    return bool(has(q, *HOURS_WORDS) and has(q, *HOURS_PLACE)
+                and not has(q, "form", "report", "concern", "reservation", "reserve", "feedback",
+                            "open to", "open for", "open source", "open house"))
+
+
+GREETING_FILLER = {"po", "opo", "haha", "hahaha", "hehe", "lol", "pls", "please", "nemsai", "bot",
+                   "ai", "ha", "ba", "na", "there", "everyone", "all"}
+
 # a short follow-up such as "asa dapit na?" / "where is it?" (no place named in it)
 _FOLLOWUP_FILLER = {"asa", "dapit", "na", "ba", "diin", "nasaan", "saan", "where", "is", "it", "that",
                     "there", "exactly", "located", "ang", "po", "pa", "kini", "kana", "kadto",
@@ -376,12 +405,24 @@ def detect(db, question, role):
         return {"intent": "empty"}
 
     # greetings / help
-    if q in GREETING_PHRASES:
+    if q in GREETING_PHRASES or " ".join(t for t in tokens if t not in GREETING_FILLER) in GREETING_PHRASES:
         return {"intent": "greeting"}
 
     # "taga asa ka?", "what is your name?", "are you a robot?"
     if has(q, *ABOUT_ME):
         return {"intent": "about_me"}
+
+    # "kasabot ka ug tagalog ug bisaya?", "do you speak Tagalog?"
+    if has(q, *LANGUAGE_ASK) and has(q, *LANGUAGE_WORDS):
+        return {"intent": "languages"}
+
+    # "para asa ni nga system?", "what is this system?"
+    if has(q, *SYSTEM_WORDS) and has(q, *SYSTEM_ASK):
+        return {"intent": "about_system"}
+
+    # "thanks", "salamat kaayo"
+    if (q in THANKS or (has(q, *THANKS) and len(tokens) <= 5)) and "?" not in original:
+        return {"intent": "thanks"}
 
     # the user's own basic details
     if has(q, "my") and has(q, "email", "role", "account type", "name") \

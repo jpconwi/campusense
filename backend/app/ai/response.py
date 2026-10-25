@@ -6,14 +6,8 @@ NO_INFO = "I don't have enough campus information to answer that."
 
 def clarify(suggestions=None):
     """Ask the user to rephrase instead of a dead-end 'I don't know'."""
-    if suggestions:
-        text = ("I'm not sure I understood that. Did you mean one of these?\n\n"
-                "Tap one below, or rephrase your question with more details.")
-    else:
-        text = ("Sorry, I couldn't understand that or find an answer for it. "
-                "Could you rephrase or add more details? For example: "
-                "\"Where is the library?\", \"What is the NEMSU mission?\" or "
-                "\"How do I reserve a room?\"")
+    from app.ai import texts
+    text = texts.en("clarify_some" if suggestions else "clarify_none")
     result = {"type": "message", "answer": text}
     if suggestions:
         result["suggestions"] = list(suggestions)

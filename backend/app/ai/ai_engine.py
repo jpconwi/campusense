@@ -12,7 +12,7 @@ Order of work for every question:
 import difflib
 
 from app.ai import intent as intents
-from app.ai import response
+from app.ai import language, response, style, texts
 from app.ai.context import build_system_prompt, build_user_context
 from app.model.systemAi import ask_model
 from app.prompts.locationPrompt import (CAMPUS_EMBED_URL, CAMPUS_LOCATION_TEXT,
@@ -50,18 +50,20 @@ def _is_campus_related(question):
                for w in q.split())
 
 
+def _english(result):
+    """Mark an answer written in English from the campus data: it is translated for Tagalog /
+    Bisaya users (the map card and links stay as they are)."""
+    result["english"] = True
+    return result
+
+
+def _data(text):
+    return _english(response.message(text))
+
+
 def _greeting(role):
-    base = ("Hello! I'm NEMSAI, the NEMSU Tandag Main Campus assistant. "
-            "I can help with campus locations, rooms, facilities and equipment")
-    extra = {
-        "student": ", concerns, reports, feedback and instructor "
-                   "availability.",
-        "instructor": ", reservations, concerns, reports, feedback and your "
-                      "faculty availability reports.",
-        "admin": ". Ask me to show pending concerns or reports and I will read "
-                 "them from the database.",
-    }
-    return response.message(base + extra.get(role, "."))
+    key = f"greeting_{role}" if f"greeting_{role}" in texts.TEXTS else "greeting_default"
+    return response.message(texts.en(key))
 
 
 def _records(db, user, found):
@@ -78,7 +80,9 @@ def _records(db, user, found):
         total = common.count_rows(db, kind, status=status, user_id=user_id)
         blocks.append(response.format_records(kind, rows, total, status,
                                               show_person=not own, own=own))
-    return response.message("\n\n".join(blocks))
+    result = response.message("\n\n".join(blocks))
+    result["serious"] = True                    # real data: never decorated
+    return result
 
 
 def _form_reply(user, found):
@@ -86,57 +90,26 @@ def _form_reply(user, found):
     kind = found["intent"]
 
     if role == "admin":
-        return response.message(
-            "Admins manage submissions from the Admin Dashboard. You can ask me to "
-            "show pending reports or concerns.")
+        return response.message(texts.en("admin_forms"))
 
     if kind == "reservation_form" and role != "instructor":
-        return response.message(
-            "Sorry, room and facility reservations are only for instructors and faculty. "
-            "If you need a room for a class or activity, please ask your instructor to "
-            "reserve it. I can still help you report a concern or send feedback.")
+        return response.message(texts.en("reservation_denied"))
 
-    texts = {
-        "concern_form": {
-            "student": "I can help you report this campus concern. Please complete the form below.",
-            "instructor": "I can help you report this facility concern. Please complete the form below.",
-        },
-        "report_form": {
-            "student": "I can help you submit a campus report. Please complete the form below.",
-            "instructor": "I can help you submit an instructor report. Please complete the form below.",
-        },
-        "feedback_form": {
-            "student": "I'd be glad to take your feedback. Please complete the form below.",
-            "instructor": "I'd be glad to take your feedback. Please complete the form below.",
-        },
-        "reservation_form": {
-            "instructor": "I can help you send a reservation request. It stays pending until an "
-                          "administrator approves it. Please complete the form below.",
-        },
+    keys = {
+        "concern_form": {"student": "form_concern_student", "instructor": "form_concern_instructor"},
+        "report_form": {"student": "form_report_student", "instructor": "form_report_instructor"},
+        "feedback_form": {"student": "form_feedback", "instructor": "form_feedback"},
+        "reservation_form": {"instructor": "form_reservation"},
     }
-    return response.form(kind, texts[kind][role], found.get("prefill"))
+    return response.form(kind, texts.en(keys[kind][role]), found.get("prefill"))
 
 
 def _lost_item_reply(role, found):
     """Lost or found belongings: the campus report form, type 'Lost & Found'."""
     if role == "admin":
-        return response.message(
-            "Lost and found items are submitted as reports. You can ask me to show "
-            "pending reports, or open Reports in the Admin Dashboard.")
-    if found["kind"] == "found":
-        text = ("Thank you for picking that up. Please fill in the report form below so "
-                "the owner can be traced, and keep the item safe until it is claimed.")
-    else:
-        text = ("Sorry to hear that. Please fill in the report form below with what you "
-                "lost, where and when you last had it, so it can be checked.")
+        return response.message(texts.en("lost_admin"))
+    text = texts.en("lost_found" if found["kind"] == "found" else "lost_lost")
     return response.form("report_form", text, found.get("prefill"))
-
-
-def _about_me(role):
-    text = ("I'm NEMSAI, the NEMSU Tandag Main Campus assistant. I'm an AI, so I'm not from "
-            "anywhere, but I live right here on the campus website. Ask me about campus locations, "
-            "rooms, facilities, equipment, concerns, reports, feedback or instructor availability.")
-    return response.message(text)
 
 
 def ask_ai(db, question, user, earlier=None):
@@ -144,15 +117,35 @@ def ask_ai(db, question, user, earlier=None):
 
     `earlier` = this person's earlier questions in the same chat, newest first. It is only used
     for short follow-ups such as "asa dapit na?" ("where is it?").
+
+    Languages: English, Tagalog and Bisaya are understood directly (fixed replies come back in
+    the same language). Any other language is translated to English, answered, and translated
+    back. A friendly emoji is added only sometimes (see ai/style.py).
     """
     question = str(question or "").strip()[:500]
     if not question:
-        return response.message("Please enter a question.")
+        return response.message(texts.en("enter_question"))
+    lang = language.detect(question)
 
+    if lang == "other":                              # e.g. Spanish, Chinese, Korean
+        english = language.to_english(question, ask_model)
+        result = _answer(db, english or question, user, None, "en")
+        if english:
+            result = language.from_english(result, question, ask_model)
+    else:
+        result = _answer(db, question, user, earlier, lang)
+        result = language.localize(result, lang)
+        if result.pop("english", False) and lang in ("tl", "ceb"):
+            result = language.from_english(result, question, ask_model)   # campus data -> their language
+    result.pop("english", None)
+    return style.add_emoji(result, question)
+
+
+def _answer(db, question, user, earlier, lang):
     if earlier and intents.is_location_followup(normalize(question)):
         for old in earlier:
             if intents.asks_location(normalize(old)):
-                return ask_ai(db, old, user)        # answer the place they were asking about again
+                return _answer(db, old, user, None, lang)   # the place they asked about before
 
     role = user.role if user else "student"
     found = intents.detect(db, question, role)
@@ -160,8 +153,8 @@ def ask_ai(db, question, user, earlier=None):
 
     if name == "greeting":
         return _greeting(role)
-    if name == "about_me":
-        return _about_me(role)
+    if name in ("about_me", "about_system", "languages", "thanks"):
+        return response.message(texts.en(name))
 
     if knowledge_service.wants_article_text(question):      # "give me the text of that news"
         newest = knowledge_service.latest(db, 1)
@@ -170,13 +163,13 @@ def ask_ai(db, question, user, earlier=None):
 
     if name == "my_info":                       # the user's OWN details only
         if found["what"] == "email":
-            return response.message(f"Your account email is {user.email}.")
+            return response.message(texts.en("my_email", value=user.email))
         if found["what"] == "name":
-            return response.message(f"Your account name is {user.name}.")
-        return response.message(f"Your account type is {role}.")
+            return response.message(texts.en("my_name", value=user.name))
+        return response.message(texts.en("my_role", value=role))
 
     if name == "campus_location":               # fixed answer + map, never the LLM
-        return response.map_card(CAMPUS_LOCATION_TEXT, CAMPUS_MAP_URL, CAMPUS_EMBED_URL)
+        return response.map_card(texts.en("campus_location"), CAMPUS_MAP_URL, CAMPUS_EMBED_URL)
 
     if name == "announcements":                 # what the admin posted: news, events, champions
         rows = announcement_service.list_active(db)
@@ -189,52 +182,46 @@ def ask_ai(db, question, user, earlier=None):
                 text += "\n\n" + knowledge_service.latest_text(newest)
         else:                                     # nothing posted by an admin: show the Newsroom only
             text = knowledge_service.latest_text(newest)
-        return response.message(text)
+        return _data(text)
 
     if name == "rooms_list":                    # real rooms from the admin's room list
-        return response.message(room_service.rooms_answer(
+        return _data(room_service.rooms_answer(
             room_service.list_rooms(db), found["words"], found["available"]))
 
     if name == "other_campus_location":         # map card for another NEMSU campus
         text, title, url, embed = other_campus_map(found["campus"])
-        return response.map_card(text, url, embed, title=title)
+        return _english(response.map_card(text, url, embed, title=title))
 
     if name == "place_location":                # gate, canteen, building ... map card
         text, title, url, embed = place_service.place_map(found["place"])
         info = campus_service.lookup(db, question)    # keep the written description too
         if info and "http" not in info:
             text = info
-        return response.map_card(text, url, embed, title=title)
+        return _english(response.map_card(text, url, embed, title=title))
 
     if name == "place_ask":                     # "gate" / "canteen" -> which one?
         info = campus_service.lookup(db, question)
         hint = place_service.ask_which_text(found)
-        return response.message(f"{info}\n\n{hint}" if info and "http" not in info else hint)
+        return _data(f"{info}\n\n{hint}" if info and "http" not in info else hint)
 
     if name == "private":
-        return response.message(response.PRIVATE_REFUSAL)
+        return response.message(texts.en("private"))
 
     if name == "records":
         return _records(db, user, found)
 
     if name == "faculty_availability":
-        return response.message(faculty_service.availability_reply(db, found["name"]))
+        return _data(faculty_service.availability_reply(db, found["name"]))
 
     if name == "faculty_return":
-        return response.message(faculty_service.return_reply(db, found["name"]))
+        return _data(faculty_service.return_reply(db, found["name"]))
 
     if name == "faculty_absence":
         if role == "instructor":
-            return response.form(
-                "faculty_form",
-                "I can help you submit your faculty availability report. "
-                "Please complete the form below.")
+            return response.form("faculty_form", texts.en("form_faculty"))
         if role == "admin":
-            return response.message("Faculty absence reports are submitted by instructors. "
-                                    "You can review them in Faculty Reports.")
-        return response.message(
-            "Only instructors can submit faculty availability reports. You can ask me "
-            "whether an instructor is available, for example: \"Is Sir JP available today?\"")
+            return response.message(texts.en("faculty_admin"))
+        return response.message(texts.en("faculty_student"))
 
     if name == "lost_item":
         return _lost_item_reply(role, found)
@@ -245,23 +232,28 @@ def ask_ai(db, question, user, earlier=None):
     # ---- campus information from the CSV files
     info = campus_service.lookup(db, question)
     if info:
-        return response.message(info)
+        return _data(info)
 
     info = campus_service.lookup_fuzzy(db, question)        # wrong spelling / short wording
     if info:
-        return response.message(info)
+        return _data(info)
 
     posted = announcement_service.match(db, intents.normalize(question))
     if posted:                                  # e.g. "when does the local mast start?"
-        return response.message(posted)
+        return _data(posted)
 
     code = room_service.extract_room_code(question)
     if code:
         room = room_service.find_room(db, code)
         if room:
-            return response.message(room_service.room_reply(room))
-        return response.message(
-            f"I don't have a record for Room {code} in the campus room data.")
+            return _data(room_service.room_reply(room))
+        return response.message(texts.en("no_room", code=code))
+
+    # ---- "abri run ang nemsu?" / "is the library open?": opening hours are not in the campus data
+    if intents.asks_hours(normalize(question)):
+        hint = texts.say("hours", lang)            # joined with contact info, so translated here
+        contact = campus_service.lookup(db, "nemsu contact numbers")
+        return response.message(f"{hint}\n\n{contact}" if contact and "http" not in contact else hint)
 
     # ---- NEMSU news collected from the Newsroom (knowledge_documents)
     docs = knowledge_service.search(db, question)
@@ -283,7 +275,7 @@ def ask_ai(db, question, user, earlier=None):
         suggestions = campus_service.suggest_topics(db, question)
         if suggestions:                           # misspelt campus topic, not off-topic
             return response.clarify(suggestions)
-        return response.message(OFF_TOPIC_RESPONSE)
+        return response.message(texts.en("off_topic"))
 
     # ---- the language model (role only, no private details)
     context = build_user_context(user)

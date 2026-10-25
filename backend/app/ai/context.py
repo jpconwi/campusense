@@ -8,6 +8,7 @@ are never put in the prompt.
 from app.prompts.areaPrompt import AREA_PROMPT
 from app.prompts.concernPrompt import CONCERN_PROMPT
 from app.prompts.feedbackPrompt import FEEDBACK_PROMPT
+from app.prompts.languagePrompt import LANGUAGE_PROMPT
 from app.prompts.instructorPrompt import INSTRUCTOR_PROMPT
 from app.prompts.locationPrompt import LOCATION_PROMPT
 from app.prompts.nemsuPrompt import NEMSU_PROMPT
@@ -64,6 +65,7 @@ def build_system_prompt(db, role, news=None):
     if news:                                    # NEMSU news articles found for this question
         parts.append(news)
 
+    parts.append(LANGUAGE_PROMPT)
     parts += [ROLE_PROMPTS.get(role, STUDENT_PROMPT), CONCERN_PROMPT, REPORT_PROMPT,
               FEEDBACK_PROMPT, RESERVATION_PROMPT]
     parts.append(f"SYSTEM CONTEXT:\nCurrent user role: {role}")
