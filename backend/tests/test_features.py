@@ -633,3 +633,23 @@ def test_greeting_with_friendly_extras_and_translated_campus_answers(student, mo
     answer = student.ask("asa ang library?")["answer"]                  # Bisaya question, English campus data
     assert answer.startswith("SA BISAYA: ") and "Library" in seen[0][1]
     assert student.ask("Where is the library?")["answer"].startswith("The Library")   # English stays as is
+
+
+def test_help_me_asks_what_help_is_needed(student):
+    a = student.ask("help me")
+    assert a["answer"].startswith("Sure, I'm happy to help! What help do you need?")
+    assert a["suggestions"]
+    assert student.ask("tabangi ko")["answer"].startswith("Sige, malipay ko nga motabang! Unsang tabang")
+    assert student.ask("patulong po")["answer"].startswith("Sige, masaya akong tumulong! Anong tulong")
+    assert student.ask("I need help")["answer"].startswith("Sure, I'm happy")
+    assert student.ask("help")["answer"].startswith("Sure, I'm happy")
+    # real requests are not swallowed by it
+    assert student.ask("can you help me find my phone?")["type"] == "report_form"
+    assert student.ask("help me reserve a room")["type"] != "message" or "What help" not in student.ask("help me reserve a room")["answer"]
+
+
+def test_small_talk_in_bisaya_tagalog_english(student):
+    assert student.ask("pede makig amigo?")["answer"].startswith("Sige, pwede ta nga mag-amigo")
+    assert student.ask("can we be friends?")["answer"].startswith("Of course, we can be friends")
+    assert student.ask("how are you?")["answer"].startswith("I'm doing great")
+    assert "😊" in student.ask("hi ❤️😊")["answer"] and "👋" not in student.ask("hi ❤️😊")["answer"]

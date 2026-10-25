@@ -341,7 +341,7 @@ ABOUT_ME = ["taga asa ka", "taga saan ka", "where are you from", "where do you l
             "unsa ngalan nimo", "ano pangalan mo", "ano ang pangalan mo", "are you a robot",
             "are you ai", "are you a bot", "are you real", "kinsa ka", "unsa ka", "sino ka",
             "kinsay naghimo nimo", "sino gumawa sayo"]
-GREETING_PHRASES = ["hi", "hello", "hey", "help", "hi there", "hello there", "good morning",
+GREETING_PHRASES = ["hi", "hello", "hey", "hi there", "hello there", "good morning",
                     "good afternoon", "good evening", "what can you do", "who are you",
                     "good day", "kumusta", "kamusta", "musta", "kumusta ka", "maayong buntag",
                     "maayong hapon", "maayong gabii", "maayong adlaw", "magandang umaga",
@@ -372,6 +372,22 @@ def asks_hours(q):
                 and not has(q, "form", "report", "concern", "reservation", "reserve", "feedback",
                             "open to", "open for", "open source", "open house"))
 
+
+# "help me", "tabangi ko", "i need help", "pwede ka mutabang?" -> ask what help they need
+HELP_WORDS = ["help", "tabang", "tabangi", "tabangan", "tulong", "tulungan", "patulong",
+              "saklolo", "mutabang", "matabang", "makatabang"]
+HELP_FILLER = {"me", "us", "please", "pls", "plss", "po", "opo", "can", "could", "would", "you", "i",
+               "need", "want", "some", "a", "with", "to", "ko", "nako", "mo", "ka", "ako", "ba",
+               "pwede", "pede", "palihug", "paki", "sir", "maam", "nemsai", "bot", "ai", "kog",
+               "ug", "sa", "na", "lang", "gyud", "naman", "akong", "kinahanglan", "need", "talaga",
+               "mag", "tabangi", "tabang", "tabangan", "help", "tulong", "tulungan", "patulong",
+               "saklolo", "mutabang", "matabang", "makatabang", "kailangan", "pa", "oy", "uy", "hoy",
+               "ha", "plz", "somebody", "someone", "anyone"}
+FRIENDS = ["makig amigo", "makiamigo", "makipag amigo", "makipagkaibigan", "makipagkaibigan ako",
+           "be my friend", "can we be friends", "friends tayo", "mag amigo", "maging magkaibigan",
+           "amigo ta", "amigo tayo", "friends ta"]
+HOW_ARE_YOU = ["how are you", "how are you doing", "hows it going", "how r u", "kumusta ka na",
+               "kamusta ka na", "musta ka na", "unsa na", "kumusta na ka"]
 
 GREETING_FILLER = {"po", "opo", "haha", "hahaha", "hehe", "lol", "pls", "please", "nemsai", "bot",
                    "ai", "ha", "ba", "na", "there", "everyone", "all"}
@@ -419,6 +435,16 @@ def detect(db, question, role):
     # "para asa ni nga system?", "what is this system?"
     if has(q, *SYSTEM_WORDS) and has(q, *SYSTEM_ASK):
         return {"intent": "about_system"}
+
+    # "help me" / "tabangi ko" (nothing else said): ask what they need help with
+    if has(q, *HELP_WORDS) and all(t in HELP_FILLER for t in tokens):
+        return {"intent": "help_ask"}
+
+    # "pede makig amigo?", "how are you?"
+    if has(q, *FRIENDS):
+        return {"intent": "friends"}
+    if has(q, *HOW_ARE_YOU):
+        return {"intent": "how_are_you"}
 
     # "thanks", "salamat kaayo"
     if (q in THANKS or (has(q, *THANKS) and len(tokens) <= 5)) and "?" not in original:

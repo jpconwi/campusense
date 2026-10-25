@@ -15,7 +15,14 @@ from app.ai import texts
 from app.services import sentiment_service
 
 EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF\u2B50\u2764]")
-HAPPY = set("😀😃😄😁😆😊🙂😉😍🥰😘👍👏🙏❤🎉✨😎🤗😅😂🤣")
+PREFERRED = "😊🙂😀😄😃😁👍👏🙏😉😍🥰🤗😎😅😂🤣🎉✨😘❤"        # best first; hearts last
+HAPPY = set(PREFERRED)
+
+
+def _best(emojis):
+    """The user's friendliest emoji (a smile before a heart), or None."""
+    found = [e for e in emojis if e in HAPPY]
+    return min(found, key=PREFERRED.index) if found else None
 CASUAL = {"haha", "hahaha", "hehe", "hihi", "lol", "lmao", "omg", "yay", "wow", "pls", "plss", "plz",
           "please", "thanks", "thank", "salamat", "ty", "charot", "nice", "daghang", "maraming",
           "palihug", "paki"}
@@ -57,10 +64,7 @@ def add_emoji(result, question):
     if sentiment_service.analyze(question)["label"] == "Negative":
         return result
 
-    emoji = texts.FRIENDLY_EMOJI.get(key) or (
-        next((e for e in theirs if e in HAPPY), None) or _default_emoji(result))
-    if theirs and (key is None or key not in texts.FRIENDLY_EMOJI):
-        emoji = next((e for e in theirs if e in HAPPY), emoji)
+    emoji = _best(theirs) or texts.FRIENDLY_EMOJI.get(key) or _default_emoji(result)
     first, sep, rest = answer.partition("\n\n")
     result["answer"] = f"{first.rstrip()} {emoji}{sep}{rest}"
     return result

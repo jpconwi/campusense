@@ -153,7 +153,11 @@ def _answer(db, question, user, earlier, lang):
 
     if name == "greeting":
         return _greeting(role)
-    if name in ("about_me", "about_system", "languages", "thanks"):
+    if name == "help_ask":                      # "help me" -> what help do you need?
+        result = response.message(texts.en("help_ask"))
+        result["suggestions"] = ["Where is the library?", "I lost my phone", "I have a concern"]
+        return result
+    if name in ("about_me", "about_system", "languages", "thanks", "friends", "how_are_you"):
         return response.message(texts.en(name))
 
     if knowledge_service.wants_article_text(question):      # "give me the text of that news"

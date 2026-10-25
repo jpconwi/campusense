@@ -122,6 +122,27 @@ TEXTS = {
         "Oo! Makasabot ko ug English, Tagalog ug Bisaya, ug motubag ko sa pinulongan nga imong "
         "gigamit. Pwede ka pud mosulat sa lain nga pinulongan ug buhaton nako ang akong labing "
         "maayo aron makatabang."),
+    "help_ask": (
+        "Sure, I'm happy to help! What help do you need? You can ask about campus locations, "
+        "rooms, facilities and equipment, report a concern or a lost item, send feedback, or "
+        "check instructor availability.",
+        "Sige, masaya akong tumulong! Anong tulong ang kailangan mo? Pwede kang magtanong tungkol "
+        "sa mga lokasyon sa campus, kwarto, pasilidad at kagamitan, mag-report ng concern o "
+        "nawalang gamit, magpadala ng feedback, o tingnan ang availability ng instructor.",
+        "Sige, malipay ko nga motabang! Unsang tabang ang imong kinahanglan? Pwede kang mangutana "
+        "mahitungod sa mga lokasyon sa campus, kwarto, pasilidad ug kagamitan, mo-report ug concern "
+        "o nawala nga gamit, mopadala ug feedback, o mo-check sa availability sa instructor."),
+    "friends": (
+        "Of course, we can be friends! I'm NEMSAI, your campus assistant. Just tell me what you "
+        "need help with.",
+        "Oo naman, pwede tayong maging magkaibigan! Ako si NEMSAI, ang assistant mo sa campus. "
+        "Sabihin mo lang kung ano ang maitutulong ko.",
+        "Sige, pwede ta nga mag-amigo! Ako si NEMSAI, ang imong assistant sa campus. Sultihi lang "
+        "ko kung unsay maitabang nako."),
+    "how_are_you": (
+        "I'm doing great, thank you for asking! How can I help you today?",
+        "Mabuti naman ako, salamat sa pagtanong! Paano kita matutulungan ngayon?",
+        "Maayo ra ko, salamat sa pagpangutana! Unsaon nako pagtabang nimo karon?"),
     "thanks": (
         "You're welcome! Let me know if you need anything else about the campus.",
         "Walang anuman! Sabihin mo lang kung may kailangan ka pa tungkol sa campus.",
@@ -245,7 +266,7 @@ TEXTS = {
 SERIOUS = {"off_topic", "clarify_some", "clarify_none", "private", "reservation_denied",
            "lost_lost", "lost_found", "lost_admin", "admin_forms", "no_room", "enter_question",
            "hours", "my_email", "my_name", "my_role"}
-FRIENDLY_EMOJI = {"greeting_student": "👋", "greeting_instructor": "👋", "greeting_admin": "👋",
+FRIENDLY_EMOJI = {"help_ask": "🙂", "friends": "😊", "how_are_you": "😊", "greeting_student": "👋", "greeting_instructor": "👋", "greeting_admin": "👋",
                   "greeting_default": "👋", "about_me": "😊", "about_system": "😊",
                   "languages": "😊", "thanks": "😊", "campus_location": "📍"}
 

@@ -21,7 +21,7 @@ BISAYA = {
     "abri", "abli", "abre", "run", "ron", "karon", "kanus", "unsay", "kinsay", "gani", "pud",
     "usab", "pag", "mao", "murag", "lagot", "gamay", "dako", "kuyaw", "sirado", "gikan", "adto",
     "moadto", "musta", "makita", "nakit", "kabalo", "tagpila", "oy", "bitaw", "diay", "bay", "dong",
-    "day", "ayaw", "wa", "mi", "nato", "ato", "ila", "ilang", "niya", "siya", "sila", "mga",
+    "day", "ayaw", "makig", "amigo", "makiamigo", "mag-amigo", "kauban", "higala", "wa", "mi", "nato", "ato", "ila", "ilang", "niya", "siya", "sila", "mga",
 }
 TAGALOG = {
     "ano", "saan", "sino", "bakit", "paano", "kailan", "magkano", "nasaan", "hindi", "ako",
@@ -30,7 +30,7 @@ TAGALOG = {
     "naman", "din", "rin", "may", "mayroon", "kasi", "pero", "tulong", "tulungan", "hanap",
     "hanapin", "hinahanap", "bukas", "sarado", "ngayon", "dito", "doon", "diyan", "mo", "ko",
     "natin", "namin", "nila", "niya", "kita", "lang", "talaga", "sana", "naiintindihan",
-    "marunong", "wika", "aking", "iyong", "inyong", "nito", "niyan", "nun", "pwedeng",
+    "marunong", "wika", "kaibigan", "makipagkaibigan", "patulong", "magkaibigan", "aking", "iyong", "inyong", "nito", "niyan", "nun", "pwedeng",
 }
 # these overlap with the other language so they carry no weight
 _SHARED = {"mga", "siya", "niya", "sila", "wa", "mi", "ko", "mo"}
@@ -38,7 +38,7 @@ BISAYA -= _SHARED
 TAGALOG -= _SHARED
 
 # Tagalog AND Bisaya use these, so alone they only say "not English"
-LOCAL = {"nawala", "akong", "akoang", "wala", "nga", "ba", "pwede", "salamat", "para", "ang", "sa",
+LOCAL = {"pede", "pwede", "nawala", "akong", "akoang", "wala", "nga", "ba", "pwede", "salamat", "para", "ang", "sa",
          "na", "po", "pa", "nawalan", "gikawat", "ninakaw", "nakawan", "naiwan", "nakalimtan"}
 
 ENGLISH = {
