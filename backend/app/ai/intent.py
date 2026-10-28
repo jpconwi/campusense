@@ -154,6 +154,7 @@ LOCATION_ASK = [
     "where", "wheres", "location", "locate", "address", "direction", "directions",
     "map", "how to get", "how do i get", "how to go", "how do i go", "way to",
     "find", "situated", "located", "route",
+    "asa", "dapit", "diin", "nasaan", "saan", "asa dapit",       # Bisaya / Tagalog "where"
 ]
 CAMPUS_ANCHORS = ["nemsu", "campus", "tandag", "school", "university"]
 # other NEMSU campuses: these questions must NOT get the Tandag map
@@ -373,6 +374,14 @@ def asks_hours(q):
                             "open to", "open for", "open source", "open house"))
 
 
+# "ouh", "ok", "sige", "i see": the person just acknowledges what was said
+ACKS = {"ouh", "oh", "ohh", "ok", "okay", "oks", "okey", "okie", "k", "kk", "ah", "ahh", "aha", "ahh sige",
+        "sige", "ge", "cge", "sge", "oo", "opo", "o", "hmm", "hm", "hmmm", "yes", "yeah", "yep", "yup",
+        "ayos", "i see", "got it", "noted", "alright", "all right", "sure", "cool", "nice", "good",
+        "ok lang", "okay lang", "ok na", "okay na", "ok sige", "okay sige", "sige na", "ah ok", "ah okay",
+        "ah ok sige", "oh ok", "oh okay", "ouh ok", "ouh okay", "sige salamat", "ge sige", "nah", "nope",
+        "wala", "dili", "no", "hindi"}
+
 # "help me", "tabangi ko", "i need help", "pwede ka mutabang?" -> ask what help they need
 HELP_WORDS = ["help", "tabang", "tabangi", "tabangan", "tulong", "tulungan", "patulong",
               "saklolo", "mutabang", "matabang", "makatabang"]
@@ -435,6 +444,10 @@ def detect(db, question, role):
     # "para asa ni nga system?", "what is this system?"
     if has(q, *SYSTEM_WORDS) and has(q, *SYSTEM_ASK):
         return {"intent": "about_system"}
+
+    # "ouh", "ok", "sige"
+    if q in ACKS:
+        return {"intent": "ack"}
 
     # "help me" / "tabangi ko" (nothing else said): ask what they need help with
     if has(q, *HELP_WORDS) and all(t in HELP_FILLER for t in tokens):

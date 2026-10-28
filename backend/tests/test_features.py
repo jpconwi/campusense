@@ -714,3 +714,25 @@ def test_follow_up_words_use_the_earlier_questions(student, monkeypatch):
     student.post("/api/ask", json={"question": "ug ang kan-anan dapit ana?", "session_id": sid})
     rewrite_calls = [q for s, q in seen if s.startswith("You help a university campus chatbot")]
     assert rewrite_calls and "where is the library?" in rewrite_calls[-1]
+
+
+def test_bisaya_where_questions_use_the_rules(student, monkeypatch):
+    from app.ai import ai_engine
+    monkeypatch.setattr(ai_engine, "ask_model", lambda s, q: None)    # no translation: keep the English facts
+    a = student.ask("asa dapit ang room sa cite?")
+    assert a["type"] == "map" and "ICT area" in a["answer"]
+    assert "ICT area" in student.ask("asa ang cite")["answer"]
+
+
+def test_acknowledgements_are_friendly_not_refused(student):
+    assert student.ask("ouh")["answer"].startswith("Sige! Sulti lang")
+    for word in ["ok", "sige", "okay", "i see", "ah ok sige"]:
+        assert "Sorry, I can only" not in student.ask(word)["answer"]
+    assert student.ask("sige")["answer"].startswith("Sige!")
+
+
+def test_a_model_that_only_repeats_the_question_gets_treated_as_no_answer(student, monkeypatch):
+    from app.ai import ai_engine
+    monkeypatch.setattr(ai_engine, "ask_model", lambda s, q: "Nasaan ang room sa CITE (College of Information Technology Education)?")
+    a = student.ask("what facilities are in the campus building near the gate")
+    assert "Nasaan ang room" not in a["answer"]

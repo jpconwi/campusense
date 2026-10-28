@@ -136,6 +136,10 @@ TEXTS = {
         "Hi there! What can I help you with today?",
         "Hi! Ano ang maitutulong ko sa iyo ngayon?",
         "Hi! Unsay matabang nako nimo karon?"),
+    "ack": (
+        "Okay! Let me know if you need anything else about the campus.",
+        "Sige! Sabihin mo lang kung may kailangan ka pa tungkol sa campus.",
+        "Sige! Sulti lang kung naa kay kinahanglan pa mahitungod sa campus."),
     "friends": (
         "Of course, we can be friends! I'm NEMSAI, your campus assistant. Just tell me what you "
         "need help with.",

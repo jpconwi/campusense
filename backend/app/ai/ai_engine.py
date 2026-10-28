@@ -61,6 +61,14 @@ def _data(text):
     return _english(response.message(text))
 
 
+def _is_echo(answer, question):
+    """A weak model sometimes just repeats or translates the question instead of answering it."""
+    a, q = normalize(answer), normalize(question.split("\n\n[Clear English")[0])
+    if not a or not q:
+        return False
+    return difflib.SequenceMatcher(None, a, q).ratio() >= 0.75 or a.startswith(q) and len(a) < len(q) * 1.6
+
+
 def _greeting(role):
     key = f"greeting_{role}" if f"greeting_{role}" in texts.TEXTS else "greeting_default"
     return response.message(texts.en(key))
@@ -161,7 +169,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None):
         result = response.message(texts.en("help_ask"))
         result["suggestions"] = ["Where is the library?", "I lost my phone", "I have a concern"]
         return result
-    if name in ("about_me", "about_system", "languages", "thanks", "friends", "how_are_you"):
+    if name in ("about_me", "about_system", "languages", "thanks", "friends", "how_are_you", "ack"):
         return response.message(texts.en(name))
 
     if knowledge_service.wants_article_text(question):      # "give me the text of that news"
@@ -278,25 +286,30 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None):
                    "that is it", "is that all", "what do you mean", "huh"):
         return response.clarify()
 
-    # ---- not clearly about the campus by keywords: let the model work out what they mean
-    if not rewritten and not _is_campus_related(question):
-        suggestions = campus_service.suggest_topics(db, question)
-        if suggestions:                           # misspelt campus topic, not off-topic
-            return response.clarify(suggestions)
+    # ---- let the model work out what they mean when the rules cannot tell:
+    #      not clearly about the campus by keywords, or written in Tagalog / Bisaya
+    related = _is_campus_related(question)
+    if not rewritten and (not related or lang in ("tl", "ceb")):
+        if not related:
+            suggestions = campus_service.suggest_topics(db, question)
+            if suggestions:                       # misspelt campus topic, not off-topic
+                return response.clarify(suggestions)
         view = understand.rewrite(question, earlier, ask_model)
-        if view and view["kind"] == "campus":     # clear English version -> the normal engine
+        if view and view["kind"] == "campus" and normalize(view["english"]) != normalize(question):
             return _answer(db, view["english"], user, earlier, lang,
-                           rewritten=True, original=question)
-        if view and view["kind"] == "smalltalk":
+                           rewritten=True, original=question)      # clear English -> normal engine
+        if view and view["kind"] == "smalltalk" and not related:
             chat = understand.smalltalk(question, ask_model)
             return response.message(chat or texts.en("help_ask"))
-        return response.message(texts.en("off_topic"))
+        if not related:
+            return response.message(texts.en("off_topic"))
+        # related by keyword (e.g. "room", "cite"): carry on to the model below
 
     # ---- the language model (role only, no private details)
     context = build_user_context(user)
     asked = question if not original else f"{original}\n\n[Clear English version: {question}]"
     answer = ask_model(build_system_prompt(db, context["role"]), asked)
-    if not answer or response.NO_INFO.lower() in answer.lower():
+    if not answer or response.NO_INFO.lower() in answer.lower() or _is_echo(answer, question):
         # nothing found (or the model gave up): ask the user to clarify
         return response.clarify(campus_service.suggest_topics(db, question))
     return response.message(answer)

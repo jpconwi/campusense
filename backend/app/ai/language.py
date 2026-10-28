@@ -38,7 +38,7 @@ BISAYA -= _SHARED
 TAGALOG -= _SHARED
 
 # Tagalog AND Bisaya use these, so alone they only say "not English"
-LOCAL = {"pede", "pwede", "nawala", "akong", "akoang", "wala", "nga", "ba", "pwede", "salamat", "para", "ang", "sa",
+LOCAL = {"sige", "ge", "cge", "sge", "ouh", "oo", "opo", "pede", "pwede", "nawala", "akong", "akoang", "wala", "nga", "ba", "pwede", "salamat", "para", "ang", "sa",
          "na", "po", "pa", "nawalan", "gikawat", "ninakaw", "nakawan", "naiwan", "nakalimtan"}
 
 ENGLISH = {
