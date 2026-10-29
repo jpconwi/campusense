@@ -135,7 +135,7 @@ def ensure_pdf(kind, row, path):
         title, rows = _rows_for(kind, row)
         image = None
         if row.get("image_filename") and row.get("source") == "photo":
-            from app import config
-            candidate = config.UPLOAD_DIR / row["image_filename"]
+            from app.services.upload_service import get_image_path
+            candidate = get_image_path(row["image_filename"])
             image = candidate if candidate.exists() else None
         generate_pdf(path, title, rows, image_path=image)

@@ -2,6 +2,8 @@
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
+export const apiUrl = (path) => `${API_BASE}${path}`;
+
 let csrfToken = "";
 let onUnauthorized = () => {};
 
@@ -42,7 +44,7 @@ export async function api(path, { method = "GET", json, form } = {}) {
     headers["X-CSRF-Token"] = csrfToken;
   }
 
-  const url = `${API_BASE}${path}`;
+  const url = apiUrl(path);
 
   const response = await fetch(url, {
     method,

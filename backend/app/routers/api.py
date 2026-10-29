@@ -6,7 +6,7 @@ from collections import defaultdict, deque
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,6 +17,7 @@ from app.database import get_db
 from app.security import CurrentUser, csrf_protect, login_required, role_required
 from app.services import (announcement_service, chat_history_service, common, concern_service, faculty_service, feedback_service,
                           pdf_service, photo_report_service, report_service, reservation_service)
+from app.services import upload_service
 
 router = APIRouter(prefix="/api", tags=["api"], dependencies=[Depends(csrf_protect)])
 
@@ -357,8 +358,10 @@ def upload(filename: str, user: CurrentUser = Depends(login_required),
             owner_id = db.execute(select(model.user_id).where(
                 model.image_filename == filename).limit(1)).scalar_one_or_none()
             if owner_id is not None:
-                image_path = config.UPLOAD_DIR / filename
-                if (user.is_admin or owner_id == user.id) and image_path.exists():
-                    return FileResponse(image_path)
+                if user.is_admin or owner_id == user.id:
+                    image_data, content_type = upload_service.get_image(filename)
+                    if image_data is not None:
+                        return Response(image_data, media_type=content_type,
+                                        headers={"Cache-Control": "private, max-age=300"})
                 break
     raise HTTPException(404, "That page was not found.")

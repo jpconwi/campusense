@@ -409,6 +409,9 @@ tr.row-urgent > td:first-child { box-shadow: inset 5px 0 0 var(--error); }
 tr.detail-row > td { background: var(--paper); }
 .photo-detail { display: flex; gap: 18px; flex-wrap: wrap; padding: 6px 2px; }
 .photo-detail img { width: 260px; max-width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; }
+.report-photo-link { display: inline-flex; align-items: center; }
+.report-photo-thumb { display: block; width: 82px; height: 72px; object-fit: cover; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.report-photo-link:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; border-radius: 8px; }
 .photo-detail-text { flex: 1; min-width: 260px; }
 .photo-detail-text h4 { font-family: var(--serif); color: var(--blue-deep); margin: 10px 0 4px; }
 .photo-detail-text ul { margin: 4px 0 6px 20px; }

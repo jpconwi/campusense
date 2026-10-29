@@ -22,7 +22,11 @@ load_dotenv(BACKEND_DIR / ".env")
 SEED_DIR = BACKEND_DIR / "seed"
 CAMPUS_SEED_CSV = SEED_DIR / "campus_info.csv"
 REPORTS_DIR = BACKEND_DIR / "reports"        # generated PDF files
-UPLOAD_DIR = BACKEND_DIR / "uploads"         # optional images (private, not served publicly)
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", str(BACKEND_DIR / "uploads"))).expanduser()
+# Optional durable object storage for uploaded report photos (Cloudinary).
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "").strip()
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "").strip()
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "").strip()
 FRONTEND_DIST = PROJECT_DIR / "frontend" / "dist"
 
 

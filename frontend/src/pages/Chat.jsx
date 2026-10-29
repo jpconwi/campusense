@@ -362,7 +362,7 @@ export default function Chat() {
                 {busy ? "…" : <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>}
               </button>
             </div>
-            <p className="footnote">Enter to send, Shift+Enter for a new line.{canPhoto && " Use the camera button to report a problem with a photo."}</p>
+            <p className="footnote">Enter to send, Shift+Enter for a new line. Use the microphone to dictate, review the text, then press Send.{canPhoto && " Use the camera button to report a problem with a photo."}</p>
           </div>
         </div>
       </main>

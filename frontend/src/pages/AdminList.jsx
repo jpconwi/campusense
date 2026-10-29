@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api, slug } from "../api.js";
+import { api, apiUrl, slug } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import { EmptyState, Loading, SearchBox, matches } from "../components/Ui.jsx";
 
@@ -42,6 +42,20 @@ const CONF = { high: "fairly sure", medium: "somewhat sure", low: "not sure" };
 const CHECK = { supports: "matches the photo", partly: "partly matches the photo",
                 contradicts: "does not match the photo", cannot_tell: "cannot tell from the photo" };
 
+function ReportPhoto({ filename }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [filename]);
+  if (!filename) return null;
+  const url = apiUrl(`/api/uploads/${encodeURIComponent(filename)}`);
+  return failed ? <span className="muted">Photo unavailable</span> : (
+    <a className="report-photo-link" href={url} target="_blank" rel="noopener noreferrer"
+       title="Open the student's uploaded photo">
+      <img className="report-photo-thumb" src={url} alt="Student's uploaded report photo"
+           loading="lazy" onError={() => setFailed(true)} />
+    </a>
+  );
+}
+
 function Flags({ r }) {
   return (
     <>
@@ -69,8 +83,7 @@ function PhotoDetail({ row, onChanged }) {
   }
   return (
     <div className="photo-detail">
-      {row.image_filename && <a href={`/api/uploads/${row.image_filename}`} target="_blank" rel="noopener noreferrer">
-        <img src={`/api/uploads/${row.image_filename}`} alt="Photo from the student" /></a>}
+      {row.image_filename && <ReportPhoto filename={row.image_filename} />}
       <div className="photo-detail-text">
         {row.urgent && <div className="urgent-note"><strong>Possible safety hazard (not confirmed).</strong> {ai.urgent_reason}</div>}
         <h4>Student's report</h4>
@@ -179,7 +192,7 @@ export default function AdminList({ kind }) {
                   : key === "created_at"
                   ? <td key={key} data-label={header} className="when"><DateCell value={r[key]} /></td>
                   : <td key={key} data-label={header} className={LONG_TEXT.includes(key) ? "desc" : undefined}>{r[key] || ""}</td>)}
-                {showImage && <td data-label="Photo">{r.image_filename && <a href={`/api/uploads/${r.image_filename}`} target="_blank" rel="noopener noreferrer">View</a>}</td>}
+                {showImage && <td data-label="Photo"><ReportPhoto filename={r.image_filename} /></td>}
                 {spec.pdf && <td data-label="PDF"><a href={`/api/pdf/${kind}/${r.id}`} target="_blank" rel="noopener noreferrer">PDF</a></td>}
                 <td data-label="Status" className="status-cell">
                   <span className={"badge s-" + slug(r.status)}>{r.status}</span>

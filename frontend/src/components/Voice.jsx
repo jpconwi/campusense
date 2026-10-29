@@ -2,8 +2,8 @@
  * Voice.jsx - speak instead of type.
  *
  * The browser turns speech into text (Web Speech API: Chrome, Edge, Safari, Android Chrome).
- * The words go into the normal text box, so the student can read and correct them before
- * anything is sent. Nothing is recorded or stored by NEMSAI. In browsers without speech
+ * The words go into the normal text box when the student finishes speaking, so they can
+ * read, correct and send them. Nothing is recorded or stored by NEMSAI. In browsers without speech
  * recognition (for example Firefox) the button is hidden and typing works as before.
  * Note: Chrome sends the audio to Google's speech service to do the recognition.
  */
@@ -40,7 +40,8 @@ export function useVoice(value, onChange) {
     setError("");
     const r = new Recognition();
     r.lang = LANG;
-    r.continuous = true;
+    // Finish the transcript when the spoken phrase ends. Recognition never submits it.
+    r.continuous = false;
     r.interimResults = true;
     base.current = latest.current.value ? latest.current.value.replace(/\s+$/, "") + " " : "";
     r.onresult = (event) => {
@@ -72,7 +73,7 @@ export default function MicButton({ value, onChange, disabled, compact }) {
           <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
         </svg>
       </button>
-      {v.listening && <span className="mic-status" role="status">Listening… tap the mic to stop, then fix any mistakes.</span>}
+      {v.listening && <span className="mic-status" role="status">Listening… pause when you're done. Your words will appear here; press Send when ready.</span>}
       {v.error && <span className="mic-error" role="alert">{v.error}</span>}
     </span>
   );

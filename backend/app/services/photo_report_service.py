@@ -23,17 +23,13 @@ from app.services import common, image_analysis_service as ias, sentiment_servic
 from app.services.common import ValidationError, clean_text, now
 from app.services.pdf_service import ensure_pdf
 from app.services.report_service import pdf_path
-from app.services.upload_service import save_image
+from app.services.upload_service import delete_image, get_image_path, save_image
 
 VERIFICATION_STATES = ["Unverified", "Confirmed", "Not confirmed"]
 
 
 def _remove_file(filename):
-    try:
-        if filename:
-            (config.UPLOAD_DIR / filename).unlink(missing_ok=True)
-    except OSError:
-        pass
+    delete_image(filename)
 
 
 def _fields(form):
@@ -56,7 +52,7 @@ def _own_draft(db, user, draft_id):
 
 def _check(db, draft):
     """Run the AI on the draft and store the result."""
-    analysis, provider = ias.analyze(config.UPLOAD_DIR / draft.image_filename, draft.description or "",
+    analysis, provider = ias.analyze(get_image_path(draft.image_filename), draft.description or "",
                                      draft.location or "", draft.noticed_when or "", draft.observed_cause or "")
     draft.analysis = json.dumps(analysis)
     draft.ai_provider = provider

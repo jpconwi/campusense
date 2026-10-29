@@ -12,6 +12,7 @@ reportlab>=4.0
 huggingface_hub>=0.24
 beautifulsoup4>=4.12
 pypdf>=5.0
+cloudinary>=1.44
 
 # only for the tests
 pytest>=8.0
