@@ -14,6 +14,12 @@ const FIELDS = [
 ];
 const ASKED = { location: "location", noticed_when: "when", observed_cause: "cause" };
 const CONFIDENCE = { high: "fairly sure", medium: "somewhat sure", low: "not sure" };
+// photos that are clearly not a campus problem: show a short card instead of a report form
+const NOT_A_REPORT = {
+  people: "This looks like a photo of people.",
+  meme_or_screenshot: "This looks like a picture, meme or screenshot.",
+  unrelated: "I can't see anything related to the campus in this photo.",
+};
 
 export default function PhotoReportCard({ result: first, preview, onMessage, onSent, onDiscarded }) {
   const [result, setResult] = useState(first);
@@ -21,6 +27,7 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [state, setState] = useState("open");           // open | sent | discarded
+  const [expanded, setExpanded] = useState(false);       // "report a problem anyway"
 
   const set = (k, v) => setVals((x) => ({ ...x, [k]: v }));
   const dirty = Object.keys(vals).some((k) => (vals[k] || "") !== (result.values[k] || ""));
@@ -62,6 +69,30 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
 
   if (state === "sent") return <div className="bubble rich photo-card done"><strong>Report sent.</strong> An administrator will review it.</div>;
   if (state === "discarded") return <div className="bubble rich photo-card done">Photo removed. Nothing was sent.</div>;
+
+  const a0 = result.analysis || {};
+  if (result.outcome === "no_issue" && NOT_A_REPORT[a0.image_kind] && !expanded) {
+    return (
+      <div className="bubble rich photo-card compact">
+        <div className="photo-head">
+          {preview && <img className="photo-thumb" src={preview} alt="The photo you sent" />}
+          <div>
+            <h3>Not a campus report</h3>
+            <p className="desc">{NOT_A_REPORT[a0.image_kind]} Nothing was sent to the administrators.</p>
+          </div>
+        </div>
+        <p className="form-error" role="alert">{error}</p>
+        <div className="photo-actions">
+          <button type="button" className="btn" disabled={!!busy} onClick={discard}>
+            {busy === "discard" ? "Removing..." : "Remove photo"}
+          </button>
+          <button type="button" className="btn ghost" disabled={!!busy} onClick={() => setExpanded(true)}>
+            It is a campus problem
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bubble rich photo-card">

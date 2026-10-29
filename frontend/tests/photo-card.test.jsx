@@ -50,6 +50,31 @@ describe("PhotoReportCard", () => {
     expect(screen.getByRole("button", { name: "Check again" })).toBeEnabled();
   });
 
+  it("shows a short card instead of the form for a photo of people, and can still be reported anyway", async () => {
+    const Card = await load();
+    const r = result({ can_submit: false, outcome: "no_issue", questions: [] });
+    r.analysis.image_kind = "people";
+    render(<Card result={r} onMessage={() => {}} onSent={() => {}} onDiscarded={() => {}} />);
+    expect(screen.getByText("Not a campus report")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send report" })).toBeNull();
+    expect(screen.queryByLabelText("Your description")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "It is a campus problem" }));
+    expect(screen.getByLabelText("Your description")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send report" })).toBeDisabled();
+  });
+
+  it("removes a photo that is not a campus report", async () => {
+    const Card = await load();
+    const onDiscarded = vi.fn();
+    api.mockResolvedValue({ success: true });
+    const r = result({ can_submit: false, outcome: "no_issue", questions: [] });
+    r.analysis.image_kind = "meme_or_screenshot";
+    render(<Card result={r} onMessage={() => {}} onSent={() => {}} onDiscarded={onDiscarded} />);
+    await userEvent.click(screen.getByRole("button", { name: "Remove photo" }));
+    await waitFor(() => expect(onDiscarded).toHaveBeenCalled());
+    expect(api.mock.calls[0][0]).toBe("/api/reports/photo/7");
+  });
+
   it("re-checks with the edited text and shows the new message", async () => {
     const Card = await load();
     const onMessage = vi.fn();
