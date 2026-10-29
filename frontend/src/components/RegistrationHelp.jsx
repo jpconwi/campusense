@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { api } from "../api.js";
 
-export default function RegistrationHelp() {
-  const [form, setForm] = useState({ name: "", email: "", applicant_type: "student", message: "" });
+export default function RegistrationHelp({ defaultName = "", defaultEmail = "", defaultApplicantType = "student" }) {
+  const [form, setForm] = useState({ name: defaultName, email: defaultEmail,
+    applicant_type: defaultApplicantType, category: "Registration", message: "" });
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -17,9 +18,10 @@ export default function RegistrationHelp() {
     setError("");
     setBusy(true);
     try {
-      const result = await api("/api/auth/registration-help", { method: "POST", json: form });
+      const result = await api("/api/auth/help-messages", { method: "POST", json: form });
       setNotice(result.message || "Your message was sent to the admin inbox.");
-      setForm({ name: "", email: "", applicant_type: form.applicant_type, message: "" });
+      setForm({ name: defaultName, email: defaultEmail, applicant_type: defaultApplicantType,
+        category: "Registration", message: "" });
     } catch (err) {
       setError(err.message || "Your message could not be sent.");
     } finally {
@@ -29,13 +31,19 @@ export default function RegistrationHelp() {
 
   return (
     <details className="registration-help">
-      <summary>Having trouble creating an account? Message an admin</summary>
+      <summary>Need help? Send a message to an admin</summary>
       <form className="registration-form" onSubmit={submit}>
         <label>Name<input name="name" value={form.name} onChange={update} maxLength={120} required /></label>
         <label>Email for reply<input name="email" type="email" value={form.email} onChange={update} maxLength={255} required /></label>
-        <label>Applying as
+        <label>Account type
           <select name="applicant_type" value={form.applicant_type} onChange={update}>
             <option value="student">Student</option><option value="instructor">Instructor</option>
+          </select>
+        </label>
+        <label>Help topic
+          <select name="category" value={form.category} onChange={update}>
+            <option>Registration</option><option>Login or access</option>
+            <option>Account deletion</option><option>Other</option>
           </select>
         </label>
         <label>How can we help?

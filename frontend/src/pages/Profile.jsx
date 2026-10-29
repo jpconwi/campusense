@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useAuth } from "../auth.jsx";
+import RegistrationHelp from "../components/RegistrationHelp.jsx";
 
 export default function Profile() {
   const { user } = useAuth();
@@ -18,6 +19,11 @@ export default function Profile() {
         </dl>
         <p className="page-intro" style={{ margin: "14px 0 0" }}>Need a different account type? Ask an administrator to change it.</p>
       </div>
+      <section className="card profile-help">
+        <h3>Help messages</h3>
+        <p className="page-intro">Ask about account access, registration, account deletion, or another issue. An admin can reply to your email.</p>
+        <RegistrationHelp defaultName={user.name} defaultEmail={user.email} defaultApplicantType={user.role} />
+      </section>
     </div>
   );
 }

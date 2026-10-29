@@ -43,6 +43,7 @@ NAV = {
     ],
     "admin": [
         ("Dashboard", "/admin"), ("Campus AI", "/ai"), ("Users", "/admin/users"),
+        ("Help Messages", "/admin/help-messages"),
         ("Concerns", "/admin/concerns"), ("Reports", "/admin/reports"),
         ("Faculty Reports", "/admin/faculty"), ("Feedback", "/admin/feedback"),
         ("Reservations", "/admin/reservations"), ("Rooms", "/admin/rooms"),

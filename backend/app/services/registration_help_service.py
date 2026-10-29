@@ -1,4 +1,4 @@
-"""Contact inbox for applicants who cannot finish account registration."""
+"""Help-message inbox for NEMSU account holders and applicants."""
 
 import re
 
@@ -8,11 +8,14 @@ from sqlalchemy.orm import Session
 from app.models import RegistrationHelpMessage
 from app.services.common import ValidationError, now
 
+HELP_CATEGORIES = ("Registration", "Login or access", "Account deletion", "Other")
 
-def create_message(db: Session, name, email, applicant_type, message):
+
+def create_message(db: Session, name, email, applicant_type, category, message):
     name = re.sub(r"[\x00-\x1f\x7f]", " ", (name or "")).strip()[:120]
     email = (email or "").strip().lower()[:255]
     applicant_type = (applicant_type or "").strip().lower()
+    category = (category or "Registration").strip()
     message = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", (message or "")).strip()
     if len(name) < 2:
         raise ValidationError("Enter your name.")
@@ -20,10 +23,12 @@ def create_message(db: Session, name, email, applicant_type, message):
         raise ValidationError("Enter a valid email address so the admin can reply.")
     if applicant_type not in ("student", "instructor"):
         raise ValidationError("Choose student or instructor.")
+    if category not in HELP_CATEGORIES:
+        raise ValidationError("Choose a help message category.")
     if not message or len(message) > 2000:
         raise ValidationError("Write a message of up to 2,000 characters.")
     row = RegistrationHelpMessage(name=name, email=email, applicant_type=applicant_type,
-                                  message=message, status="New", created_at=now())
+                                  category=category, message=message, status="New", created_at=now())
     db.add(row)
     db.commit()
     return row
@@ -34,6 +39,7 @@ def list_messages(db: Session):
         RegistrationHelpMessage.created_at.desc(), RegistrationHelpMessage.id.desc())).scalars()
     return [{"id": row.id, "name": row.name, "email": row.email,
              "applicant_type": row.applicant_type, "message": row.message,
+             "category": row.category,
              "status": row.status, "created_at": row.created_at.isoformat(),
              "resolved_at": row.resolved_at.isoformat() if row.resolved_at else None}
             for row in rows]

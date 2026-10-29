@@ -74,7 +74,7 @@ export default function Register() {
   return (
     <>
       <Header />
-      <div className="center-wrap">
+      <div className="center-wrap registration-page">
         <section className="login-card register-card">
           <img src="/logo.png" alt="NEMSU seal" />
           <h1>Personal Gmail registration</h1>

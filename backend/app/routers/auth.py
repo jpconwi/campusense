@@ -275,13 +275,15 @@ class RegistrationHelpBody(BaseModel):
     name: str = ""
     email: str = ""
     applicant_type: str = ""
+    category: str = "Registration"
     message: str = ""
 
 
-@router.post("/registration-help")
+@router.post("/help-messages")
+@router.post("/registration-help", include_in_schema=False)
 def registration_help(body: RegistrationHelpBody, db: Session = Depends(get_db)):
     registration_help_service.create_message(
-        db, body.name, body.email, body.applicant_type, body.message)
+        db, body.name, body.email, body.applicant_type, body.category, body.message)
     return {"success": True, "message": "Your message was sent to the NEMSU admin inbox."}
 
 

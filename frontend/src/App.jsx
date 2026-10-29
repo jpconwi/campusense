@@ -5,6 +5,7 @@ import { AppSkeleton } from "./components/Skeletons.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminDataset from "./pages/AdminDataset.jsx";
 import AdminFaculty from "./pages/AdminFaculty.jsx";
+import AdminHelpMessages from "./pages/AdminHelpMessages.jsx";
 import AdminList from "./pages/AdminList.jsx";
 import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminUsers from "./pages/AdminUsers.jsx";
@@ -56,6 +57,7 @@ export default function App() {
 
         <Route path="/admin" element={page(<AdminDashboard />, ["admin"])} />
         <Route path="/admin/users" element={page(<AdminUsers />, ["admin"])} />
+        <Route path="/admin/help-messages" element={page(<AdminHelpMessages />, ["admin"])} />
         <Route path="/admin/faculty" element={page(<AdminFaculty />, ["admin"])} />
         <Route path="/admin/rooms" element={page(<AdminDataset kind="rooms" />, ["admin"])} />
         <Route path="/admin/campus" element={page(<AdminDataset kind="campus" />, ["admin"])} />

@@ -250,12 +250,14 @@ def user_delete(user_id: int, me: CurrentUser = Depends(admin_required),
     return {"success": True, "message": "Account disabled and scheduled for permanent deletion in 7 days."}
 
 
-@router.get("/registration-help")
+@router.get("/help-messages")
+@router.get("/registration-help", include_in_schema=False)
 def registration_help_inbox(db: Session = Depends(get_db)):
     return {"rows": registration_help_service.list_messages(db)}
 
 
-@router.post("/registration-help/{message_id}/resolve")
+@router.post("/help-messages/{message_id}/resolve")
+@router.post("/registration-help/{message_id}/resolve", include_in_schema=False)
 def registration_help_resolve(message_id: int, db: Session = Depends(get_db)):
     if not registration_help_service.resolve_message(db, message_id):
         raise ValidationError("That message is missing or already resolved.")

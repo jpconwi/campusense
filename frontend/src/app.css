@@ -115,6 +115,9 @@ td select { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px;
 .registration-help { margin-top: 18px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface, #fff); }
 .registration-help summary { color: var(--blue-deep); cursor: pointer; font-weight: 700; }
 .registration-help[open] .registration-form { margin-top: 12px; }
+.registration-page { min-height: 0; flex-direction: column; justify-content: flex-start; align-items: center; gap: 0; }
+.registration-page > .register-card, .registration-page > .registration-help { flex: none; width: min(100%, 520px); }
+.registration-page > .registration-help { margin-top: 12px; }
 .registration-help-inbox { margin: 18px 0; }
 .registration-help-list { display: grid; gap: 12px; }
 .registration-help-message { padding: 13px; border: 1px solid var(--line); border-radius: 10px; overflow-wrap: anywhere; }
@@ -563,6 +566,19 @@ h2.page-title { letter-spacing: -.01em; }
 .admin-users-table .registration-review-note { max-width: 360px; font-size: .82rem; overflow-wrap: anywhere; }
 .admin-users-table .btn.small { margin: 2px 3px 2px 0; }
 .admin-users-table form.inline { margin: 2px 3px 2px 0; }
+.admin-users-controls, .help-messages-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; margin: 8px 0 14px; }
+.admin-filter-label { display: grid; gap: 4px; min-width: 180px; color: var(--muted); font-size: .86rem; font-weight: 600; }
+.admin-filter-label select { border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); padding: 8px 10px; }
+.admin-user-document-links, .admin-user-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 8px; }
+.admin-user-review { margin-top: 7px; }
+.admin-user-review summary { color: var(--blue); cursor: pointer; font-size: .88rem; font-weight: 700; }
+.admin-users-empty { padding: 22px; color: var(--muted); text-align: center; }
+.help-message-list { display: grid; gap: 14px; }
+.help-message-card { min-width: 0; padding: 17px 19px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 1px 2px rgba(21,22,58,.04); }
+.help-message-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
+.help-message-head h3 { color: var(--blue-deep); font-family: var(--serif); font-size: 1.12rem; }
+.help-message-head p { color: var(--muted); font-size: .86rem; }
+.help-message-body { margin: 12px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .data-table .status-cell { min-width: 150px; }
 .data-table .status-cell .badge { margin-bottom: 6px; }
 .data-table .status-cell form.inline { display: flex; }
@@ -690,6 +706,8 @@ h2.page-title { letter-spacing: -.01em; }
 .admin-users-table-wrap { width: 100%; max-width: 100%; }
 .admin-user-separator { display: block; color: var(--muted); font-size: .84rem; }
 @media (max-width: 720px) {
+  .admin-users-controls, .help-messages-controls { grid-template-columns: 1fr; }
+  .admin-filter-label { min-width: 0; }
   .admin-users-table { min-width: 0; font-size: .94rem; background: transparent; }
   .admin-users-table tbody tr { padding: 10px 8px; margin-bottom: 14px; }
   .admin-users-table td { align-items: flex-start; text-align: right; overflow-wrap: anywhere; }

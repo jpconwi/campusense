@@ -61,6 +61,7 @@ class RegistrationHelpMessage(Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     applicant_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    category: Mapped[str] = mapped_column(String(40), default="Registration", nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="New", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)

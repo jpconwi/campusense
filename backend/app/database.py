@@ -32,6 +32,7 @@ def init_db():
     from app import models  # noqa: F401  (registers the tables)
     Base.metadata.create_all(engine)
     _add_student_registration_columns()
+    _add_help_message_category()
     _widen_campus_info_columns()
     _add_sentiment_columns()
     _add_photo_report_columns()
@@ -83,6 +84,21 @@ def _add_student_registration_columns():
                 conn.execute(text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {name} {kind}"))
             elif name not in columns:
                 conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {kind}"))
+
+
+def _add_help_message_category():
+    """Add message categories to the existing applicant help inbox table."""
+    from sqlalchemy import inspect, text
+    if "registration_help_messages" not in inspect(engine).get_table_names():
+        return
+    columns = {column["name"] for column in inspect(engine).get_columns("registration_help_messages")}
+    if "category" in columns:
+        return
+    with engine.begin() as conn:
+        if engine.dialect.name == "postgresql":
+            conn.execute(text("ALTER TABLE registration_help_messages ADD COLUMN category VARCHAR(40) NOT NULL DEFAULT 'Registration'"))
+        else:
+            conn.execute(text("ALTER TABLE registration_help_messages ADD COLUMN category VARCHAR(40) NOT NULL DEFAULT 'Registration'"))
 
 
 def _add_sentiment_columns():
