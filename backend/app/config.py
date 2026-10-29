@@ -63,6 +63,7 @@ OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
 # ---- photo analysis (vision-language models). Optional: each can list several models,
 # comma separated. Defaults are in model/systemAi.py (free-tier / open-source models first).
 HF_VISION_MODEL = os.getenv("HF_VISION_MODEL")
+CLOUDFLARE_VISION_MODEL = os.getenv("CLOUDFLARE_VISION_MODEL")
 OPENROUTER_VISION_MODEL = os.getenv("OPENROUTER_VISION_MODEL")
 GROQ_VISION_MODEL = os.getenv("GROQ_VISION_MODEL")
 GOOGLE_VISION_MODEL = os.getenv("GOOGLE_VISION_MODEL")

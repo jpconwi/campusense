@@ -22,7 +22,8 @@
 
 ## Setup
 * `pip install -r backend/requirements.txt` (adds Pillow, used to shrink photos before the AI sees them).
-* Uses your existing `HF_API_KEY` first. Vision models and fallbacks: see the end of `backend/.env.example`. New tables/columns are created at start-up.
+* Uses the same provider order as the chat: Hugging Face > Cloudflare > Groq > Google > OpenRouter (a provider without a key is skipped). New tables/columns are created at start-up.
+* **Model names change often.** Defaults are built in and checked against the providers' docs (Oct 2026). A model that answers "gone / not supported" is skipped for an hour and the provider is asked which models it offers now. Hugging Face answering 402 (free credits used up) skips Hugging Face for 30 minutes. You only need `*_VISION_MODEL` settings if you want to force a model; yours is tried first, then the defaults. Delete the old example lines (`gemini-2.5-flash`, `llama-4-scout`, `qwen2.5-vl...`) from `.env` / Render if you copied them.
 * Tests: `cd backend && pytest -q tests/test_photo_reports.py` (AI is faked). Frontend: `npx vitest run tests/photo-card.test.jsx`.
 
 ## Known limits

@@ -34,12 +34,15 @@ LABELS = {"huggingface": "Hugging Face", "cloudflare": "Cloudflare", "groq": "Gr
           "google": "Google", "openrouter": "OpenRouter"}
 
 # Default models, used when a *_MODEL setting is not given (all are chat models).
+# Model names are retired often (checked against the providers' docs on 2026-10-29), so a model
+# that answers "gone / not supported" is remembered as dead for a while and skipped (see below).
 DEFAULT_MODELS = {
     "huggingface": ["Qwen/Qwen2.5-7B-Instruct", "Qwen/Qwen3-8B", "meta-llama/Llama-3.1-8B-Instruct"],
-    "cloudflare": ["@cf/meta/llama-3.1-8b-instruct", "@cf/mistralai/mistral-small-3.1-24b-instruct"],
-    "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
-    "google": ["gemini-2.5-flash", "gemini-flash-latest"],
-    "openrouter": ["meta-llama/llama-3.3-70b-instruct:free", "openai/gpt-oss-20b:free"],
+    "cloudflare": ["@cf/mistralai/mistral-small-3.1-24b-instruct", "@cf/google/gemma-4-26b-a4b-it",
+                   "@cf/zai-org/glm-4.7-flash"],
+    "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "openai/gpt-oss-20b"],
+    "google": ["gemini-3.8-flash", "gemini-flash-latest", "gemini-3.5-flash-lite"],
+    "openrouter": ["openrouter/free", "google/gemma-4-31b-it:free"],
 }
 
 MAX_TOKENS = 500
@@ -48,19 +51,24 @@ REQUEST_TIMEOUT = 25                # seconds for one request
 TOTAL_TIMEOUT = 60                  # seconds for the whole chain, then give up
 COOLDOWN_AFTER_FAILURE = 60         # skip a provider this long after all its models failed
 COOLDOWN_AFTER_BAD_KEY = 600        # ...and this long after a 401 / 403 (wrong key)
+COOLDOWN_AFTER_NO_CREDIT = 1800     # ...and this long after a 402 (free credits used up)
+DEAD_MODEL_SECONDS = 3600           # a model that answered 404 / 410 / "not supported" is skipped this long
 
-# ---- photo analysis: only free-tier / open-source vision models, tried in this order
-VISION_PROVIDER_ORDER = ("huggingface", "openrouter", "groq", "google")
+# ---- photo analysis: free-tier / open-source vision models, same provider order as the text chain
+VISION_PROVIDER_ORDER = PROVIDER_ORDER
 DEFAULT_VISION_MODELS = {
-    "huggingface": ["Qwen/Qwen3-VL-8B-Instruct", "Qwen/Qwen2.5-VL-7B-Instruct", "google/gemma-3-27b-it"],
-    "openrouter": ["qwen/qwen2.5-vl-72b-instruct:free", "google/gemma-3-27b-it:free"],
-    "groq": ["meta-llama/llama-4-scout-17b-16e-instruct"],
-    "google": ["gemini-2.5-flash", "gemini-flash-latest"],
+    "huggingface": ["Qwen/Qwen3-VL-8B-Instruct", "Qwen/Qwen2.5-VL-7B-Instruct"],
+    "cloudflare": ["@cf/google/gemma-4-26b-a4b-it", "@cf/meta/llama-4-scout-17b-16e-instruct",
+                   "@cf/mistralai/mistral-small-3.1-24b-instruct"],
+    "groq": ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b"],
+    "google": ["gemini-3.8-flash", "gemini-flash-latest", "gemini-3.5-flash-lite"],
+    "openrouter": ["openrouter/free", "google/gemma-4-31b-it:free", "nvidia/nemotron-nano-12b-v2-vl:free"],
 }
-VISION_MAX_TOKENS = 700
-VISION_GOOGLE_MAX_TOKENS = 2000
+VISION_MAX_TOKENS = 900
+VISION_REASONING_TOKENS = 2500      # Qwen3.x on Groq and Gemini 3.x think first; leave room for the answer
 
 _cooldown_until = {}                # provider -> time.monotonic() when it may be tried again
+_dead = {}                          # (provider key, model) -> until when the model is skipped
 _hf_client = None
 
 
@@ -70,10 +78,10 @@ def _split(value):
 
 
 def _models(provider):
+    # Your *_MODEL setting goes FIRST, then the built-in defaults as backup. (Old names left in
+    # Render / .env after a provider retires a model can then never block the working defaults.)
     configured = _split(getattr(config, f"{provider.upper()}_MODEL", None))
-    if provider == "huggingface":      # keep the old behaviour: your models first, then the defaults
-        return configured + [m for m in DEFAULT_MODELS[provider] if m not in configured]
-    return configured or list(DEFAULT_MODELS[provider])
+    return configured + [m for m in DEFAULT_MODELS[provider] if m not in configured]
 
 
 def is_configured(provider):
@@ -100,6 +108,7 @@ def describe_chain():
 
 def reset_cooldowns():
     _cooldown_until.clear()
+    _dead.clear()
     _discovered.clear()
 
 
@@ -107,6 +116,7 @@ def reset_cooldowns():
 def _clean(text):
     # Qwen3 / reasoning models may include <think>...</think>; never show that to users
     text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.DOTALL)
+    text = re.sub(r"^\s*<think>.*$", "", text, flags=re.DOTALL)      # thinking cut off by the token limit
     return text.strip()
 
 
@@ -115,17 +125,46 @@ def _status_of(error):
     return getattr(response, "status_code", None)
 
 
+def _text_of(error):
+    return repr(error).lower()
+
+
 def _is_bad_key(error):
-    text = repr(error).lower()
-    return _status_of(error) in (401, 403) or " 401" in text or " 403" in text or "unauthorized" in text
+    status = _status_of(error)
+    text = _text_of(error)
+    if status in (401, 403):
+        # 403 can also mean "accept this model's license first": that is not a wrong key
+        return not any(k in text for k in ("agreement", "license", "licence"))
+    return status is None and any(k in text for k in ("unauthorized", "invalid api key", "invalid_api_key",
+                                                      "api key not valid", "forbidden"))
+
+
+def _is_no_credit(error):
+    """Hugging Face answers 402 when the free monthly credits are used up."""
+    status = _status_of(error)
+    text = _text_of(error)
+    return status == 402 or (status is None and any(
+        k in text for k in ("payment required", "insufficient credits", "depleted your monthly")))
+
+
+def _is_model_gone(error):
+    """The model was retired / renamed / is not offered to this account. It will not work on a retry."""
+    status = _status_of(error)
+    if status in (404, 410):
+        return True
+    text = _text_of(error)
+    return any(k in text for k in ("not supported by any provider", "model_not_found", "no longer available",
+                                   "does not exist", "decommissioned", "has been deprecated", "model not found"))
 
 
 def _is_busy(error):
-    """Short-lived trouble worth ONE quick retry on the same model."""
-    if _status_of(error) in (502, 503, 504):
-        return True
-    text = repr(error).lower()
-    return any(k in text for k in ("503", "502", "overloaded", "busy", "timed out", "timeout"))
+    """Short-lived trouble worth ONE quick retry on the same model. (Only real statuses or words:
+    request ids contain digits like 502 / 503 and must not count.)"""
+    status = _status_of(error)
+    if status is not None:
+        return status in (502, 503, 504)
+    return any(k in _text_of(error) for k in ("overloaded", "busy", "timed out", "timeout",
+                                                "temporarily unavailable", "service unavailable"))
 
 
 # ------------------------------------------------------ the five providers
@@ -180,35 +219,70 @@ _CALLERS = {"huggingface": _hf_chat, "cloudflare": _cloudflare_chat, "groq": _gr
 
 
 # ------------------------------------------------------------ the chain
-def _try_provider(provider, messages, deadline, models=None, callers=None, key=None):
+def _try_provider(provider, messages, deadline, models=None, callers=None, key=None, vision=False):
     """Try every model of one provider. Returns (answer, model) or (None, None).
-    `models` / `callers` / `key` let the photo chain reuse this with its own models and cooldown."""
-    bad_key = False
+    `models` / `callers` / `key` let the photo chain reuse this with its own models and cooldown.
+
+    * a wrong key (401/403) or used-up credits (402) fail for every model -> stop at once
+    * a model that is gone (404/410/"not supported") is remembered and skipped for an hour
+    * if models were gone, the provider is asked which models it offers now and those are tried
+    """
     callers = callers or _CALLERS
     key = key or provider
-    for model in (models or _models(provider)):
-        for attempt in (1, 2):
+    stop = {"why": None}
+    tried = []
+    seen_gone = {"yes": False}
+
+    def attempt(model):
+        tried.append(model)
+        if _dead.get((key, model), 0) > time.monotonic():
+            seen_gone["yes"] = True
+            return None
+        for attempt_no in (1, 2):
             if time.monotonic() >= deadline:
-                return None, None
+                stop["why"] = "deadline"
+                return None
             timeout = max(3, min(REQUEST_TIMEOUT, deadline - time.monotonic()))
             try:
-                answer = _clean(callers[provider](model, messages, timeout))
-                if answer:
-                    return answer, model
-                break                                   # empty answer -> next model
+                return _clean(callers[provider](model, messages, timeout)) or None
             except Exception as error:
-                print(f"AI ERROR ({LABELS[provider]} / {model}, try {attempt}):", repr(error)[:300])
+                print(f"AI ERROR ({LABELS[provider]} / {model}, try {attempt_no}):", repr(error)[:300])
                 if _is_bad_key(error):
-                    bad_key = True
-                    break
-                if attempt == 1 and _is_busy(error):
+                    stop["why"] = "bad_key"
+                    return None
+                if _is_no_credit(error):
+                    stop["why"] = "no_credit"
+                    return None
+                if _is_model_gone(error):
+                    _dead[(key, model)] = time.monotonic() + DEAD_MODEL_SECONDS
+                    seen_gone["yes"] = True
+                    return None
+                if attempt_no == 1 and _is_busy(error):
                     time.sleep(1.0)                     # one short retry on the same model
                     continue
-                break                                   # other error / 2nd failure -> next model
-        if bad_key:
-            break                                       # a wrong key fails for every model
-    _cooldown_until[key] = time.monotonic() + (
-        COOLDOWN_AFTER_BAD_KEY if bad_key else COOLDOWN_AFTER_FAILURE)
+                return None
+        return None
+
+    for model in (models or _models(provider)):
+        answer = attempt(model)
+        if answer:
+            return answer, model
+        if stop["why"]:
+            break
+    if not stop["why"] and seen_gone["yes"]:             # names were retired: use what is offered NOW
+        for model in _discover_models(provider, vision):
+            if model in tried:
+                continue
+            answer = attempt(model)
+            if answer:
+                return answer, model
+            if stop["why"]:
+                break
+    if stop["why"] == "deadline":
+        return None, None
+    _cooldown_until[key] = time.monotonic() + {
+        "bad_key": COOLDOWN_AFTER_BAD_KEY, "no_credit": COOLDOWN_AFTER_NO_CREDIT}.get(
+        stop["why"], COOLDOWN_AFTER_FAILURE)
     return None, None
 
 
@@ -249,8 +323,10 @@ def ask_model(system_prompt, question):
 
 
 # ------------------------------------------------------------ photo (vision) chain
-_discovered = {}                    # provider -> (time, [model ids]) so the lists are fetched once an hour
+_discovered = {}                    # (provider, vision) -> (time, [model ids]) so lists are fetched once an hour
 DISCOVERY_SECONDS = 3600
+_NOT_CHAT = ("image", "tts", "live", "audio", "transcribe", "embedding", "robotics", "omni", "banana",
+             "customtools", "computer", "veo", "lyria", "imagen")
 
 
 def _http_get(url, headers):
@@ -260,21 +336,27 @@ def _http_get(url, headers):
     return response.json()
 
 
-def _discover_vision_models(provider):
-    """Ask the provider which vision models it offers RIGHT NOW, because model names are retired
-    and renamed often. Only free ones for OpenRouter. Never raises; returns [] on any problem."""
-    cached = _discovered.get(provider)
+def _gemini_rank(model_id):
+    match = re.search(r"gemini-(\d+(?:\.\d+)?)", model_id)
+    return (-(float(match.group(1)) if match else 0), "lite" in model_id, model_id)
+
+
+def _discover_models(provider, vision=True):
+    """Ask the provider which models it offers RIGHT NOW, because names are retired and renamed
+    often. Only used after a configured / default model was found to be gone. Never raises."""
+    cache_key = (provider, vision)
+    cached = _discovered.get(cache_key)
     if cached and time.monotonic() - cached[0] < DISCOVERY_SECONDS:
         return cached[1]
     found = []
     try:
-        if provider == "huggingface":
+        if provider == "huggingface" and vision:
             data = _http_get("https://router.huggingface.co/v1/models",
                              {"Authorization": f"Bearer {config.HUGGINGFACE_API_KEY}"})
             for m in data.get("data", []):
                 if "image" in ((m.get("architecture") or {}).get("input_modalities") or []):
                     found.append(m["id"])
-        elif provider == "openrouter":
+        elif provider == "openrouter" and vision:
             data = _http_get("https://openrouter.ai/api/v1/models",
                              {"Authorization": f"Bearer {config.OPENROUTER_API_KEY}"})
             for m in data.get("data", []):
@@ -282,29 +364,37 @@ def _discover_vision_models(provider):
                 if ("image" in ((m.get("architecture") or {}).get("input_modalities") or [])
                         and str(price.get("prompt")) in ("0", "0.0") and str(price.get("completion")) in ("0", "0.0")):
                     found.append(m["id"])
-        elif provider == "groq":
+        elif provider == "groq" and vision:
             data = _http_get("https://api.groq.com/openai/v1/models",
                              {"Authorization": f"Bearer {config.GROQ_API_KEY}"})
             found = [m["id"] for m in data.get("data", [])
-                     if any(k in m.get("id", "").lower() for k in ("scout", "maverick", "vision"))]
+                     if any(k in m.get("id", "").lower()
+                            for k in ("qwen3.", "muse-spark", "vision", "scout", "maverick", "-vl"))]
+        elif provider == "google":                      # works for text AND photos: all Gemini Flash models see images
+            data = _http_get("https://generativelanguage.googleapis.com/v1beta/openai/models",
+                             {"Authorization": f"Bearer {config.GOOGLE_API_KEY}"})
+            ids = [m.get("id", "").split("/")[-1] for m in data.get("data", [])]
+            found = sorted((i for i in ids if i.startswith("gemini") and "flash" in i
+                            and not any(k in i for k in _NOT_CHAT)), key=_gemini_rank)
     except Exception as error:
-        print(f"AI: could not list {LABELS[provider]} vision models:", repr(error)[:150])
+        print(f"AI: could not list {LABELS[provider]} models:", repr(error)[:150])
     found = found[:4]
-    _discovered[provider] = (time.monotonic(), found)
+    _discovered[cache_key] = (time.monotonic(), found)
     if found:
-        print(f"AI: {LABELS[provider]} vision models available now:", ", ".join(found))
+        print(f"AI: {LABELS[provider]} models available now:", ", ".join(found))
     return found
 
 
+_discover_vision_models = lambda provider: _discover_models(provider, True)     # older name
+
+
 def _vision_models(provider):
-    configured = _split(getattr(config, {"huggingface": "HF_VISION_MODEL",
-                                         "openrouter": "OPENROUTER_VISION_MODEL",
-                                         "groq": "GROQ_VISION_MODEL",
-                                         "google": "GOOGLE_VISION_MODEL"}[provider], None))
-    models = configured or list(DEFAULT_VISION_MODELS[provider])
-    if not configured:                  # a model you chose yourself is the only one used
-        models += [m for m in _discover_vision_models(provider) if m not in models]
-    return models
+    """Your VISION_MODEL setting first, then the built-in defaults (no network involved)."""
+    setting = {"huggingface": "HF_VISION_MODEL", "cloudflare": "CLOUDFLARE_VISION_MODEL",
+               "groq": "GROQ_VISION_MODEL", "google": "GOOGLE_VISION_MODEL",
+               "openrouter": "OPENROUTER_VISION_MODEL"}[provider]
+    configured = _split(getattr(config, setting, None))
+    return configured + [m for m in DEFAULT_VISION_MODELS[provider] if m not in configured]
 
 
 def _vision_callers():
@@ -318,17 +408,22 @@ def _vision_callers():
             model=model, messages=messages, max_tokens=VISION_MAX_TOKENS,
             temperature=0.1).choices[0].message.content
 
-    def openai_style(url, key_name, extra=None, tokens=VISION_MAX_TOKENS):
+    def openai_style(url_of, key_name, extra=None, tokens=VISION_MAX_TOKENS):
         return lambda model, messages, timeout: _openai_style(
-            url, getattr(config, key_name), model, messages, timeout, max_tokens=tokens, headers=extra)
+            url_of() if callable(url_of) else url_of, getattr(config, key_name), model, messages,
+            timeout, max_tokens=tokens, headers=extra)
 
     return {
         "huggingface": hf,
+        "cloudflare": openai_style(
+            lambda: f"https://api.cloudflare.com/client/v4/accounts/{config.CLOUDFLARE_ACCOUNT_ID}"
+                    "/ai/v1/chat/completions", "CLOUDFLARE_API_KEY"),
+        "groq": openai_style("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY",
+                             tokens=VISION_REASONING_TOKENS),
+        "google": openai_style("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+                               "GOOGLE_API_KEY", tokens=VISION_REASONING_TOKENS),
         "openrouter": openai_style("https://openrouter.ai/api/v1/chat/completions",
                                    "OPENROUTER_API_KEY", {"X-Title": "NEMSAI"}),
-        "groq": openai_style("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY"),
-        "google": openai_style("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-                               "GOOGLE_API_KEY", tokens=VISION_GOOGLE_MAX_TOKENS),
     }
 
 
@@ -340,7 +435,8 @@ def ask_vision(system_prompt, user_text, image_b64, mime="image/jpeg"):
     """Ask a vision-language model about ONE image. Returns (answer, provider, model);
     (None, None, None) when no provider could answer (the caller then falls back to manual review)."""
     if not vision_available():
-        print("AI ERROR: no vision provider key is set (HF_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY or GOOGLE_API_KEY)")
+        print("AI ERROR: no vision provider key is set (HF_API_KEY, CLOUDFLARE_*, GROQ_API_KEY, "
+              "GOOGLE_API_KEY or OPENROUTER_API_KEY)")
         return None, None, None
     messages = [
         {"role": "system", "content": system_prompt},
@@ -356,7 +452,9 @@ def ask_vision(system_prompt, user_text, image_b64, mime="image/jpeg"):
         if not is_configured(provider) or _cooldown_until.get(key, 0) > time.monotonic():
             continue
         answer, model = _try_provider(provider, messages, deadline, models=_vision_models(provider),
-                                      callers=callers, key=key)
+                                      callers=callers, key=key, vision=True)
         if answer:
+            if provider != VISION_PROVIDER_ORDER[0]:
+                print(f"AI: photo analysed by {LABELS[provider]} ({model})")
             return answer, provider, model
     return None, None, None

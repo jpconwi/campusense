@@ -288,12 +288,9 @@ def test_vision_without_any_key_returns_nothing(monkeypatch):
     assert systemAi.ask_vision("s", "t", "QUJD") == (None, None, None)
 
 
-def test_vision_models_are_discovered_when_names_change(monkeypatch):
+def test_vision_models_are_discovered_when_the_names_are_gone(monkeypatch):
     monkeypatch.setattr(config, "HUGGINGFACE_API_KEY", "k")
     monkeypatch.setattr(config, "OPENROUTER_API_KEY", "k")
-    monkeypatch.setattr(config, "GROQ_API_KEY", "")
-    for name in ("HF_VISION_MODEL", "OPENROUTER_VISION_MODEL"):
-        monkeypatch.setattr(config, name, None)
     systemAi.reset_cooldowns()
 
     def fake_get(url, headers):
@@ -307,13 +304,17 @@ def test_vision_models_are_discovered_when_names_change(monkeypatch):
              "architecture": {"input_modalities": ["image", "text"]}}]}
 
     monkeypatch.setattr(systemAi, "_http_get", fake_get)
-    assert "new/vl-9b" in systemAi._vision_models("huggingface")
-    assert "text/only" not in systemAi._vision_models("huggingface")
-    models = systemAi._vision_models("openrouter")
-    assert "a/free-vl:free" in models and "b/paid-vl" not in models
-    monkeypatch.setattr(config, "HF_VISION_MODEL", "my/model")          # your own choice wins, no discovery
-    assert systemAi._vision_models("huggingface") == ["my/model"]
+    hf = systemAi._discover_models("huggingface", True)
+    assert "new/vl-9b" in hf and "text/only" not in hf
+    orr = systemAi._discover_models("openrouter", True)
+    assert "a/free-vl:free" in orr and "b/paid-vl" not in orr
     systemAi.reset_cooldowns()
+
+
+def test_your_own_vision_model_goes_first_and_the_defaults_stay_as_backup(monkeypatch):
+    monkeypatch.setattr(config, "HF_VISION_MODEL", "my/model")
+    models = systemAi._vision_models("huggingface")
+    assert models[0] == "my/model" and set(systemAi.DEFAULT_VISION_MODELS["huggingface"]) <= set(models)
 
 
 def test_discovery_failure_keeps_the_defaults(monkeypatch):
