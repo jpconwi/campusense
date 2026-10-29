@@ -41,6 +41,7 @@ COLUMNS = {
         ("ID", "id", False), ("Submitted", "created_at", False),
         ("Reporter", "reporter_name", True), ("Email", "reporter_email", True),
         ("From", "submitter_role", True),
+        ("Flags", "flags", True),
         ("Type", "report_type", False), ("Location", "location", False),
         ("Area", "area", False), ("Room", "room", False),
         ("Description", "description", False), ("Sentiment", "sentiment", True),

@@ -49,6 +49,17 @@ TOTAL_TIMEOUT = 60                  # seconds for the whole chain, then give up
 COOLDOWN_AFTER_FAILURE = 60         # skip a provider this long after all its models failed
 COOLDOWN_AFTER_BAD_KEY = 600        # ...and this long after a 401 / 403 (wrong key)
 
+# ---- photo analysis: only free-tier / open-source vision models, tried in this order
+VISION_PROVIDER_ORDER = ("huggingface", "openrouter", "groq", "google")
+DEFAULT_VISION_MODELS = {
+    "huggingface": ["Qwen/Qwen3-VL-8B-Instruct", "Qwen/Qwen2.5-VL-7B-Instruct", "google/gemma-3-27b-it"],
+    "openrouter": ["qwen/qwen2.5-vl-72b-instruct:free", "google/gemma-3-27b-it:free"],
+    "groq": ["meta-llama/llama-4-scout-17b-16e-instruct"],
+    "google": ["gemini-2.5-flash", "gemini-flash-latest"],
+}
+VISION_MAX_TOKENS = 700
+VISION_GOOGLE_MAX_TOKENS = 2000
+
 _cooldown_until = {}                # provider -> time.monotonic() when it may be tried again
 _hf_client = None
 
@@ -89,6 +100,7 @@ def describe_chain():
 
 def reset_cooldowns():
     _cooldown_until.clear()
+    _discovered.clear()
 
 
 # ------------------------------------------------------------ helpers
@@ -168,16 +180,19 @@ _CALLERS = {"huggingface": _hf_chat, "cloudflare": _cloudflare_chat, "groq": _gr
 
 
 # ------------------------------------------------------------ the chain
-def _try_provider(provider, messages, deadline):
-    """Try every model of one provider. Returns (answer, model) or (None, None)."""
+def _try_provider(provider, messages, deadline, models=None, callers=None, key=None):
+    """Try every model of one provider. Returns (answer, model) or (None, None).
+    `models` / `callers` / `key` let the photo chain reuse this with its own models and cooldown."""
     bad_key = False
-    for model in _models(provider):
+    callers = callers or _CALLERS
+    key = key or provider
+    for model in (models or _models(provider)):
         for attempt in (1, 2):
             if time.monotonic() >= deadline:
                 return None, None
             timeout = max(3, min(REQUEST_TIMEOUT, deadline - time.monotonic()))
             try:
-                answer = _clean(_CALLERS[provider](model, messages, timeout))
+                answer = _clean(callers[provider](model, messages, timeout))
                 if answer:
                     return answer, model
                 break                                   # empty answer -> next model
@@ -192,7 +207,7 @@ def _try_provider(provider, messages, deadline):
                 break                                   # other error / 2nd failure -> next model
         if bad_key:
             break                                       # a wrong key fails for every model
-    _cooldown_until[provider] = time.monotonic() + (
+    _cooldown_until[key] = time.monotonic() + (
         COOLDOWN_AFTER_BAD_KEY if bad_key else COOLDOWN_AFTER_FAILURE)
     return None, None
 
@@ -230,3 +245,118 @@ def ask_model_with_source(system_prompt, question):
 def ask_model(system_prompt, question):
     """Return the model's answer text, or None if every provider failed."""
     return ask_model_with_source(system_prompt, question)[0]
+
+
+
+# ------------------------------------------------------------ photo (vision) chain
+_discovered = {}                    # provider -> (time, [model ids]) so the lists are fetched once an hour
+DISCOVERY_SECONDS = 3600
+
+
+def _http_get(url, headers):
+    """One GET returning JSON. (Tests replace this.)"""
+    response = httpx.get(url, headers=headers, timeout=6)
+    response.raise_for_status()
+    return response.json()
+
+
+def _discover_vision_models(provider):
+    """Ask the provider which vision models it offers RIGHT NOW, because model names are retired
+    and renamed often. Only free ones for OpenRouter. Never raises; returns [] on any problem."""
+    cached = _discovered.get(provider)
+    if cached and time.monotonic() - cached[0] < DISCOVERY_SECONDS:
+        return cached[1]
+    found = []
+    try:
+        if provider == "huggingface":
+            data = _http_get("https://router.huggingface.co/v1/models",
+                             {"Authorization": f"Bearer {config.HUGGINGFACE_API_KEY}"})
+            for m in data.get("data", []):
+                if "image" in ((m.get("architecture") or {}).get("input_modalities") or []):
+                    found.append(m["id"])
+        elif provider == "openrouter":
+            data = _http_get("https://openrouter.ai/api/v1/models",
+                             {"Authorization": f"Bearer {config.OPENROUTER_API_KEY}"})
+            for m in data.get("data", []):
+                price = m.get("pricing") or {}
+                if ("image" in ((m.get("architecture") or {}).get("input_modalities") or [])
+                        and str(price.get("prompt")) in ("0", "0.0") and str(price.get("completion")) in ("0", "0.0")):
+                    found.append(m["id"])
+        elif provider == "groq":
+            data = _http_get("https://api.groq.com/openai/v1/models",
+                             {"Authorization": f"Bearer {config.GROQ_API_KEY}"})
+            found = [m["id"] for m in data.get("data", [])
+                     if any(k in m.get("id", "").lower() for k in ("scout", "maverick", "vision"))]
+    except Exception as error:
+        print(f"AI: could not list {LABELS[provider]} vision models:", repr(error)[:150])
+    found = found[:4]
+    _discovered[provider] = (time.monotonic(), found)
+    if found:
+        print(f"AI: {LABELS[provider]} vision models available now:", ", ".join(found))
+    return found
+
+
+def _vision_models(provider):
+    configured = _split(getattr(config, {"huggingface": "HF_VISION_MODEL",
+                                         "openrouter": "OPENROUTER_VISION_MODEL",
+                                         "groq": "GROQ_VISION_MODEL",
+                                         "google": "GOOGLE_VISION_MODEL"}[provider], None))
+    models = configured or list(DEFAULT_VISION_MODELS[provider])
+    if not configured:                  # a model you chose yourself is the only one used
+        models += [m for m in _discover_vision_models(provider) if m not in models]
+    return models
+
+
+def _vision_callers():
+    def hf(model, messages, timeout):
+        global _hf_client
+        if _hf_client is None:
+            from huggingface_hub import InferenceClient
+            _hf_client = InferenceClient(api_key=config.HUGGINGFACE_API_KEY, provider="auto",
+                                         timeout=REQUEST_TIMEOUT)
+        return _hf_client.chat.completions.create(
+            model=model, messages=messages, max_tokens=VISION_MAX_TOKENS,
+            temperature=0.1).choices[0].message.content
+
+    def openai_style(url, key_name, extra=None, tokens=VISION_MAX_TOKENS):
+        return lambda model, messages, timeout: _openai_style(
+            url, getattr(config, key_name), model, messages, timeout, max_tokens=tokens, headers=extra)
+
+    return {
+        "huggingface": hf,
+        "openrouter": openai_style("https://openrouter.ai/api/v1/chat/completions",
+                                   "OPENROUTER_API_KEY", {"X-Title": "NEMSAI"}),
+        "groq": openai_style("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY"),
+        "google": openai_style("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+                               "GOOGLE_API_KEY", tokens=VISION_GOOGLE_MAX_TOKENS),
+    }
+
+
+def vision_available():
+    return any(is_configured(p) for p in VISION_PROVIDER_ORDER)
+
+
+def ask_vision(system_prompt, user_text, image_b64, mime="image/jpeg"):
+    """Ask a vision-language model about ONE image. Returns (answer, provider, model);
+    (None, None, None) when no provider could answer (the caller then falls back to manual review)."""
+    if not vision_available():
+        print("AI ERROR: no vision provider key is set (HF_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY or GOOGLE_API_KEY)")
+        return None, None, None
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": [
+            {"type": "text", "text": user_text},
+            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_b64}"}},
+        ]},
+    ]
+    callers = _vision_callers()
+    deadline = time.monotonic() + TOTAL_TIMEOUT
+    for provider in VISION_PROVIDER_ORDER:
+        key = provider + ":vision"
+        if not is_configured(provider) or _cooldown_until.get(key, 0) > time.monotonic():
+            continue
+        answer, model = _try_provider(provider, messages, deadline, models=_vision_models(provider),
+                                      callers=callers, key=key)
+        if answer:
+            return answer, provider, model
+    return None, None, None
