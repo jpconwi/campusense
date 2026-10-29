@@ -52,42 +52,45 @@ TEXTS = {
         "Pakisulat ang tanong mo.",
         "Palihug isulat ang imong pangutana."),
     "greeting_student": (
-        "Hello! I'm NEMSAI, the NEMSU Tandag Main Campus assistant. I can help with campus "
-        "locations, rooms, facilities and equipment, concerns, reports, feedback and instructor "
-        "availability.",
-        "Kumusta! Ako si NEMSAI, ang assistant ng NEMSU Tandag Main Campus. Matutulungan kita sa "
-        "mga lokasyon sa campus, kwarto, pasilidad at kagamitan, concern, report, feedback, at "
-        "availability ng mga instructor.",
-        "Kumusta! Ako si NEMSAI, ang assistant sa NEMSU Tandag Main Campus. Makatabang ko sa mga "
-        "lokasyon sa campus, kwarto, pasilidad ug kagamitan, concern, report, feedback, ug "
-        "availability sa mga instructor."),
+        "Hi there! Great to see you 😊 I'm NEMSAI, your NEMSU Tandag Main Campus assistant. "
+        "What can I help you with today? I can help with campus locations, rooms, facilities, "
+        "concerns, reports, feedback and instructor availability.",
+        "Hi! Masaya akong makausap ka 😊 Ako si NEMSAI, ang assistant mo sa NEMSU Tandag Main "
+        "Campus. Ano ang maitutulong ko sa iyo ngayon? Maaari akong tumulong sa mga lokasyon, "
+        "silid, pasilidad, concern, report, feedback at availability ng mga instructor.",
+        "Hi! Nalipay ko nga nakig-istorya ta 😊 Ako si NEMSAI, ang assistant nimo sa NEMSU Tandag "
+        "Main Campus. Unsa akong ikatabang nimo karon? Makatabang ko sa mga lokasyon, kwarto, "
+        "pasilidad, concern, report, feedback ug availability sa mga instructor."),
     "greeting_instructor": (
-        "Hello! I'm NEMSAI, the NEMSU Tandag Main Campus assistant. I can help with campus "
-        "locations, rooms, facilities and equipment, reservations, concerns, reports, feedback "
-        "and your faculty availability reports.",
-        "Kumusta! Ako si NEMSAI, ang assistant ng NEMSU Tandag Main Campus. Matutulungan kita sa "
-        "mga lokasyon sa campus, kwarto, pasilidad at kagamitan, reserbasyon, concern, report, "
-        "feedback, at sa faculty availability report mo.",
-        "Kumusta! Ako si NEMSAI, ang assistant sa NEMSU Tandag Main Campus. Makatabang ko sa mga "
-        "lokasyon sa campus, kwarto, pasilidad ug kagamitan, reserbasyon, concern, report, "
-        "feedback, ug sa imong faculty availability report."),
+        "Hi there! Great to see you 😊 I'm NEMSAI, your NEMSU Tandag Main Campus assistant. "
+        "What can I help you with today? I can help with campus locations, rooms, facilities, "
+        "reservations, concerns, reports, feedback and faculty availability reports.",
+        "Hi! Masaya akong makausap ka 😊 Ako si NEMSAI, ang assistant mo sa NEMSU Tandag Main "
+        "Campus. Ano ang maitutulong ko sa iyo ngayon? Maaari akong tumulong sa mga lokasyon, "
+        "silid, pasilidad, reserbasyon, concern, report, feedback at faculty availability report.",
+        "Hi! Nalipay ko nga nakig-istorya ta 😊 Ako si NEMSAI, ang assistant nimo sa NEMSU Tandag "
+        "Main Campus. Unsa akong ikatabang nimo karon? Makatabang ko sa mga lokasyon, kwarto, "
+        "pasilidad, reserbasyon, concern, report, feedback ug faculty availability report."),
     "greeting_admin": (
-        "Hello! I'm NEMSAI, the NEMSU Tandag Main Campus assistant. I can help with campus "
-        "locations, rooms, facilities and equipment. Ask me to show pending concerns or reports "
-        "and I will read them from the database.",
-        "Kumusta! Ako si NEMSAI, ang assistant ng NEMSU Tandag Main Campus. Matutulungan kita sa "
-        "mga lokasyon sa campus, kwarto, pasilidad at kagamitan. Sabihin mo lang na ipakita ang "
-        "mga pending na concern o report at babasahin ko ang mga ito mula sa database.",
-        "Kumusta! Ako si NEMSAI, ang assistant sa NEMSU Tandag Main Campus. Makatabang ko sa mga "
-        "lokasyon sa campus, kwarto, pasilidad ug kagamitan. Sugoa lang ko nga ipakita ang mga "
-        "pending nga concern o report ug basahon nako kini gikan sa database."),
+        "Hi there! Great to see you 😊 I'm NEMSAI, your NEMSU Tandag Main Campus assistant. "
+        "What can I help you with today? I can find campus information or show pending concerns "
+        "and reports from the database.",
+        "Hi! Masaya akong makausap ka 😊 Ako si NEMSAI, ang assistant mo sa NEMSU Tandag Main "
+        "Campus. Ano ang maitutulong ko sa iyo ngayon? Maaari akong maghanap ng impormasyon "
+        "tungkol sa campus o magpakita ng mga pending na concern at report mula sa database.",
+        "Hi! Nalipay ko nga nakig-istorya ta 😊 Ako si NEMSAI, ang assistant nimo sa NEMSU Tandag "
+        "Main Campus. Unsa akong ikatabang nimo karon? Makapangita ko og impormasyon sa campus "
+        "o makapakita sa mga pending nga concern ug report gikan sa database."),
     "greeting_default": (
-        "Hello! I'm NEMSAI, the NEMSU Tandag Main Campus assistant. I can help with campus "
-        "locations, rooms, facilities and equipment.",
-        "Kumusta! Ako si NEMSAI, ang assistant ng NEMSU Tandag Main Campus. Matutulungan kita sa "
-        "mga lokasyon sa campus, kwarto, pasilidad at kagamitan.",
-        "Kumusta! Ako si NEMSAI, ang assistant sa NEMSU Tandag Main Campus. Makatabang ko sa mga "
-        "lokasyon sa campus, kwarto, pasilidad ug kagamitan."),
+        "Hi there! Great to see you 😊 I'm NEMSAI, your NEMSU Tandag Main Campus assistant. "
+        "What can I help you with today? I can help with campus locations, rooms, facilities "
+        "and equipment.",
+        "Hi! Masaya akong makausap ka 😊 Ako si NEMSAI, ang assistant mo sa NEMSU Tandag Main "
+        "Campus. Ano ang maitutulong ko sa iyo ngayon? Maaari akong tumulong sa mga lokasyon, "
+        "silid, pasilidad at kagamitan.",
+        "Hi! Nalipay ko nga nakig-istorya ta 😊 Ako si NEMSAI, ang assistant nimo sa NEMSU Tandag "
+        "Main Campus. Unsa akong ikatabang nimo karon? Makatabang ko sa mga lokasyon, kwarto, "
+        "pasilidad ug kagamitan."),
     "about_me": (
         "I'm NEMSAI, the NEMSU Tandag Main Campus assistant. I'm an AI, so I'm not from "
         "anywhere, but I live right here on the campus website. Ask me about campus locations, "

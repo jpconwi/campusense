@@ -163,6 +163,11 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     # that saved turn so phrases like "what does mean?" don't become a new vague query.
     if conversation and any(m.get("role") == "ai" for m in conversation):
         normalized = normalize(question)
+        if _is_example_followup(normalized):
+            view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
+            if view and view["kind"] == "campus" and normalize(view["english"]) != normalized:
+                return _answer(db, view["english"], user, earlier, lang,
+                               rewritten=True, original=question, conversation=conversation)
         if _is_explanation_followup(normalized):
             return _explain_previous_answer(db, question, user, conversation, lang)
 
@@ -331,6 +336,16 @@ _EXPLANATION_PHRASES = (
     "can you explain", "please explain", "in simple terms", "simplify that", "simplify this",
     "pasabot", "ibig sabihin", "ano ibig sabihin",
 )
+
+
+_EXAMPLE_PHRASES = (
+    "like what", "such as what", "like which", "what examples", "give examples",
+    "for example", "which ones", "name them", "what are they",
+)
+
+
+def _is_example_followup(normalized):
+    return intents.has(normalized, *_EXAMPLE_PHRASES) or normalized in {"examples", "which", "what courses"}
 
 
 def _is_explanation_followup(normalized):

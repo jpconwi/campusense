@@ -16,7 +16,8 @@ No Facebook. No login. Nothing private.
 
 ## Settings (.env / Render environment) - all optional
 `NEMSU_NEWS_BASE`, `NEMSU_MEMO_BASE`, `NEMSU_NEWS_PAGES` (default 30), `NEMSU_MAX_NEW_PER_SYNC` (25),
-`NEMSU_COLLECT_DELAY` (1.0 s), `NEMSU_COLLECT_TIMEOUT` (20 s), `NEMSU_SOURCES` (`news,memo` - set `news` if the memo site is down), `NEMSU_SYNC_TOKEN` (for schedulers; empty = off).
+`NEMSU_CRAWL_MAX_PAGES` (120), `NEMSU_CRAWL_MAX_DEPTH` (3), `NEMSU_COLLECT_DELAY` (1.0 s),
+`NEMSU_COLLECT_TIMEOUT` (20 s), `NEMSU_SOURCES` (`news,memo,page`), `NEMSU_SYNC_TOKEN` (for schedulers; empty = off).
 
 ## First test on your own computer (from backend/)
 1. `pip install -r requirements.txt`
@@ -41,7 +42,7 @@ Configure these repository Actions secrets:
 * `NEMSU_SYNC_URL`: the deployed backend URL ending in `/api/nemsu/sync/scheduled`.
 * `NEMSU_SYNC_TOKEN`: the same long random value configured as `NEMSU_SYNC_TOKEN` in the backend environment.
 
-The collector checks up to 30 Newsroom and memo list pages, plus the official pages listed in `app/services/official_pages.py`. It imports new posts in batches and refreshes known URLs; changed titles, contents, dates, or authors update the existing `knowledge_documents` row. The per-run new item limit is `NEMSU_MAX_NEW_PER_SYNC`; remaining new items are picked up by following scheduled runs. It only imports public pages and announcements. Changes to private or unlisted posts cannot be detected by these public sources.
+The collector checks up to 30 Newsroom and memo list pages and crawls up to `NEMSU_CRAWL_MAX_PAGES` linked public pages from the NEMSU site and the curated official-page list, following links up to `NEMSU_CRAWL_MAX_DEPTH` levels. New pages are added to `knowledge_documents`; existing discovered pages are reread and changed titles, content, dates, or authors update their existing rows. It obeys each site's `robots.txt`, stays on the NEMSU host for discovery, and skips private/admin routes and downloadable assets. Private, unlinked, or JavaScript-only pages that expose no page text or links cannot be discovered this way.
 
 ## Later
 * Phase 3 (RAG): chunk `content`, embed, vector search (pgvector), inject into the Hugging Face prompt, cite `source_url`.

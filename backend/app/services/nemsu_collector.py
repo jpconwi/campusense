@@ -784,25 +784,87 @@ def official_page_urls():
     return urls
 
 
+_NON_PAGE_SUFFIX = re.compile(
+    r"\.(?:pdf|docx?|xlsx?|pptx?|zip|rar|7z|jpe?g|png|gif|webp|svg|ico|mp4|mp3|css|js|xml)$",
+    re.I)
+_SKIP_PAGE_PREFIX = ("/login", "/logout", "/register", "/admin", "/api", "/wp-admin",
+                     "/wp-content", "/wp-includes", "/storage", "/files", "/search")
+
+
+def _crawlable_page(url, base):
+    parts = urlsplit(url)
+    path = parts.path.lower()
+    return (_same_site(url, base) and not _NON_PAGE_SUFFIX.search(path)
+            and not path.startswith(_SKIP_PAGE_PREFIX)
+            and not re.search(r"/(?:print|download|share)(?:/|$)", path))
+
+
+def _page_links(html, page_url, base):
+    """Extract same-site HTML and embedded-news links from a public page."""
+    soup = BeautifulSoup(html, "html.parser")
+    hrefs = [a.get("href", "").strip() for a in soup.find_all("a", href=True)]
+    hrefs.extend(_urls_from_page_json(soup, base))
+    found, seen = [], set()
+    for href in hrefs:
+        if not href or href.startswith(("#", "mailto:", "tel:", "javascript:")):
+            continue
+        url = canonical_url(href, base, relative_to=page_url)
+        if _crawlable_page(url, base) and url not in seen:
+            seen.add(url)
+            found.append(url)
+    return found
+
+
 def collect_pages(fetcher, existing, pages, budget):
-    """Reads the fixed list of official pages (not limited by the news budget)."""
+    """Crawl linked public NEMSU pages, refreshing existing URLs and saving new pages."""
     stats = {"found": 0, "skipped_existing": 0, "errors": []}
-    urls = official_page_urls()
-    stats["found"] = len(urls)
+    base = config.NEMSU_NEWS_BASE
+    roots = [base + "/", *official_page_urls()]
+    # Following current links from these roots revisits indexed pages and also discovers
+    # pages added to menus, college pages, and other public sections since the last sync.
+    max_pages = max(1, min(int(config.NEMSU_CRAWL_MAX_PAGES), 500))
+    max_depth = max(0, min(int(config.NEMSU_CRAWL_MAX_DEPTH), 8))
+    queue, queued, root_urls = [], set(), set()
+    for url in roots:
+        normalized = canonical_url(url, base)
+        root_urls.add(normalized)
+        if normalized not in queued:
+            queued.add(normalized)
+            queue.append((normalized, 0))
+    visited = set()
     docs = []
-    for url in urls:
+    while queue and len(visited) < max_pages:
+        url, depth = queue.pop(0)
+        if url in visited or not (_crawlable_page(url, base) or url in root_urls):
+            continue
+        visited.add(url)
         if url in existing:
             stats["skipped_existing"] += 1
         try:
-            doc = parse_official_page(fetcher.get(url).text, url)
+            html = fetcher.get(url).text
         except (httpx.HTTPError, CollectorError) as exc:
             stats["errors"].append(f"{url}: {exc}")
             continue
-        if len(doc.content) < 80:
+        path = urlsplit(url).path
+        if re.fullmatch(r"/news/[^/]+", path):
+            doc = parse_news_article(html, url)
+        else:
+            doc = parse_official_page(html, url)
+        if doc is None:
+            stats["errors"].append(f"{url}: no article title found")
+        elif len(doc.content) < 80:
             stats["errors"].append(f"{url}: no readable text found (page built by JavaScript "
                                    f"with no embedded data?)")
-            continue
-        docs.append(doc)
+        else:
+            docs.append(doc)
+        if depth < max_depth and _same_site(url, base):
+            for child in _page_links(html, url, base):
+                if child not in queued and len(queued) < max_pages * 4:
+                    queued.add(child)
+                    queue.append((child, depth + 1))
+    stats["found"] = len(visited)
+    if queue:
+        stats["left_for_next_sync"] = len(queue)
     return drop_shared_lines(docs), stats
 
 

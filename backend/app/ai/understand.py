@@ -40,6 +40,8 @@ Examples:
 "asa ang cr dapit sa cite" -> {"kind":"campus","english":"Where is the comfort room near CITE?"}
 "naa bay wifi sa library" -> {"kind":"campus","english":"Is there wifi in the library?"}
 "gusto ko mag reklamo sa aircon" -> {"kind":"campus","english":"I want to file a concern about the aircon."}
+If the last assistant reply mentions programs and the message is "like what?", resolve it as a
+request for named examples from that college's programs or curriculum.
 "musta bro" -> {"kind":"smalltalk","english":"Hello, how are you?"}
 "can i ask something" -> {"kind":"smalltalk","english":"Can I ask you something?"}
 "who won the NBA finals" -> {"kind":"offtopic","english":"Who won the NBA finals?"}

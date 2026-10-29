@@ -24,7 +24,7 @@ OFFICIAL_PAGES = [
     "https://nemsu.edu.ph/academics/academic-affairs/colleges/college-of-fisheries-and-aquatic-sciences",
     "https://nemsu.edu.ph/academics/academic-affairs/colleges/college-of-information-technology-education",
     "https://nemsu.edu.ph/academics/academic-affairs/colleges/college-of-teacher-education",
-    "https://nemsu.edu.ph/academics/academic-affairs/graduate-professional-studies/college-of-law",
+    "https://sites.google.com/nemsu.edu.ph/curriculum-development-office/colleges/college-of-law/juris-doctor-jd-non-thesis-four-year-program",
     "https://nemsu.edu.ph/academics/academic-affairs/graduate-professional-studies/college-of-medicine",
     "https://nemsu.edu.ph/academics/academic-affairs/graduate-professional-studies/graduate-school",
     # research, innovation and extension (also holds the patents section)
