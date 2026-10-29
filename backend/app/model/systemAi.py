@@ -432,19 +432,19 @@ def vision_available():
 
 
 def ask_vision(system_prompt, user_text, image_b64, mime="image/jpeg"):
-    """Ask a vision-language model about ONE image. Returns (answer, provider, model);
+    """Ask a vision-language model about one image or a list of (base64, MIME) images.
+    Returns (answer, provider, model);
     (None, None, None) when no provider could answer (the caller then falls back to manual review)."""
     if not vision_available():
         print("AI ERROR: no vision provider key is set (HF_API_KEY, CLOUDFLARE_*, GROQ_API_KEY, "
               "GOOGLE_API_KEY or OPENROUTER_API_KEY)")
         return None, None, None
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": [
-            {"type": "text", "text": user_text},
-            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_b64}"}},
-        ]},
-    ]
+    images = image_b64 if isinstance(image_b64, (list, tuple)) else [(image_b64, mime)]
+    content = [{"type": "text", "text": user_text}]
+    content.extend({"type": "image_url", "image_url": {"url": f"data:{image_mime};base64,{encoded}"}}
+                   for encoded, image_mime in images)
+    messages = [{"role": "system", "content": system_prompt},
+                {"role": "user", "content": content}]
     callers = _vision_callers()
     deadline = time.monotonic() + TOTAL_TIMEOUT
     for provider in VISION_PROVIDER_ORDER:

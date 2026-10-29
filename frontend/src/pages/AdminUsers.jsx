@@ -61,8 +61,14 @@ export default function AdminUsers() {
               <td>{u.name}</td><td>{u.email}</td><td>{u.student_id || "—"}</td>
               <td>{u.has_verification_document ? (
                 <a href={`${API_BASE}/api/admin/users/${u.id}/verification-document`}
-                  target="_blank" rel="noreferrer">View ID/COR</a>
-              ) : "—"}</td>
+                  target="_blank" rel="noreferrer">View {u.verification_document_kind === "cor" ? "COR" : "school ID"}</a>
+              ) : "—"}
+                {u.has_cor_document && <><br /><a href={`${API_BASE}/api/admin/users/${u.id}/verification-document/cor`}
+                  target="_blank" rel="noreferrer">View COR</a></>}
+                {u.has_id_back_document && <><br /><a href={`${API_BASE}/api/admin/users/${u.id}/verification-document/id-back`}
+                  target="_blank" rel="noreferrer">View ID back</a></>}
+                {u.verification_ai_note && <small className="registration-review-note">{u.verification_ai_note}</small>}
+              </td>
               <td><span className={"badge " + (u.approval_status === "Approved" ? "s-available" : "s-pending")}>
                 {u.approval_status || "Approved"}</span></td>
               <td>{u.role ? <span className="role-pill" style={{ background: "var(--blue-soft)" }}>{u.role}</span> : <em>not chosen</em>}</td>

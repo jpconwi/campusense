@@ -23,7 +23,7 @@ from app import config
 from app.database import SessionLocal, get_db
 from app.security import (NAV, authenticated_only, csrf_protect, ensure_csrf_token,
                           get_current_user, is_admin_email, is_nemsu_email)
-from app.services import room_service, user_service
+from app.services import registration_verification_service, room_service, user_service
 from app.services.common import ValidationError, clean_text
 
 router = APIRouter(prefix="/api/auth", tags=["auth"], dependencies=[Depends(csrf_protect)])
@@ -153,9 +153,12 @@ async def callback(request: Request):
 @router.post("/student-registration")
 async def student_registration(request: Request, full_name: str = Form(...),
                                student_id: str = Form(...),
-                               document: UploadFile = File(...),
+                               school_id_document: UploadFile = File(None),
+                               school_id_back_document: UploadFile = File(None),
+                               cor_document: UploadFile = File(None),
+                               ai_review_consent: str = Form(""),
                                db: Session = Depends(get_db)):
-    """Submit a verified personal-Gmail student application for admin approval."""
+    """Submit camera-captured or selected ID/COR images for admin review."""
     identity = request.session.get("student_registration")
     started = request.session.get("student_registration_started_at", 0)
     if not identity or time.time() - int(started) > 15 * 60:
@@ -172,23 +175,49 @@ async def student_registration(request: Request, full_name: str = Form(...),
         raise ValidationError("Enter your full name as shown on your school ID or COR.")
     if len(school_id) < 3:
         raise ValidationError("Enter a valid NEMSU school ID number.")
-    if not document.filename:
-        raise ValidationError("Upload a clear image or PDF of your NEMSU Main Campus school ID or COR.")
+    async def read_scan(upload, label):
+        if upload is None or not upload.filename:
+            return None
+        data = await upload.read(5 * 1024 * 1024 + 1)
+        if len(data) > 5 * 1024 * 1024:
+            raise HTTPException(413, f"The {label} image must be 5 MB or smaller.")
+        signatures = (("image/jpeg", data.startswith(b"\xff\xd8\xff")),
+                      ("image/png", data.startswith(b"\x89PNG\r\n\x1a\n")),
+                      ("image/webp", len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP"))
+        content_type = next((kind for kind, valid in signatures if valid), None)
+        if not content_type:
+            raise ValidationError(f"Choose or capture a valid JPG, PNG, or WEBP {label} image.")
+        filename = re.sub(r"[^A-Za-z0-9._-]", "_", upload.filename.replace("\\", "/").rsplit("/", 1)[-1])[:200]
+        return {"data": data, "content_type": content_type, "filename": filename}
 
-    data = await document.read(5 * 1024 * 1024 + 1)
-    if len(data) > 5 * 1024 * 1024:
-        raise HTTPException(413, "The verification file must be 5 MB or smaller.")
-    signatures = (("image/jpeg", data.startswith(b"\xff\xd8\xff")),
-                  ("image/png", data.startswith(b"\x89PNG\r\n\x1a\n")),
-                  ("image/webp", len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP"),
-                  ("application/pdf", data.startswith(b"%PDF-")))
-    content_type = next((kind for kind, valid in signatures if valid), None)
-    if not content_type:
-        raise ValidationError("Upload a valid JPG, PNG, WEBP, or PDF file.")
-    filename = re.sub(r"[^A-Za-z0-9._-]", "_", document.filename.replace("\\", "/").rsplit("/", 1)[-1])[:200]
+    id_scan = await read_scan(school_id_document, "school ID")
+    id_back_scan = await read_scan(school_id_back_document, "school ID back")
+    cor_scan = await read_scan(cor_document, "COR")
+    if not id_scan and not cor_scan:
+        raise ValidationError("Capture or choose an image of the ID front or COR. The ID back alone is not enough.")
 
+    ai_note = "AI visual review not requested; administrator must inspect the documents manually."
+    if ai_review_consent.lower() == "true":
+        ai_note = await run_in_threadpool(
+            registration_verification_service.review_note,
+            (id_scan["data"], id_scan["content_type"]) if id_scan else None,
+            (id_back_scan["data"], id_back_scan["content_type"]) if id_back_scan else None,
+            (cor_scan["data"], cor_scan["content_type"]) if cor_scan else None,
+        )
+
+    # Keep the existing primary document slot compatible with earlier pending accounts.
+    primary = id_scan or cor_scan
     user_service.submit_student_registration(
-        db, identity["google_id"], name, email, school_id, data, content_type, filename)
+        db, identity["google_id"], name, email, school_id,
+        primary["data"], primary["content_type"], primary["filename"],
+        document_kind="school_id" if id_scan else "cor",
+        cor_document=cor_scan["data"] if id_scan and cor_scan else None,
+        cor_content_type=cor_scan["content_type"] if id_scan and cor_scan else None,
+        cor_filename=cor_scan["filename"] if id_scan and cor_scan else None,
+        id_back_document=id_back_scan["data"] if id_back_scan else None,
+        id_back_content_type=id_back_scan["content_type"] if id_back_scan else None,
+        id_back_filename=id_back_scan["filename"] if id_back_scan else None,
+        ai_note=ai_note)
     request.session.clear()
     return {"success": True,
             "message": "Your student registration is pending admin review. You can sign in after it is approved."}

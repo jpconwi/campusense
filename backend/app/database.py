@@ -64,6 +64,14 @@ def _add_student_registration_columns():
         "verification_document": binary_type,
         "verification_content_type": "VARCHAR(100)",
         "verification_filename": "VARCHAR(255)",
+        "verification_document_kind": "VARCHAR(20)",
+        "verification_cor_document": binary_type,
+        "verification_cor_content_type": "VARCHAR(100)",
+        "verification_cor_filename": "VARCHAR(255)",
+        "verification_id_back_document": binary_type,
+        "verification_id_back_content_type": "VARCHAR(100)",
+        "verification_id_back_filename": "VARCHAR(255)",
+        "verification_ai_note": "TEXT",
     }
     with engine.begin() as conn:
         for name, kind in additions.items():

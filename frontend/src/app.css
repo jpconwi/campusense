@@ -101,9 +101,14 @@ td select { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px;
 .register-card > img, .register-card > h1, .register-card > .sub { display: block; margin-left: auto; margin-right: auto; text-align: center; }
 .registration-form { display: grid; gap: 14px; margin-top: 18px; }
 .registration-form label { display: grid; gap: 6px; color: var(--ink); font-size: .9rem; font-weight: 600; }
-.registration-form input:not([type="file"]) { min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 10px 11px; }
+.registration-form input:not([type="file"]):not([type="checkbox"]) { min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 10px 11px; }
 .registration-form input[type="file"] { max-width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: #fff; }
 .registration-form small, .registration-email { color: var(--muted); font-size: .85rem; }
+.registration-scan-help { margin: 0; color: var(--muted); font-size: .88rem; }
+.registration-consent { grid-template-columns: auto 1fr; align-items: start; gap: 9px !important; font-weight: 400 !important; }
+.registration-consent input[type="checkbox"] { margin: 3px 0 0; }
+.registration-consent span { color: var(--muted); font-size: .83rem; line-height: 1.45; }
+.registration-review-note { display: block; max-width: 260px; margin-top: 6px; color: var(--muted); line-height: 1.4; }
 .registration-form .btn, .registration-success .btn { display: block; width: 100%; text-align: center; }
 .registration-success { display: grid; gap: 12px; }
 .registration-success h2 { color: var(--blue-deep); font-family: var(--serif); }

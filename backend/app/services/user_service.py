@@ -25,7 +25,10 @@ def get_by_google_id(db: Session, google_id):
 
 
 def submit_student_registration(db: Session, google_id, full_name, email, student_id,
-                                document, content_type, filename):
+                                document, content_type, filename, document_kind="school_id",
+                                cor_document=None, cor_content_type=None, cor_filename=None,
+                                id_back_document=None, id_back_content_type=None,
+                                id_back_filename=None, ai_note=None):
     """Create an inactive personal-Gmail student account for admin review."""
     if get_by_google_id(db, google_id) or get_by_email(db, email):
         raise ValidationError("An account already exists for this Google email. Sign in to check its status.")
@@ -33,7 +36,14 @@ def submit_student_registration(db: Session, google_id, full_name, email, studen
     user = User(google_id=google_id, name=full_name, email=email, role=None,
                 approval_status="Pending", student_id=student_id,
                 verification_document=document, verification_content_type=content_type,
-                verification_filename=filename, is_active=False,
+                verification_filename=filename, verification_document_kind=document_kind,
+                verification_cor_document=cor_document,
+                verification_cor_content_type=cor_content_type,
+                verification_cor_filename=cor_filename,
+                verification_id_back_document=id_back_document,
+                verification_id_back_content_type=id_back_content_type,
+                verification_id_back_filename=id_back_filename,
+                verification_ai_note=ai_note, is_active=False,
                 created_at=stamp, last_login=stamp)
     db.add(user)
     try:

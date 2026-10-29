@@ -153,7 +153,11 @@ def users(db: Session = Depends(get_db)):
     for r in rows:
         r.pop("google_id", None)                 # not needed by the browser
         r.pop("verification_document", None)     # served only by the admin-only file route
+        r.pop("verification_cor_document", None)
+        r.pop("verification_id_back_document", None)
         r["has_verification_document"] = bool(r.get("verification_filename"))
+        r["has_cor_document"] = bool(r.get("verification_cor_filename"))
+        r["has_id_back_document"] = bool(r.get("verification_id_back_filename"))
         r["is_allowlisted_admin"] = is_admin_email(r["email"])
     return {"rows": rows}
 
@@ -167,6 +171,28 @@ def user_verification_document(user_id: int, db: Session = Depends(get_db)):
     disposition = "attachment" if row.verification_content_type == "application/pdf" else "inline"
     return Response(row.verification_document, media_type=row.verification_content_type,
                     headers={"Content-Disposition": f'{disposition}; filename="{filename}"',
+                             "Cache-Control": "no-store"})
+
+
+@router.get("/users/{user_id}/verification-document/cor")
+def user_cor_document(user_id: int, db: Session = Depends(get_db)):
+    row = user_service.get_user(db, user_id)
+    if row is None or not row.verification_cor_document or not row.verification_cor_content_type:
+        raise HTTPException(404, "COR scan not found.")
+    filename = row.verification_cor_filename or "student-cor"
+    return Response(row.verification_cor_document, media_type=row.verification_cor_content_type,
+                    headers={"Content-Disposition": f'inline; filename="{filename}"',
+                             "Cache-Control": "no-store"})
+
+
+@router.get("/users/{user_id}/verification-document/id-back")
+def user_id_back_document(user_id: int, db: Session = Depends(get_db)):
+    row = user_service.get_user(db, user_id)
+    if row is None or not row.verification_id_back_document or not row.verification_id_back_content_type:
+        raise HTTPException(404, "ID back scan not found.")
+    filename = row.verification_id_back_filename or "student-id-back"
+    return Response(row.verification_id_back_document, media_type=row.verification_id_back_content_type,
+                    headers={"Content-Disposition": f'inline; filename="{filename}"',
                              "Cache-Control": "no-store"})
 
 

@@ -62,7 +62,8 @@ def create_app():
         print("WARNING: SECRET_KEY is missing in backend/.env. Using a temporary key; "
               "everyone will be signed out whenever the app restarts.")
 
-    max_body = (config.MAX_UPLOAD_MB + 1) * 1024 * 1024
+    # Student registration can include ID front/back and COR scans (5 MB each).
+    max_body = (3 * config.MAX_UPLOAD_MB + 1) * 1024 * 1024
 
     # ------------------------------------------------ extra headers + size limit
     @app.middleware("http")
@@ -70,7 +71,7 @@ def create_app():
         length = request.headers.get("content-length")
         if length and length.isdigit() and int(length) > max_body:
             return JSONResponse(
-                {"error": f"The file is too large. The maximum is {config.MAX_UPLOAD_MB} MB."},
+                {"error": f"The request is too large. The combined limit is {3 * config.MAX_UPLOAD_MB + 1} MB."},
                 status_code=413)
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
