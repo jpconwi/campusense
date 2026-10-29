@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import User
-from app.services.common import now
+from app.services.common import ValidationError, now
 
 
 def get_user(db: Session, user_id):
@@ -22,6 +22,26 @@ def get_by_email(db: Session, email):
 
 def get_by_google_id(db: Session, google_id):
     return db.execute(select(User).where(User.google_id == google_id)).scalar_one_or_none()
+
+
+def submit_student_registration(db: Session, google_id, full_name, email, student_id,
+                                document, content_type, filename):
+    """Create an inactive personal-Gmail student account for admin review."""
+    if get_by_google_id(db, google_id) or get_by_email(db, email):
+        raise ValidationError("An account already exists for this Google email. Sign in to check its status.")
+    stamp = now()
+    user = User(google_id=google_id, name=full_name, email=email, role=None,
+                approval_status="Pending", student_id=student_id,
+                verification_document=document, verification_content_type=content_type,
+                verification_filename=filename, is_active=False,
+                created_at=stamp, last_login=stamp)
+    db.add(user)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise ValidationError("This account could not be registered. Please sign in and try again.")
+    return user
 
 
 def login_user(db: Session, google_id, name, email, is_admin):
@@ -71,7 +91,7 @@ def set_role_first_time(db: Session, user_id, role):
     if role not in ("student", "instructor"):
         return False
     user = db.get(User, user_id)
-    if user is None or user.role is not None:
+    if user is None or user.role is not None or user.approval_status != "Approved":
         return False
     user.role = role
     db.commit()
@@ -82,7 +102,7 @@ def admin_set_role(db: Session, user_id, role):
     if role not in ("student", "instructor"):
         return False
     user = db.get(User, user_id)
-    if user is None or user.role == "admin":
+    if user is None or user.role == "admin" or user.approval_status != "Approved":
         return False
     user.role = role
     db.commit()
@@ -91,9 +111,32 @@ def admin_set_role(db: Session, user_id, role):
 
 def set_active(db: Session, user_id, active):
     user = db.get(User, user_id)
-    if user is None or user.role == "admin":
+    if user is None or user.role == "admin" or user.approval_status == "Pending":
         return False
     user.is_active = bool(active)
+    db.commit()
+    return True
+
+
+def approve_student_registration(db: Session, user_id):
+    user = db.get(User, user_id)
+    if (user is None or user.approval_status != "Pending" or not user.student_id
+            or not user.verification_document):
+        return False
+    user.approval_status = "Approved"
+    user.role = "student"
+    user.is_active = True
+    db.commit()
+    return True
+
+
+def reject_student_registration(db: Session, user_id):
+    user = db.get(User, user_id)
+    if user is None or user.approval_status != "Pending":
+        return False
+    user.approval_status = "Rejected"
+    user.role = None
+    user.is_active = False
     db.commit()
     return True
 

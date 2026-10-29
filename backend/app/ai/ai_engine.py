@@ -512,9 +512,42 @@ def _program_availability_reply(db, question, user, earlier, conversation):
     """Answer where a named program is offered from official records."""
     view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
     asked = view["english"] if view and view["kind"] == "campus" else question
-    docs = [d for d in knowledge_service.search(
-        db, f"{asked} program offered at which campuses Tandag", limit=5)
-            if d.get("source_type") == "nemsu_page"]
+
+    def search_official_pages(topic):
+        matches = []
+        queries = (topic, f"{topic} NEMSU Tandag campuses offered program",
+                   f"which campuses offer {topic} at Tandag")
+        for query in queries:
+            for doc in knowledge_service.search(db, query, limit=4):
+                if (doc.get("source_type") == "nemsu_page"
+                        and all(old.get("source_url") != doc.get("source_url") for old in matches)):
+                    matches.append(doc)
+        return matches[:6]
+
+    docs = search_official_pages(asked)
+    if not docs:
+        retry = understand.rewrite(
+            f"Which campuses offer this NEMSU Tandag course or program? {asked}",
+            earlier, ask_model, conversation=conversation)
+        if retry and retry["kind"] == "campus" and normalize(retry["english"]) != normalize(asked):
+            asked = retry["english"]
+            docs = search_official_pages(asked)
+
+    asks_location = intents.has(normalize(question), "where", "location", "located",
+                                 "what campus", "which campus", "which campuses")
+
+    def tandag_location_description():
+        # Use the matching college's saved Tandag description (CITE/ICT, CBM/gates,
+        # CAS/library, etc.), never a hard-coded location tied to one course.
+        candidates = [asked, *(d.get("title", "") for d in docs)]
+        for candidate in candidates:
+            info = campus_service.lookup(db, candidate)
+            if info and any(marker in info.lower() for marker in
+                            ("near the", "near ", "in the ict area", "building is", "is inside")):
+                return info
+        return None
+
+    location = tandag_location_description() if asks_location else None
     if docs:
         context = build_user_context(user)
         prompt = build_system_prompt(
@@ -522,20 +555,36 @@ def _program_availability_reply(db, question, user, earlier, conversation):
         prompt += """
 
 PROGRAM AVAILABILITY MODE:
-Answer whether the named program is offered at NEMSU Tandag Main Campus. If the official
-source names other campuses offering this same program and the student asks where else it is
-available, list only those campus names stated in the source. Do not give course offerings or
-curriculum details for other campuses. If the source does not state a campus, say you could not
-verify that campus. Do not confuse Tandag with another campus.
+Answer whether the named course/program is offered at NEMSU Tandag Main Campus. Use the official
+pages for any course, not special-case rules for one program. If the student asks which campuses
+offer it, list only campuses explicitly named for that same program in the sources. Do not give
+course offerings or curriculum details for other campuses. If a campus is not named, say you
+could not verify it. When a location is requested, include the matching Tandag college/building
+description if provided in the related campus data. Never transfer availability from one program
+to another or confuse Tandag with another campus.
 """
+        if location:
+            prompt += "\nVERIFIED TANDAG LOCATION DESCRIPTION:\n" + location
         answer = ask_model(prompt, asked)
         if answer:
+            if location and not any(part in answer.lower() for part in
+                                    ("near the", "near ", "ict area", "library", "gate")):
+                answer += "\n\nTandag Main Campus location: " + location
             return response.message(answer + "\n\n" + knowledge_service.sources_text(docs))
 
-    info = campus_service.lookup(db, asked)
-    if info and "available campuses:" in info.lower():
-        return _data(info)
+    # Fall back only to a matching explicit availability fact, never to a nearby
+    # college location row that could be mistaken for the requested answer.
+    availability_queries = (f"{asked} program availability campuses",
+                            f"{question} program availability campuses",
+                            f"{asked} offered campuses")
+    info = next((fact for query in availability_queries
+                 if (fact := campus_service.lookup(db, query))
+                 and any(phrase in fact.lower() for phrase in ("offered at", "available at"))), None)
     if info:
+        location = tandag_location_description() if asks_location else None
+        if location and not any(part in info.lower() for part in
+                                ("near the", "near ", "ict area", "library", "gate")):
+            info += "\n\nTandag Main Campus location: " + location
         return _data(info)
     return response.message(
         "I couldn't verify that program's campus availability in the official NEMSU information "

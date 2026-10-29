@@ -31,6 +31,7 @@ def init_db():
     """Create the tables if they do not exist yet, then seed campus information."""
     from app import models  # noqa: F401  (registers the tables)
     Base.metadata.create_all(engine)
+    _add_student_registration_columns()
     _widen_campus_info_columns()
     _add_sentiment_columns()
     _add_photo_report_columns()
@@ -50,6 +51,26 @@ def _widen_campus_info_columns():
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE campus_info ALTER COLUMN keywords TYPE VARCHAR(500)"))
         conn.execute(text("ALTER TABLE campus_info ALTER COLUMN answer TYPE VARCHAR(2000)"))
+
+
+def _add_student_registration_columns():
+    """Add account review and private verification-file fields to existing databases."""
+    from sqlalchemy import inspect, text
+    columns = {column["name"] for column in inspect(engine).get_columns("users")}
+    binary_type = "BYTEA" if engine.dialect.name == "postgresql" else "BLOB"
+    additions = {
+        "approval_status": "VARCHAR(20) NOT NULL DEFAULT 'Approved'",
+        "student_id": "VARCHAR(50)",
+        "verification_document": binary_type,
+        "verification_content_type": "VARCHAR(100)",
+        "verification_filename": "VARCHAR(255)",
+    }
+    with engine.begin() as conn:
+        for name, kind in additions.items():
+            if engine.dialect.name == "postgresql":
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {name} {kind}"))
+            elif name not in columns:
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {kind}"))
 
 
 def _add_sentiment_columns():

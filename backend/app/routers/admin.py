@@ -9,7 +9,7 @@ All numbers on the dashboard are real counts from the database.
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -152,8 +152,38 @@ def users(db: Session = Depends(get_db)):
     rows = user_service.list_users(db)
     for r in rows:
         r.pop("google_id", None)                 # not needed by the browser
+        r.pop("verification_document", None)     # served only by the admin-only file route
+        r["has_verification_document"] = bool(r.get("verification_filename"))
         r["is_allowlisted_admin"] = is_admin_email(r["email"])
     return {"rows": rows}
+
+
+@router.get("/users/{user_id}/verification-document")
+def user_verification_document(user_id: int, db: Session = Depends(get_db)):
+    row = user_service.get_user(db, user_id)
+    if row is None or not row.verification_document or not row.verification_content_type:
+        raise HTTPException(404, "Verification document not found.")
+    filename = row.verification_filename or "student-verification"
+    disposition = "attachment" if row.verification_content_type == "application/pdf" else "inline"
+    return Response(row.verification_document, media_type=row.verification_content_type,
+                    headers={"Content-Disposition": f'{disposition}; filename="{filename}"',
+                             "Cache-Control": "no-store"})
+
+
+@router.post("/users/{user_id}/approve")
+def approve_user_registration(user_id: int, me: CurrentUser = Depends(admin_required),
+                              db: Session = Depends(get_db)):
+    if user_id == me.id or not user_service.approve_student_registration(db, user_id):
+        raise ValidationError("That student registration is not pending or is missing verification.")
+    return {"success": True, "message": "Student account approved."}
+
+
+@router.post("/users/{user_id}/reject")
+def reject_user_registration(user_id: int, me: CurrentUser = Depends(admin_required),
+                             db: Session = Depends(get_db)):
+    if user_id == me.id or not user_service.reject_student_registration(db, user_id):
+        raise ValidationError("That student registration is not pending.")
+    return {"success": True, "message": "Student registration rejected."}
 
 
 class RoleBody(BaseModel):

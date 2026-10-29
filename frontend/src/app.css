@@ -91,11 +91,22 @@ td select { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px;
 .google-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; background: #fff; color: #1f1f1f;
               border: 1px solid #747775; border-radius: 999px; padding: 11px 16px; font: inherit; font-weight: 600; text-decoration: none; }
 .google-btn:hover { background: #f4f6ff; box-shadow: 0 1px 4px rgba(0,0,0,.18); }
+.personal-google-btn { margin-top: 10px; }
 .login-card .note { margin-top: 16px; font-size: .85rem; color: var(--muted); }
 .login-card .flash { text-align: left; }
 .role-card { border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; text-align: left; }
 .role-card h3 { font-family: var(--serif); color: var(--blue-deep); }
 .role-card p { color: var(--muted); font-size: .92rem; margin-bottom: 10px; }
+.register-card { text-align: left; }
+.register-card > img, .register-card > h1, .register-card > .sub { display: block; margin-left: auto; margin-right: auto; text-align: center; }
+.registration-form { display: grid; gap: 14px; margin-top: 18px; }
+.registration-form label { display: grid; gap: 6px; color: var(--ink); font-size: .9rem; font-weight: 600; }
+.registration-form input:not([type="file"]) { min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 10px 11px; }
+.registration-form input[type="file"] { max-width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: #fff; }
+.registration-form small, .registration-email { color: var(--muted); font-size: .85rem; }
+.registration-form .btn, .registration-success .btn { display: block; width: 100%; text-align: center; }
+.registration-success { display: grid; gap: 12px; }
+.registration-success h2 { color: var(--blue-deep); font-family: var(--serif); }
 
 /* ---------- chat layout ---------- */
 .layout { flex: 1; min-height: 0; width: 100%; max-width: 1440px; margin: 0 auto; display: grid; grid-template-columns: 300px 1fr; }

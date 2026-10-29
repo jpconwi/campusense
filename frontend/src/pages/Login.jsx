@@ -8,6 +8,9 @@ const API_BASE = import.meta.env.VITE_API_URL || "";
 // The server sends a short code in ?error=... and this page turns it into a message.
 const MESSAGES = {
   wrong_account: "Please use your official NEMSU Google account.",
+  approval_pending: "Your student registration is waiting for admin approval. Try signing in again after it is approved.",
+  approval_rejected: "Your student registration was not approved. Please contact the NEMSU administrator.",
+  personal_only: "Student registration requires a verified personal Gmail account.",
   cancelled: "Google sign-in was cancelled or failed. Please try again.",
   not_configured:
     "Google sign-in is not configured yet. Please contact the administrator.",
@@ -42,6 +45,7 @@ export default function Login() {
   const kind = MESSAGES[code] ? "error" : flash && flash.kind;
 
   const googleLoginUrl = `${API_BASE}/api/auth/google`;
+  const studentRegisterUrl = `${API_BASE}/api/auth/google?purpose=register`;
 
   return (
     <>
@@ -63,10 +67,7 @@ export default function Login() {
             </div>
           )}
 
-          <a
-            className="google-btn"
-            href={googleLoginUrl}
-          >
+          <a className="google-btn" href={googleLoginUrl}>
             <svg
               width="20"
               height="20"
@@ -97,10 +98,15 @@ export default function Login() {
             Continue with Google
           </a>
 
+          <a className="google-btn personal-google-btn" href={studentRegisterUrl}>
+            Continue with personal Gmail
+          </a>
+
           <p className="note">
-            Use your official NEMSU Google account (@nemsu.edu.ph).
-            <br />
-            Google handles your sign-in. This site never sees your password.
+            NEMSU Gmail accounts are activated automatically. Students using personal Gmail must
+            submit their full name, school ID number, and a photo or PDF of their NEMSU Tandag
+            Main Campus ID or Certificate of Registration for admin approval.
+            <br />Google handles sign-in; this site never sees your Google password.
           </p>
         </div>
       </div>

@@ -15,6 +15,7 @@ import Login from "./pages/Login.jsx";
 import MyList from "./pages/MyList.jsx";
 import NotFound from "./pages/NotFound.jsx";
 import Profile from "./pages/Profile.jsx";
+import Register from "./pages/Register.jsx";
 import RoleSelect from "./pages/RoleSelect.jsx";
 
 /** Signed in AND role chosen. `roles` limits who may open the page. */
@@ -39,6 +40,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
       <Route path="/select-role" element={<RoleSelect />} />
       <Route path="/admin/login/:secret" element={<AdminLogin />} />
 

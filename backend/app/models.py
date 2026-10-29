@@ -12,7 +12,7 @@ from datetime import date, datetime, time
 from typing import Optional
 
 from sqlalchemy import (Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index,
-                        Integer, String, Text, Time, func)
+                        Integer, LargeBinary, String, Text, Time, func)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -31,6 +31,11 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     role: Mapped[Optional[str]] = mapped_column(String(20))
+    approval_status: Mapped[str] = mapped_column(String(20), default="Approved", nullable=False)
+    student_id: Mapped[Optional[str]] = mapped_column(String(50))
+    verification_document: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
+    verification_content_type: Mapped[Optional[str]] = mapped_column(String(100))
+    verification_filename: Mapped[Optional[str]] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     last_login: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
