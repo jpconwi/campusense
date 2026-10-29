@@ -596,8 +596,7 @@ h2.page-title { letter-spacing: -.01em; }
 .data-table .status-cell select { max-width: 120px; }
 /* the status column stays visible while a wide table scrolls sideways */
 @media (min-width: 721px) {
-  .data-table th:last-child, .data-table td.status-cell { position: sticky; right: 0; background: var(--card); box-shadow: -8px 0 8px -8px rgba(21,22,58,.25); }
-  .data-table th:last-child { background: var(--blue-soft); }
+  .data-table td.status-cell { position: sticky; right: 0; background: var(--card); box-shadow: -8px 0 8px -8px rgba(21,22,58,.25); }
   .data-table tbody tr:hover td.status-cell { background: #f7f7ff; }
 }
 @media (max-width: 720px) { .data-table td.status-cell { position: static; box-shadow: none; } }
