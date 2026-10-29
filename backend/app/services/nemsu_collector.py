@@ -8,10 +8,10 @@ Sources (each one is a small function, so Facebook / PDFs can be added later):
                                               with an HTML fallback)
 
 How one sync works
-  1. read the list pages, 2. skip URLs that are already saved, 3. open each NEW article,
-  4. clean the text, 5. save title / content / date / url.
+  1. read the list pages, 2. refresh previously saved URLs and collect new ones,
+  3. clean the text, 4. insert new records and update changed records.
 The collector is polite: it reads robots.txt, waits between requests, identifies itself,
-and only reads a few pages per run. It never logs in and never touches private pages.
+and checks a bounded set of public list pages per run. It never logs in or reads private pages.
 """
 
 import hashlib
@@ -476,14 +476,14 @@ def parse_news_article(html, url):
 def collect_news(fetcher, existing, pages, budget):
     base = config.NEMSU_NEWS_BASE
     stats = {"found": 0, "skipped_existing": 0, "errors": [], "method": None}
-    seen, candidates, known = set(), [], set()
+    seen, candidates, known = set(), [], []
 
     def add(urls):
         for url in urls:
             if url in seen:
                 continue
             seen.add(url)
-            (known.add(url) if url in existing else candidates.append(url))
+            (known.append(url) if url in existing else candidates.append(url))
 
     # 1) the Newsroom list pages  /news, /news?page=2 ...
     for n in range(1, pages + 1):
@@ -520,7 +520,9 @@ def collect_news(fetcher, existing, pages, budget):
     stats["skipped_existing"] = len(known)
 
     docs = []
-    for url in candidates[:budget]:
+    # Existing pages are refreshed every run so edits at an existing URL are found.
+    # The per-run budget only limits first-time imports.
+    for url in [*known, *candidates[:budget]]:
         try:
             doc = parse_news_article(fetcher.get(url).text, url)
         except (httpx.HTTPError, CollectorError) as exc:
@@ -596,14 +598,14 @@ def parse_memo_html(html, page_url, base):
 def collect_memos(fetcher, existing, pages, budget):
     base = config.NEMSU_MEMO_BASE
     stats = {"found": 0, "skipped_existing": 0, "errors": []}
-    fresh, known, seen = [], set(), set()
+    fresh, known, seen = [], [], set()
 
     def take(docs):
         for d in docs:
             if d.source_url in seen:
                 continue
             seen.add(d.source_url)
-            (known.add(d.source_url) if d.source_url in existing else fresh.append(d))
+            (known.append(d) if d.source_url in existing else fresh.append(d))
 
     try:
         for page in range(1, pages + 1):
@@ -630,7 +632,7 @@ def collect_memos(fetcher, existing, pages, budget):
     stats["skipped_existing"] = len(known)
     if len(fresh) > budget:
         stats["left_for_next_sync"] = len(fresh) - budget
-    return fresh[:budget], stats
+    return [*known, *fresh[:budget]], stats
 
 
 # ------------------------------------------------------------------ source 3: official website pages
@@ -791,7 +793,6 @@ def collect_pages(fetcher, existing, pages, budget):
     for url in urls:
         if url in existing:
             stats["skipped_existing"] += 1
-            continue
         try:
             doc = parse_official_page(fetcher.get(url).text, url)
         except (httpx.HTTPError, CollectorError) as exc:
@@ -806,27 +807,42 @@ def collect_pages(fetcher, existing, pages, budget):
 
 
 # ------------------------------------------------------------------ saving + the sync
-def _hash(doc):
-    return hashlib.sha256(f"{doc.title}\n{doc.content}".encode("utf-8")).hexdigest()
+def _document_hash(doc, content):
+    published = doc.published_at.isoformat() if doc.published_at else ""
+    values = (doc.title, content, published, doc.source_type, doc.author or "")
+    return hashlib.sha256("\n".join(values).encode("utf-8")).hexdigest()
 
 
 def save_documents(db: Session, docs):
-    """Insert the documents whose source_url is new. Returns how many were saved."""
-    saved = 0
+    """Insert new URLs and refresh existing rows whose public page has changed."""
+    counts = {"new": 0, "updated": 0, "unchanged": 0}
+    current = {row.source_url: row for row in db.execute(select(KnowledgeDocument)).scalars()}
     for d in docs:
-        row = KnowledgeDocument(
-            title=d.title, content=d.content or d.title, source_url=d.source_url,
-            published_at=d.published_at, source_type=d.source_type, author=d.author,
-            content_hash=_hash(d))
+        content = d.content or d.title
+        digest = _document_hash(d, content)
+        row = current.get(d.source_url)
+        if row is not None:
+            if row.content_hash == digest:
+                counts["unchanged"] += 1
+                continue
+            row.title, row.content = d.title, content
+            row.published_at, row.source_type, row.author = d.published_at, d.source_type, d.author
+            row.content_hash = digest
+            counts["updated"] += 1
+            continue
+        row = KnowledgeDocument(title=d.title, content=content, source_url=d.source_url,
+                                published_at=d.published_at, source_type=d.source_type,
+                                author=d.author, content_hash=digest)
         try:
-            with db.begin_nested():                      # one bad row never loses the others
+            with db.begin_nested():
                 db.add(row)
                 db.flush()
-            saved += 1
+            current[d.source_url] = row
+            counts["new"] += 1
         except IntegrityError:
-            pass                                          # someone saved the same URL first
+            pass
     db.commit()
-    return saved
+    return counts
 
 
 SOURCES = (("nemsu_news", collect_news), ("nemsu_memo", collect_memos),
@@ -843,9 +859,12 @@ def sync(db, *, pages=None, dry_run=False, client=None, delay=None, sources=None
     active = [(n, c) for n, c in SOURCES if n.replace("nemsu_", "") in wanted]
     if not active:
         raise CollectorError("No source selected. Use news, memo, page or a mix like news,memo,page.")
-    existing = set(db.execute(select(KnowledgeDocument.source_url)).scalars()) if db is not None else set()
+    existing_rows = list(db.execute(select(KnowledgeDocument)).scalars()) if db is not None else []
+    existing = {row.source_url for row in existing_rows}
+    existing_by_url = {row.source_url: row for row in existing_rows}
     fetcher = Fetcher(client=client, delay=delay)
-    summary = {"success": True, "new_documents": 0, "skipped_existing": 0,
+    summary = {"success": True, "new_documents": 0, "updated_documents": 0,
+               "unchanged_documents": 0, "skipped_existing": 0,
                "errors": [], "sources": {}, "new_items": []}
     budget = config.NEMSU_MAX_NEW_PER_SYNC
     failed = 0
@@ -858,13 +877,26 @@ def sync(db, *, pages=None, dry_run=False, client=None, delay=None, sources=None
                 summary["errors"].append(f"{name}: {exc!r}")
                 summary["sources"][name] = {"new": 0, "error": repr(exc)}
                 continue
-            saved = len(docs) if dry_run else save_documents(db, docs)
-            if name != PAGE:                              # official pages have their own list
-                budget -= len(docs)
-            summary["new_documents"] += saved
-            summary["skipped_existing"] += stats["skipped_existing"]
+            if dry_run:
+                changes = {"new": 0, "updated": 0, "unchanged": 0}
+                for d in docs:
+                    old = existing_by_url.get(d.source_url)
+                    digest = _document_hash(d, d.content or d.title)
+                    key = "new" if old is None else ("unchanged" if old.content_hash == digest else "updated")
+                    changes[key] += 1
+            else:
+                changes = save_documents(db, docs)
+                for d in docs:
+                    existing.add(d.source_url)
+            if name != PAGE:
+                budget -= sum(1 for d in docs if d.source_url not in existing_by_url)
+            summary["new_documents"] += changes["new"]
+            summary["updated_documents"] += changes["updated"]
+            summary["unchanged_documents"] += changes["unchanged"]
+            summary["skipped_existing"] += changes["unchanged"]
             summary["errors"] += stats["errors"]
-            summary["sources"][name] = {"new": saved, "found": stats["found"],
+            summary["sources"][name] = {"new": changes["new"], "updated": changes["updated"],
+                                        "unchanged": changes["unchanged"], "found": stats["found"],
                                         "skipped_existing": stats["skipped_existing"],
                                         **({"method": stats["method"]} if stats.get("method") else {}),
                                         **({"left_for_next_sync": stats["left_for_next_sync"]}
@@ -875,7 +907,8 @@ def sync(db, *, pages=None, dry_run=False, client=None, delay=None, sources=None
                  "content_chars": len(d.content)} for d in docs[:10]]
     finally:
         fetcher.close()
-    found_any = summary["new_documents"] or summary["skipped_existing"]
+    found_any = (summary["new_documents"] or summary["updated_documents"]
+                 or summary["unchanged_documents"])
     summary["success"] = not (failed == len(active) or (summary["errors"] and not found_any))
     if dry_run:
         summary["dry_run"] = True

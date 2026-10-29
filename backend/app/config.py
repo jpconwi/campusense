@@ -150,8 +150,8 @@ def ensure_folders():
 # NEMSU websites move.
 NEMSU_NEWS_BASE = os.getenv("NEMSU_NEWS_BASE", "https://nemsu.edu.ph").strip().rstrip("/")
 NEMSU_MEMO_BASE = os.getenv("NEMSU_MEMO_BASE", "https://memo.nemsu.edu.ph").strip().rstrip("/")
-# how many newsroom list pages one sync looks at (the sync stops earlier when a page has nothing new)
-NEMSU_NEWS_PAGES = int(os.getenv("NEMSU_NEWS_PAGES", "3"))
+# how many newsroom / memo list pages one sync checks (up to 30 pages)
+NEMSU_NEWS_PAGES = int(os.getenv("NEMSU_NEWS_PAGES", "30"))
 # upper limit of NEW articles saved per sync, so one run stays short
 NEMSU_MAX_NEW_PER_SYNC = int(os.getenv("NEMSU_MAX_NEW_PER_SYNC", "25"))
 NEMSU_COLLECT_DELAY = float(os.getenv("NEMSU_COLLECT_DELAY", "1.0"))     # seconds between requests

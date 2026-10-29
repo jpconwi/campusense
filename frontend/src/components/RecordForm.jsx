@@ -7,7 +7,6 @@
 import { useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
-import MicButton from "./Voice.jsx";
 
 const CONCERN_TYPES = ["Equipment", "Electrical", "Plumbing", "Furniture", "Building / Structure", "Cleanliness", "Safety", "Other"];
 const REPORT_TYPES = ["Maintenance", "Safety", "Security", "Cleanliness", "Equipment", "Lost & Found", "Other"];
@@ -160,12 +159,7 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
       placeholder: f.placeholder, ...dateLimits(kind, f),
     };
     if (f.type === "textarea")
-      return (
-        <div className="with-mic">
-          <textarea {...common} value={values[f.name]} onChange={(e) => set(f.name, e.target.value)} />
-          <MicButton value={values[f.name]} onChange={(v) => set(f.name, v)} disabled={done} />
-        </div>
-      );
+      return <textarea {...common} value={values[f.name]} onChange={(e) => set(f.name, e.target.value)} />;
     if (f.type === "select")
       return (
         <>
