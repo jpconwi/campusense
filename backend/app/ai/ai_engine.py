@@ -520,8 +520,10 @@ Tandag college. Never fill gaps with guessed subjects.
 
 def _program_availability_reply(db, question, user, earlier, conversation):
     """Answer where a named program is offered from official records."""
-    view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
-    asked = view["english"] if view and view["kind"] == "campus" else question
+    asked = _program_name_from_context(db, question, conversation)
+    if not asked:
+        view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
+        asked = view["english"] if view and view["kind"] == "campus" else question
 
     def search_official_pages(topic):
         matches = []
@@ -599,6 +601,50 @@ to another or confuse Tandag with another campus.
     return response.message(
         "I couldn't verify that program's campus availability in the official NEMSU information "
         "I have yet. Please check the Tandag college or its current program list.")
+
+
+def _program_name_from_context(db, question, conversation):
+    """Resolve a course acronym/name from the current question or the last answer.
+
+    Availability follow-ups often say only "which campus does BSHM available?" or
+    "which campus is it offered?". Resolve those against the program facts already
+    in the campus dataset, so this works for every seeded program rather than just
+    the most recently hard-coded availability entry.
+    """
+    rows = campus_service.list_info(db)
+
+    def match_in(text):
+        q = normalize(text)
+        matches = []
+        for row in rows:
+            topic = row.get("topic", "")
+            topic_q = normalize(topic)
+            answer_q = normalize(row.get("answer", ""))
+            # Exclude college/location entries and the separate CS availability fact;
+            # use rows that describe a named degree/program as the canonical course.
+            is_degree = (topic_q.startswith(("bachelor", "batsilyer", "master", "doctor", "diploma"))
+                         or any(marker in answer_q for marker in
+                                ("bachelor", "degree program", "program is")))
+            if "availability" in topic_q or not is_degree:
+                continue
+            if topic_q and topic_q in q:
+                matches.append((len(topic_q), topic))
+                continue
+            aliases = [normalize(alias) for alias in (row.get("keywords") or "").split(";")]
+            found = [alias for alias in aliases if len(alias) >= 3
+                     and f" {alias} " in f" {q} "]
+            if found:
+                matches.append((max(map(len, found)), topic))
+        return max(matches, default=(0, None))[1]
+
+    # Explicit course mention wins over the prior AI response so a student can switch courses.
+    current = match_in(question)
+    if current:
+        return current
+    for message in reversed(conversation or []):
+        if message.get("role") == "ai":
+            return match_in(message.get("text", ""))
+    return None
 
 
 def _program_fit_reply(db, question, user, earlier, conversation):
