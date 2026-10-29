@@ -153,8 +153,8 @@ NEMSU_MEMO_BASE = os.getenv("NEMSU_MEMO_BASE", "https://memo.nemsu.edu.ph").stri
 # how many newsroom / memo list pages one sync checks (up to 30 pages)
 NEMSU_NEWS_PAGES = int(os.getenv("NEMSU_NEWS_PAGES", "30"))
 # max number of linked public pages the official-site crawler visits each sync
-NEMSU_CRAWL_MAX_PAGES = int(os.getenv("NEMSU_CRAWL_MAX_PAGES", "120"))
-NEMSU_CRAWL_MAX_DEPTH = int(os.getenv("NEMSU_CRAWL_MAX_DEPTH", "3"))
+NEMSU_CRAWL_MAX_PAGES = int(os.getenv("NEMSU_CRAWL_MAX_PAGES", "300"))
+NEMSU_CRAWL_MAX_DEPTH = int(os.getenv("NEMSU_CRAWL_MAX_DEPTH", "4"))
 # upper limit of NEW articles saved per sync, so one run stays short
 NEMSU_MAX_NEW_PER_SYNC = int(os.getenv("NEMSU_MAX_NEW_PER_SYNC", "25"))
 NEMSU_COLLECT_DELAY = float(os.getenv("NEMSU_COLLECT_DELAY", "1.0"))     # seconds between requests

@@ -195,6 +195,8 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if name == "learn_program":
         return _learn_about_program(db, question, found["topic"], user,
                                     earlier=earlier, conversation=conversation)
+    if name == "program_curriculum":
+        return _program_curriculum_reply(db, question, user, earlier, conversation)
     if name == "program_fit":
         return _program_fit_reply(db, question, user, earlier, conversation)
     if name == "help_ask":                      # "help me" -> what help do you need?
@@ -400,6 +402,100 @@ learn next.
     if docs:
         answer += "\n\n" + knowledge_service.sources_text(docs)
     return response.message(answer)
+
+
+def _program_curriculum_reply(db, question, user, earlier, conversation):
+    """Answer subject-list questions from official, Tandag-relevant curriculum material."""
+    view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
+    asked = view["english"] if view and view["kind"] == "campus" else question
+    normalized_question = normalize(question)
+    semester_question = bool(re.search(r"\b(?:semester|sem)\b", normalized_question))
+    requested_semester = re.search(
+        r"\b(first|second|third|fourth|1st|2nd|3rd|4th|[1-4])\s*(?:semester|sem)\b|"
+        r"\b(?:semester|sem)\s*(first|second|third|fourth|1st|2nd|3rd|4th|[1-4])\b",
+        normalized_question)
+    semester_number = None
+    if requested_semester:
+        label = requested_semester.group(1) or requested_semester.group(2)
+        semester_number = {"first": "1", "1st": "1", "second": "2", "2nd": "2",
+                           "third": "3", "3rd": "3", "fourth": "4", "4th": "4"}.get(
+                               label, label)
+
+    def find_program_docs(query):
+        matches = []
+        for search_text in (query, f"{query} NEMSU Tandag curriculum prospectus major subjects"):
+            for doc in knowledge_service.search(db, search_text, limit=5):
+                if doc.get("source_type") == "nemsu_page" and all(
+                        existing.get("source_url") != doc.get("source_url") for existing in matches):
+                    matches.append(doc)
+        return matches
+
+    docs = find_program_docs(asked)
+
+    # Correct course-name typos/acronyms once using the language model, then search
+    # again with clearer wording so campus-location matches cannot short-circuit this.
+    if not docs:
+        retry = understand.rewrite(
+            f"What subjects are in the NEMSU Tandag program mentioned here? {asked}",
+            earlier, ask_model, conversation=conversation)
+        if retry and retry["kind"] == "campus" and normalize(retry["english"]) != normalize(asked):
+            asked = retry["english"]
+            docs = find_program_docs(asked)
+
+    if semester_question:
+        # A general program description is not evidence of which subjects run in a
+        # particular semester. Only a source that explicitly names a semester can answer.
+        semester_docs = []
+        for doc in docs:
+            source_text = normalize(f"{doc.get('title', '')} {doc.get('passage', '')}")
+            if not re.search(r"\b(?:semester|sem)\b", source_text):
+                continue
+            if semester_number:
+                semester_patterns = (rf"\b{semester_number}(?:st|nd|rd|th)?\s*(?:semester|sem)\b",
+                                     rf"\b(?:semester|sem)\s*{semester_number}(?:st|nd|rd|th)?\b",
+                                     rf"\b{('first', 'second', 'third', 'fourth')[int(semester_number)-1]}\s+semester\b")
+                if not any(re.search(pattern, source_text) for pattern in semester_patterns):
+                    continue
+            semester_docs.append(doc)
+        if not semester_docs:
+            answer = ("I don't know the subject list for that semester yet. I can only share "
+                      "general subject areas from the official program information, not a "
+                      "verified semester-by-semester list. Please check the current prospectus "
+                      "with the program's Tandag college.")
+            if docs:
+                answer += "\n\n" + knowledge_service.sources_text(docs[:3])
+            return response.message(answer)
+        docs = semester_docs[:5]
+
+    if not docs:
+        return response.message(
+            "I couldn't find official subject information for that program in the NEMSU Tandag "
+            "data I have yet. Please check with the program's Tandag college for its current "
+            "prospectus, or tell me the full program name so I can look for its overview.")
+
+    context = build_user_context(user)
+    prompt = build_system_prompt(
+        db, context["role"], news=knowledge_service.for_prompt(docs, education=True))
+    prompt += """
+
+PROGRAM SUBJECTS MODE:
+Answer using only details explicitly present in the provided official NEMSU pages or prospectus.
+This assistant covers NEMSU Tandag Main Campus only. Do not list programs or campus availability
+belonging only to other campuses. Prefer a linked prospectus/course list for an exact subject list.
+For a broad question about what a program teaches, summarize its verified major subject areas or
+learning areas from the program overview. Keep this brief and label them as subject areas, not
+exact course titles or a semester curriculum. Give exact semester subjects only when the student
+asks about a semester and the source explicitly lists that same semester. If a prospectus has a
+stated academic year, state it and advise the student to confirm the current curriculum with the
+Tandag college. Never fill gaps with guessed subjects.
+"""
+    answer = ask_model(prompt, asked)
+    if not answer:
+        # A generic fallback is safer than passing a nearby college/location row as a curriculum.
+        answer = ("I found official NEMSU program information, but it doesn't provide a readable "
+                  "subject-by-subject curriculum here. Please check with the program's Tandag "
+                  "college for its current prospectus.")
+    return response.message(answer + "\n\n" + knowledge_service.sources_text(docs))
 
 
 def _program_fit_reply(db, question, user, earlier, conversation):

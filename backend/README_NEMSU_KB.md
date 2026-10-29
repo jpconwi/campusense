@@ -7,7 +7,7 @@ No Facebook. No login. Nothing private.
 | File | What it is |
 |---|---|
 | `app/models.py` | new table `KnowledgeDocument` (`knowledge_documents`, unique `source_url`). Created automatically at startup. |
-| `app/services/nemsu_collector.py` | the collector: reads Newsroom posts, memos, and official pages; updates changed records |
+| `app/services/nemsu_collector.py` | the collector: reads Newsroom posts, memos, official pages, and linked PDF prospectuses; updates changed records |
 | `app/routers/nemsu.py` | `POST /api/nemsu/sync`, `POST /api/nemsu/sync/scheduled`, `GET /api/nemsu/documents` |
 | `scripts/nemsu_sync.py` | command line: `python -m scripts.nemsu_sync [--dry-run] [--pages N]` |
 | `scripts/nemsu_probe.py` | shows what the NEMSU sites really send (use it when a sync finds nothing) |
@@ -16,7 +16,7 @@ No Facebook. No login. Nothing private.
 
 ## Settings (.env / Render environment) - all optional
 `NEMSU_NEWS_BASE`, `NEMSU_MEMO_BASE`, `NEMSU_NEWS_PAGES` (default 30), `NEMSU_MAX_NEW_PER_SYNC` (25),
-`NEMSU_CRAWL_MAX_PAGES` (120), `NEMSU_CRAWL_MAX_DEPTH` (3), `NEMSU_COLLECT_DELAY` (1.0 s),
+`NEMSU_CRAWL_MAX_PAGES` (300), `NEMSU_CRAWL_MAX_DEPTH` (4), `NEMSU_COLLECT_DELAY` (1.0 s),
 `NEMSU_COLLECT_TIMEOUT` (20 s), `NEMSU_SOURCES` (`news,memo,page`), `NEMSU_SYNC_TOKEN` (for schedulers; empty = off).
 
 ## First test on your own computer (from backend/)
@@ -42,7 +42,7 @@ Configure these repository Actions secrets:
 * `NEMSU_SYNC_URL`: the deployed backend URL ending in `/api/nemsu/sync/scheduled`.
 * `NEMSU_SYNC_TOKEN`: the same long random value configured as `NEMSU_SYNC_TOKEN` in the backend environment.
 
-The collector checks up to 30 Newsroom and memo list pages and crawls up to `NEMSU_CRAWL_MAX_PAGES` linked public pages from the NEMSU site and the curated official-page list, following links up to `NEMSU_CRAWL_MAX_DEPTH` levels. New pages are added to `knowledge_documents`; existing discovered pages are reread and changed titles, content, dates, or authors update their existing rows. It obeys each site's `robots.txt`, stays on the NEMSU host for discovery, and skips private/admin routes and downloadable assets. Private, unlinked, or JavaScript-only pages that expose no page text or links cannot be discovered this way.
+The collector checks up to 30 Newsroom and memo list pages and crawls up to `NEMSU_CRAWL_MAX_PAGES` linked public pages from the NEMSU site and the curated official-page list, following links up to `NEMSU_CRAWL_MAX_DEPTH` levels. It extracts text from linked PDFs such as program prospectuses (up to 20 MB), adds them to `knowledge_documents`, and refreshes changed records on later syncs. Other-campus `/campuses/<name>` pages are skipped so they are not treated as Tandag Main information. The collector obeys each site's `robots.txt`, stays on the NEMSU host for discovery, and skips private/admin routes and unrelated downloadable assets. Private, unlinked, scanned/image-only, or JavaScript-only pages that expose no page text or links cannot be discovered this way.
 
 ## Later
 * Phase 3 (RAG): chunk `content`, embed, vector search (pgvector), inject into the Hugging Face prompt, cite `source_url`.

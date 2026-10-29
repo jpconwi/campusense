@@ -436,6 +436,19 @@ def detect(db, question, role):
             and has(q, "math", "course", "program", "college", "computer science", "bshm", "bscs")):
         return {"intent": "program_fit"}
 
+    curriculum_question = (
+        has(q, "curriculum", "prospectus")
+        or (has(q, "semester", "sem") and has(q, "subject", "subjects", "course", "courses",
+                                                "program", "in", "for", "of"))
+        or (has(q, "subjects", "courses")
+            and has(q, "in", "for", "of", "teach", "study", "studies", "program",
+                    "what", "which", "list", "offer", "offered"))
+        or (has(q, "subject", "course")
+            and has(q, "what", "which", "list", "teach", "offer", "offered")
+            and has(q, "in", "for", "of")))
+    if curriculum_question:
+        return {"intent": "program_curriculum"}
+
     learn_request = re.search(
         r"\b(?:teach me about|teach me|learn about|learn|tell me about|explain)\s+(.+)", q)
     if learn_request and learn_request.group(1).strip():

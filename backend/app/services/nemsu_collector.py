@@ -1,6 +1,6 @@
 """
-services/nemsu_collector.py - collects PUBLIC, official NEMSU announcements into the
-knowledge_documents table (Phase 1 of the NEMSU knowledge base).
+services/nemsu_collector.py - collects PUBLIC, official NEMSU announcements, pages, and
+linked program prospectuses into the knowledge_documents table.
 
 Sources (each one is a small function, so Facebook / PDFs can be added later):
   nemsu_news  https://nemsu.edu.ph/news      the Newsroom (pages: /news?page=2 ...)
@@ -9,13 +9,14 @@ Sources (each one is a small function, so Facebook / PDFs can be added later):
 
 How one sync works
   1. read the list pages, 2. refresh previously saved URLs and collect new ones,
-  3. clean the text, 4. insert new records and update changed records.
+  3. extract page/PDF text, 4. insert new records and update changed records.
 The collector is polite: it reads robots.txt, waits between requests, identifies itself,
 and checks a bounded set of public list pages per run. It never logs in or reads private pages.
 """
 
 import hashlib
 import html as html_lib
+import io
 import json
 import re
 import time
@@ -27,6 +28,7 @@ from urllib.parse import quote, unquote, urljoin, urlsplit, urlunsplit
 
 import httpx
 from bs4 import BeautifulSoup
+from pypdf import PdfReader
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -726,6 +728,20 @@ def _page_title(soup, url):
     return title
 
 
+def parse_official_pdf(data, url):
+    """Extract text from a public NEMSU PDF such as a linked program prospectus."""
+    try:
+        reader = PdfReader(io.BytesIO(data), strict=False)
+        content = clean_text("\n\n".join(page.extract_text() or "" for page in reader.pages))
+    except Exception:
+        return None
+    filename = unquote(urlsplit(url).path.rsplit("/", 1)[-1])
+    title = re.sub(r"[-_]+", " ", re.sub(r"\.pdf$", "", filename, flags=re.I)).strip()
+    title = f"{title or 'NEMSU'} Prospectus"
+    return CollectedDoc(title=title, content=content[:_MAX_PAGE_CHARS], source_url=url,
+                        published_at=None, source_type=PAGE)
+
+
 def parse_official_page(html, url):
     """One official website page -> CollectedDoc. Reads the visible text AND the data a
     JavaScript (Inertia) page ships inside the HTML, then removes duplicate lines."""
@@ -785,8 +801,9 @@ def official_page_urls():
 
 
 _NON_PAGE_SUFFIX = re.compile(
-    r"\.(?:pdf|docx?|xlsx?|pptx?|zip|rar|7z|jpe?g|png|gif|webp|svg|ico|mp4|mp3|css|js|xml)$",
+    r"\.(?:docx?|xlsx?|pptx?|zip|rar|7z|jpe?g|png|gif|webp|svg|ico|mp4|mp3|css|js|xml)$",
     re.I)
+_PDF_SUFFIX = re.compile(r"\.pdf$", re.I)
 _SKIP_PAGE_PREFIX = ("/login", "/logout", "/register", "/admin", "/api", "/wp-admin",
                      "/wp-content", "/wp-includes", "/storage", "/files", "/search")
 
@@ -794,8 +811,16 @@ _SKIP_PAGE_PREFIX = ("/login", "/logout", "/register", "/admin", "/api", "/wp-ad
 def _crawlable_page(url, base):
     parts = urlsplit(url)
     path = parts.path.lower()
+    # Keep the knowledge base focused on the main campus; other campuses have
+    # their own pages and should not be mistaken for Tandag program offerings.
+    other_campus = re.match(r"^/campuses/(?!tandag(?:/|$))[^/]+(?:/|$)", path)
+    # Prospectuses are often stored under /files or /storage, which are otherwise
+    # skipped as asset directories. Allow only clearly named curriculum PDFs there.
+    prospectus_pdf = bool(_PDF_SUFFIX.search(path) and
+                          re.search(r"prospectus|curricul|program|course", path))
+    blocked_prefix = any(path.startswith(prefix) for prefix in _SKIP_PAGE_PREFIX)
     return (_same_site(url, base) and not _NON_PAGE_SUFFIX.search(path)
-            and not path.startswith(_SKIP_PAGE_PREFIX)
+            and (not blocked_prefix or prospectus_pdf) and not other_campus
             and not re.search(r"/(?:print|download|share)(?:/|$)", path))
 
 
@@ -816,7 +841,7 @@ def _page_links(html, page_url, base):
 
 
 def collect_pages(fetcher, existing, pages, budget):
-    """Crawl linked public NEMSU pages, refreshing existing URLs and saving new pages."""
+    """Crawl linked public NEMSU pages and prospectuses, refreshing changed documents."""
     stats = {"found": 0, "skipped_existing": 0, "errors": []}
     base = config.NEMSU_NEWS_BASE
     roots = [base + "/", *official_page_urls()]
@@ -841,15 +866,22 @@ def collect_pages(fetcher, existing, pages, budget):
         if url in existing:
             stats["skipped_existing"] += 1
         try:
-            html = fetcher.get(url).text
+            page_response = fetcher.get(url)
         except (httpx.HTTPError, CollectorError) as exc:
             stats["errors"].append(f"{url}: {exc}")
             continue
         path = urlsplit(url).path
-        if re.fullmatch(r"/news/[^/]+", path):
-            doc = parse_news_article(html, url)
+        if _PDF_SUFFIX.search(path):
+            if len(page_response.content) > 20 * 1024 * 1024:
+                stats["errors"].append(f"{url}: PDF exceeds the 20 MB collection limit")
+                continue
+            doc = parse_official_pdf(page_response.content, url)
         else:
-            doc = parse_official_page(html, url)
+            html = page_response.text
+            if re.fullmatch(r"/news/[^/]+", path):
+                doc = parse_news_article(html, url)
+            else:
+                doc = parse_official_page(html, url)
         if doc is None:
             stats["errors"].append(f"{url}: no article title found")
         elif len(doc.content) < 80:
@@ -857,7 +889,7 @@ def collect_pages(fetcher, existing, pages, budget):
                                    f"with no embedded data?)")
         else:
             docs.append(doc)
-        if depth < max_depth and _same_site(url, base):
+        if depth < max_depth and _same_site(url, base) and not _PDF_SUFFIX.search(path):
             for child in _page_links(html, url, base):
                 if child not in queued and len(queued) < max_pages * 4:
                     queued.add(child)
