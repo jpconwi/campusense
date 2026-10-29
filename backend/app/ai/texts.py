@@ -51,6 +51,13 @@ TEXTS = {
         "Please enter a question.",
         "Pakisulat ang tanong mo.",
         "Palihug isulat ang imong pangutana."),
+    "course_share": (
+        "That's great! Thanks for sharing what you're studying 😊 I can help with your program "
+        "or anything around campus whenever you need it.",
+        "Ayos iyan! Salamat sa pagbabahagi ng pinag-aaralan mo 😊 Makakatulong ako sa mga "
+        "tanong tungkol sa programa mo o sa campus kapag kailangan mo.",
+        "Nindot na! Salamat sa pag-share sa imong gitun-an 😊 Makatabang ko sa mga pangutana "
+        "bahin sa imong programa o sa campus kung kinahanglan nimo."),
     "greeting_student": (
         "Hi there! Great to see you 😊 I'm NEMSAI, your NEMSU Tandag Main Campus assistant. "
         "What can I help you with today? I can help with campus locations, rooms, facilities, "
@@ -277,7 +284,7 @@ TEXTS = {
 SERIOUS = {"off_topic", "clarify_some", "clarify_none", "private", "reservation_denied",
            "lost_lost", "lost_found", "lost_admin", "admin_forms", "no_room", "enter_question",
            "hours", "my_email", "my_name", "my_role"}
-FRIENDLY_EMOJI = {"emoji_only": "😊", "help_ask": "🙂", "friends": "😊", "how_are_you": "😊", "greeting_student": "👋", "greeting_instructor": "👋", "greeting_admin": "👋",
+FRIENDLY_EMOJI = {"emoji_only": "😊", "help_ask": "🙂", "friends": "😊", "how_are_you": "😊", "course_share": "😊", "greeting_student": "👋", "greeting_instructor": "👋", "greeting_admin": "👋",
                   "greeting_default": "👋", "about_me": "😊", "about_system": "😊",
                   "languages": "😊", "thanks": "😊", "campus_location": "📍"}
 

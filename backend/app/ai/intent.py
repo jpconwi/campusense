@@ -429,6 +429,14 @@ def detect(db, question, role):
     if not q:
         return {"intent": "empty"}
 
+    # A student sharing what they study is small talk, not a request for the
+    # location of a college merely because the course name matches campus data.
+    course_share = (re.search(r"\bmy (?:course|program)(?: in [a-z0-9]+)? is .+", q)
+                    or re.search(r"\bi (?:am |m )?(?:taking|studying|study) .+", q)
+                    or re.search(r"\bi am a .+ student\b", q))
+    if course_share and not has(q, "what", "where", "which", "how", "when"):
+        return {"intent": "course_share"}
+
     # greetings / help
     if q in GREETING_PHRASES or " ".join(t for t in tokens if t not in GREETING_FILLER) in GREETING_PHRASES:
         return {"intent": "greeting"}

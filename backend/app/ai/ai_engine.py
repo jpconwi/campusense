@@ -177,6 +177,8 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
 
     if name == "greeting":
         return _greeting(role)
+    if name == "course_share":
+        return response.message(texts.en("course_share"))
     if name == "help_ask":                      # "help me" -> what help do you need?
         result = response.message(texts.en("help_ask"))
         result["suggestions"] = ["Where is the library?", "I lost my phone", "I have a concern"]
