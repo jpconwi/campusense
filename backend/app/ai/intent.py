@@ -429,6 +429,13 @@ def detect(db, question, role):
     if not q:
         return {"intent": "empty"}
 
+    if re.fullmatch(r"(?:(?:can|could|will|would) you )?teach me(?: something)?(?: please)?", q):
+        return {"intent": "learn_ask"}
+
+    if (has(q, "survive", "succeed", "do well", "handle", "manage")
+            and has(q, "math", "course", "program", "college", "computer science", "bshm", "bscs")):
+        return {"intent": "program_fit"}
+
     learn_request = re.search(
         r"\b(?:teach me about|teach me|learn about|learn|tell me about|explain)\s+(.+)", q)
     if learn_request and learn_request.group(1).strip():

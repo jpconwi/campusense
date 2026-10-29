@@ -5,6 +5,7 @@ import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import PhotoReportCard from "../components/PhotoReportCard.jsx";
 import RecordForm, { SuccessCard } from "../components/RecordForm.jsx";
+import MicButton from "../components/Voice.jsx";
 import { ChatSkeleton, ReplySkeleton } from "../components/Skeletons.jsx";
 
 const FORM_TYPES = {
@@ -356,6 +357,7 @@ export default function Chat() {
               <textarea id="question" ref={input} rows={1} placeholder={photo ? "Describe the problem (optional)" : "Message NEMSAI"} aria-label="Your question"
                         value={text} onChange={(e) => setText(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
+              <MicButton compact value={text} onChange={setText} disabled={busy} />
               <button className="send" type="button" disabled={busy || (!text.trim() && !photo)} onClick={() => send()} aria-label="Send">
                 {busy ? "…" : <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>}
               </button>

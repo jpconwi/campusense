@@ -190,8 +190,13 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         return _greeting(role)
     if name == "course_share":
         return response.message(texts.en("course_share"))
+    if name == "learn_ask":
+        return response.message(texts.en("learn_ask"))
     if name == "learn_program":
-        return _learn_about_program(db, question, found["topic"], user)
+        return _learn_about_program(db, question, found["topic"], user,
+                                    earlier=earlier, conversation=conversation)
+    if name == "program_fit":
+        return _program_fit_reply(db, question, user, earlier, conversation)
     if name == "help_ask":                      # "help me" -> what help do you need?
         result = response.message(texts.en("help_ask"))
         result["suggestions"] = ["Where is the library?", "I lost my phone", "I have a concern"]
@@ -345,12 +350,21 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     return response.message(answer)
 
 
-def _learn_about_program(db, question, topic, user):
+def _learn_about_program(db, question, topic, user, *, earlier=None, conversation=None,
+                         resolve_spelling=True):
     """Teach about a NEMSU program from official pages, with a general intro if needed."""
     topic = normalize(topic or question)
     info = campus_service.lookup(db, topic) or campus_service.lookup(db, question)
     docs = [d for d in knowledge_service.search(db, topic, limit=3)
             if d.get("source_type") == "nemsu_page"]
+
+    if not info and not docs and resolve_spelling:
+        view = understand.rewrite(f"Teach me about {topic}", earlier, ask_model,
+                                  conversation=conversation)
+        if view and view["kind"] == "campus" and normalize(view["english"]) != topic:
+            return _learn_about_program(db, question, view["english"], user,
+                                        earlier=earlier, conversation=conversation,
+                                        resolve_spelling=False)
 
     if not info and not docs:
         return response.clarify(campus_service.suggest_topics(db, topic))
@@ -383,6 +397,50 @@ learn next.
             return _data(info)
         else:
             return response.clarify(campus_service.suggest_topics(db, question))
+    if docs:
+        answer += "\n\n" + knowledge_service.sources_text(docs)
+    return response.message(answer)
+
+
+def _program_fit_reply(db, question, user, earlier, conversation):
+    """Give supportive study advice without promising admission or success."""
+    view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
+    asked = view["english"] if view and view["kind"] == "campus" else question
+    docs = [d for d in knowledge_service.search(db, asked, limit=3)
+            if d.get("source_type") == "nemsu_page"]
+    info = campus_service.lookup(db, asked)
+    if not info and not docs:
+        # A typo or acronym may have hidden the program name; ask the language model
+        # to resolve it once, then search the official data with the clearer wording.
+        query = "Teach me about " + asked
+        rewritten = understand.rewrite(query, earlier, ask_model, conversation=conversation)
+        if rewritten and rewritten["kind"] == "campus":
+            asked = rewritten["english"]
+            info = campus_service.lookup(db, asked)
+            docs = [d for d in knowledge_service.search(db, asked, limit=3)
+                    if d.get("source_type") == "nemsu_page"]
+    if not info and not docs:
+        return response.clarify(campus_service.suggest_topics(db, asked))
+
+    context = build_user_context(user)
+    source_text = knowledge_service.for_prompt(docs, education=True) if docs else None
+    prompt = build_system_prompt(db, context["role"], news=source_text)
+    prompt += """
+
+STUDY ADVICE:
+Answer the student's question supportively and realistically. If they ask about Computer Science,
+explain that math can be useful, while success also depends on practice, curiosity,
+problem-solving, and persistence. For other programs, tailor the advice to that field. Do not
+promise that the student will succeed or claim specific NEMSU admission requirements. Clearly
+separate general study advice from verified NEMSU program facts.
+"""
+    if info:
+        prompt += "\nRELATED NEMSU PROGRAM INFORMATION:\n" + info
+    answer = ask_model(prompt, asked)
+    if not answer:
+        answer = ("Being comfortable with math can be helpful in many fields, but you do not have "
+                  "to be perfect at it to begin. Skills grow through practice, patience, and "
+                  "curiosity. Tell me which program you mean and I can give advice specific to it.")
     if docs:
         answer += "\n\n" + knowledge_service.sources_text(docs)
     return response.message(answer)

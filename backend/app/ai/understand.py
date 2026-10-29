@@ -34,7 +34,14 @@ kind:
 - "offtopic": anything else (homework answers, coding, general knowledge, politics, ...).
 
 Use the conversation (if any) to understand words like "it", "there", "that one", "and the library?".
-Fix typos and slang in "english". Keep names, room codes and acronyms. Do not answer the question.
+Fix typos and slang in "english". Keep names, room codes and acronyms unless the surrounding
+words clearly show that a course or program name is misspelled or abbreviated. Do not answer the
+question.
+For any request to learn about a course/program, or advice about succeeding in one, infer the most
+likely NEMSU program from the student's wording and conversation, including unfamiliar typos,
+phonetic spellings, and abbreviations. Use the campus or official-page context when available.
+Normalize the program name in "english" so the information lookup can find it. Do not guess when
+several programs could match; preserve the wording and let the assistant ask a clarifying question.
 
 Examples:
 "asa ang cr dapit sa cite" -> {"kind":"campus","english":"Where is the comfort room near CITE?"}

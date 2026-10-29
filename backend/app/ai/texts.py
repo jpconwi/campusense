@@ -58,6 +58,10 @@ TEXTS = {
         "tanong tungkol sa programa mo o sa campus kapag kailangan mo.",
         "Nindot na! Salamat sa pag-share sa imong gitun-an 😊 Makatabang ko sa mga pangutana "
         "bahin sa imong programa o sa campus kung kinahanglan nimo."),
+    "learn_ask": (
+        "Of course! What would you like to learn about? Tell me a subject or NEMSU program.",
+        "Siyempre! Ano ang gusto mong matutuhan? Sabihin mo lang ang paksa o programa sa NEMSU.",
+        "Sige! Unsa ang gusto nimong makat-onan? Isulti lang ang subject o programa sa NEMSU."),
     "greeting_student": (
         "Hi there! Great to see you 😊 I'm NEMSAI, your NEMSU Tandag Main Campus assistant. "
         "What can I help you with today? I can help with campus locations, rooms, facilities, "
