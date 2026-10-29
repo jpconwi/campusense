@@ -33,6 +33,7 @@ def init_db():
     Base.metadata.create_all(engine)
     _widen_campus_info_columns()
     _add_sentiment_columns()
+    _add_photo_report_columns()
     from app.services import campus_service, sentiment_service
     with SessionLocal() as db:
         campus_service.seed_if_empty(db)
@@ -61,3 +62,22 @@ def _add_sentiment_columns():
         for table in ("concerns", "reports", "feedback"):
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS sentiment VARCHAR(10)"))
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS sentiment_score INTEGER"))
+
+
+def _add_photo_report_columns():
+    """Add the photo-report columns to a `reports` table created before photo reports existed.
+    Safe to run on every start."""
+    if engine.dialect.name != "postgresql":
+        return
+    from sqlalchemy import text
+    columns = [
+        ("source", "VARCHAR(10) NOT NULL DEFAULT 'form'"), ("ai_status", "VARCHAR(15)"),
+        ("ai_analysis", "TEXT"), ("ai_provider", "VARCHAR(80)"),
+        ("urgent", "BOOLEAN NOT NULL DEFAULT FALSE"), ("noticed_when", "VARCHAR(120)"),
+        ("observed_cause", "VARCHAR(500)"), ("verification", "VARCHAR(20)"),
+        ("verification_note", "VARCHAR(500)"), ("verified_by", "VARCHAR(255)"),
+        ("verified_at", "TIMESTAMP"),
+    ]
+    with engine.begin() as conn:
+        for name, kind in columns:
+            conn.execute(text(f"ALTER TABLE reports ADD COLUMN IF NOT EXISTS {name} {kind}"))

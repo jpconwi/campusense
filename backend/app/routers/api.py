@@ -16,7 +16,7 @@ from app.ai.ai_engine import ask_ai
 from app.database import get_db
 from app.security import CurrentUser, csrf_protect, login_required, role_required
 from app.services import (announcement_service, chat_history_service, common, concern_service, faculty_service, feedback_service,
-                          pdf_service, report_service, reservation_service)
+                          pdf_service, photo_report_service, report_service, reservation_service)
 
 router = APIRouter(prefix="/api", tags=["api"], dependencies=[Depends(csrf_protect)])
 
@@ -45,7 +45,7 @@ def instructor_for_reservation(user: CurrentUser = Depends(login_required)) -> C
 _recent = defaultdict(deque)
 
 
-def _too_many(user_id, limit=20, window=60):
+def _too_many(user_id, limit=20, window=60):  # user_id may also be a tuple such as ("photo", 5)
     now = time.time()
     q = _recent[user_id]
     while q and now - q[0] > window:
@@ -174,6 +174,57 @@ def submit_reservation(
                     "administrator approves it.")
 
 
+# ------------------------------------------------------------ photo reports
+@router.post("/reports/photo/analyze")
+def photo_analyze(
+        image: Optional[UploadFile] = File(None), draft_id: Optional[int] = Form(None),
+        description: Optional[str] = Form(None), location: Optional[str] = Form(None),
+        noticed_when: Optional[str] = Form(None), observed_cause: Optional[str] = Form(None),
+        session_id: Optional[int] = Form(None),
+        user: CurrentUser = Depends(role_required("student", "instructor")),
+        db: Session = Depends(get_db)):
+    """Send a photo (and optionally a description) for an AI check. Nothing reaches the
+    administrators until the student submits."""
+    if _too_many(("photo", user.id), limit=6):
+        raise HTTPException(429, "Please wait a moment before checking another photo.")
+    form = {"description": description, "location": location, "noticed_when": noticed_when,
+            "observed_cause": observed_cause}
+    result = photo_report_service.analyze(db, user, form, image if not draft_id else None, draft_id)
+    if not draft_id:                          # keep the first exchange in the chat history
+        try:
+            asked = "Photo report" + (f": {description.strip()[:120]}" if (description or "").strip() else "")
+            result["session_id"] = chat_history_service.save_exchange(
+                db, user.id, session_id, asked, {"answer": result["message"]})
+        except Exception as error:
+            db.rollback()
+            print("CHAT HISTORY ERROR:", repr(error))
+    return result
+
+
+@router.post("/reports/photo/{draft_id}/submit")
+def photo_submit(
+        draft_id: int, description: Optional[str] = Form(None), location: Optional[str] = Form(None),
+        noticed_when: Optional[str] = Form(None), observed_cause: Optional[str] = Form(None),
+        user: CurrentUser = Depends(role_required("student", "instructor")),
+        db: Session = Depends(get_db)):
+    if _too_many(("photo", user.id), limit=6):
+        raise HTTPException(429, "Please wait a moment and try again.")
+    form = {"description": description, "location": location, "noticed_when": noticed_when,
+            "observed_cause": observed_cause}
+    row = photo_report_service.submit(db, user, draft_id, form)
+    message = "Your report was sent to the administrators. Its status is Pending."
+    if row["urgent"]:
+        message += " It was marked for priority review. If anyone is in danger, tell campus security or the nearest staff now."
+    return _ok(row, message, "reports")
+
+
+@router.delete("/reports/photo/{draft_id}")
+def photo_discard(draft_id: int, user: CurrentUser = Depends(role_required("student", "instructor")),
+                  db: Session = Depends(get_db)):
+    photo_report_service.discard(db, user, draft_id)
+    return {"success": True}
+
+
 # ---------------------------------------------------------------- faculty
 @router.post("/faculty/submit")
 def submit_faculty(
@@ -234,8 +285,8 @@ def my_records(kind: str, user: CurrentUser = Depends(role_required("student", "
         raise HTTPException(403, NO_STUDENT_RESERVATION)
     return {
         "kind": kind, "spec": USER_KINDS[kind], "pdf": kind in PDF_KINDS,
-        "rows": [{k: v for k, v in r.items() if not k.startswith("sentiment")}      # admin-only
-                 for r in common.list_rows(db, kind, user_id=user.id)],
+        "rows": [photo_report_service.for_student({k: v for k, v in r.items() if not k.startswith("sentiment")})
+                 for r in common.list_rows(db, kind, user_id=user.id)],       # sentiment + AI notes: admin-only
         "columns": [[h, k] for h, k, private in common.COLUMNS[kind] if not private],
     }
 

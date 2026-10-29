@@ -24,7 +24,7 @@ from app import config
 from app.database import init_db
 from app.model import systemAi as system_ai
 from app.routers import admin, admin_login, api, auth, mobile_auth, nemsu
-from app.services import chat_history_service
+from app.services import chat_history_service, photo_report_service
 from app.services.common import ValidationError
 
 
@@ -41,6 +41,7 @@ async def lifespan(app: FastAPI):
     async def cleanup_loop():          # saved chats older than CHAT_HISTORY_DAYS are deleted
         while True:
             await run_in_threadpool(chat_history_service.purge_old_safely)
+            await run_in_threadpool(photo_report_service.purge_old_drafts_safely)
             await asyncio.sleep(3600)
 
     cleanup = asyncio.create_task(cleanup_loop())

@@ -60,6 +60,13 @@ GOOGLE_MODEL = os.getenv("GOOGLE_MODEL") or os.getenv("GEMINI_MODEL")
 OPENROUTER_API_KEY = (os.getenv("OPENROUTER_API_KEY") or "").strip()
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
 
+# ---- photo analysis (vision-language models). Optional: each can list several models,
+# comma separated. Defaults are in model/systemAi.py (free-tier / open-source models first).
+HF_VISION_MODEL = os.getenv("HF_VISION_MODEL")
+OPENROUTER_VISION_MODEL = os.getenv("OPENROUTER_VISION_MODEL")
+GROQ_VISION_MODEL = os.getenv("GROQ_VISION_MODEL")
+GOOGLE_VISION_MODEL = os.getenv("GOOGLE_VISION_MODEL")
+
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 
@@ -82,6 +89,8 @@ SESSION_HOURS = 8
 # blocks them immediately, because the user is re-read from the database every request).
 MOBILE_TOKEN_DAYS = int(os.getenv("MOBILE_TOKEN_DAYS", "14"))
 MAX_UPLOAD_MB = 5
+# Unsent photo-report drafts (photo + AI check) are deleted after this many hours.
+PHOTO_DRAFT_HOURS = max(1, int(os.getenv("PHOTO_DRAFT_HOURS", "24")))
 # Saved chats are deleted automatically after this many days (default 3).
 CHAT_HISTORY_DAYS = max(1, int(os.getenv("CHAT_HISTORY_DAYS", "3")))
 

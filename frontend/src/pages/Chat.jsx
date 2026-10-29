@@ -3,12 +3,17 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
+import PhotoReportCard from "../components/PhotoReportCard.jsx";
 import RecordForm, { SuccessCard } from "../components/RecordForm.jsx";
+import MicButton from "../components/Voice.jsx";
 
 const FORM_TYPES = {
   concern_form: "concern", report_form: "report", feedback_form: "feedback",
   reservation_form: "reservation", faculty_form: "faculty",
 };
+
+const MAX_PHOTO_MB = 5;
+const PHOTO_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 const timeNow = () => new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
@@ -101,6 +106,7 @@ function Row({ item, onSuggest }) {
         )}
         {item.kind === "text" && (
           <div className={"bubble" + (item.error ? " error" : "") + (ai && !item.error ? " rich" : "")}>
+            {item.image && <img className="sent-photo" src={item.image} alt="Photo you sent" />}
             {ai && !item.error ? <Markdown text={item.text} /> : item.text}
           </div>
         )}
@@ -115,6 +121,10 @@ function Row({ item, onSuggest }) {
           <div className="bubble rich">
             <RecordForm kind={item.formKind} prefill={item.prefill} onSuccess={item.onSuccess} />
           </div>
+        )}
+        {item.kind === "photo" && (
+          <PhotoReportCard result={item.result} preview={item.preview}
+                           onMessage={item.onMessage} onSent={item.onSent} onDiscarded={item.onDiscarded} />
         )}
         {item.kind === "map" && <MapCard map={item.map} />}
         {item.kind === "note" && <div className="bubble rich"><em>{item.text}</em></div>}
@@ -157,6 +167,11 @@ export default function Chat() {
   const input = useRef(null);
   const nextId = useRef(1);
   const sessionId = useRef(null);                      // the saved chat we are talking in
+  const [photo, setPhoto] = useState(null);            // { file, url } waiting to be sent
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const cameraInput = useRef(null);
+  const galleryInput = useRef(null);
 
   useEffect(() => { document.title = "Campus AI | NEMSU"; }, []);
   useEffect(() => {                                    // "New chat" or a chat picked from the history
@@ -178,10 +193,58 @@ export default function Chat() {
     if (el) { el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 160) + "px"; }
   }, [text]);
 
+  const dropPhoto = () => { if (photo) URL.revokeObjectURL(photo.url); setPhoto(null); };   // only for photos never sent
+
+  function pickPhoto(file) {
+    setMenuOpen(false);
+    if (!file) return;
+    if (!PHOTO_TYPES.includes(file.type)) { setPhotoError("Please choose a PNG, JPG or WEBP photo."); return; }
+    if (file.size > MAX_PHOTO_MB * 1024 * 1024) { setPhotoError(`The photo must be ${MAX_PHOTO_MB} MB or smaller.`); return; }
+    setPhotoError("");
+    if (photo) URL.revokeObjectURL(photo.url);
+    setPhoto({ file, url: URL.createObjectURL(file) });
+    input.current && input.current.focus();
+  }
+
+  async function sendPhoto() {
+    if (busy || !photo) return;
+    const { file, url } = photo;
+    const description = text.trim();
+    // the thumbnail stays in the conversation, so its address is not revoked here
+    add({ role: "user", kind: "text", text: description || "(photo only)", image: url, time: timeNow() });
+    setPhoto(null); setText(""); setBusy(true);
+    const typing = add({ role: "ai", kind: "typing" });
+    try {
+      const f = new FormData();
+      f.append("image", file);
+      if (description) f.append("description", description);
+      if (sessionId.current) f.append("session_id", sessionId.current);
+      const data = await api("/api/reports/photo/analyze", { method: "POST", form: f });
+      remove(typing);
+      if (data.session_id) { sessionId.current = data.session_id; onSaved(); }
+      const say = (t) => add({ role: "ai", kind: "text", text: t, time: timeNow() });
+      say(data.message);
+      add({
+        role: "ai", kind: "photo", result: data, preview: url, onMessage: say,
+        onSent: (result) => add({ role: "ai", kind: "success", result }),
+        onDiscarded: () => say("No problem, I removed the photo. Nothing was sent."),
+      });
+    } catch (e) {
+      remove(typing);
+      if (e.status !== 401) {
+        add({ role: "ai", kind: "text", error: true, time: timeNow(),
+              text: "I couldn't check that photo. " + e.message });
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const add = (item) => { const id = nextId.current++; setItems((l) => [...l, { id, ...item }]); return id; };
   const remove = (id) => setItems((l) => l.filter((x) => x.id !== id));
 
   async function send(preset) {
+    if (photo && !preset) return sendPhoto();
     const question = (preset || text).trim();
     if (!question || busy) return;
     add({ role: "user", kind: "text", text: question, time: timeNow() });
@@ -214,6 +277,7 @@ export default function Chat() {
     }
   }
 
+  const canPhoto = user.role !== "admin";
   const extra = user.role === "admin"
     ? ["Show pending reports", "Show pending concerns"] : ["Show my pending concerns"];
   const CARDS = [
@@ -240,6 +304,7 @@ export default function Chat() {
                     </button>
                   ))}
                 </div>
+                {canPhoto && <p className="side-note">Something broken or unsafe? Tap the camera button to take or upload a photo, and say what's wrong by typing or speaking.</p>}
                 {user.role === "instructor" && <p className="side-note">Instructors who cannot come to school can type "I am sick and cannot come to school" to file an availability report.</p>}
                 {user.role === "student" && <p className="side-note">You can ask "Is Sir JP available today?" to check whether an instructor is in school.</p>}
               </div>
@@ -255,15 +320,44 @@ export default function Chat() {
                 <button key={q} className="chip" type="button" onClick={() => send(q)}>{q}</button>
               ))}
             </div>
+            {photo && (
+              <div className="attach-preview">
+                <img src={photo.url} alt="Photo ready to send" />
+                <span>Photo ready. Add a description (optional), then press send.</span>
+                <button type="button" className="chip" onClick={dropPhoto} aria-label="Remove photo">Remove</button>
+              </div>
+            )}
+            {photoError && <p className="form-error" role="alert">{photoError}</p>}
             <div className="input-area">
-              <textarea id="question" ref={input} rows={1} placeholder="Message NEMSAI" aria-label="Your question"
+              {canPhoto && (
+                <div className="attach-wrap">
+                  <button type="button" className="attach-btn" aria-label="Add a photo" aria-expanded={menuOpen}
+                          title="Report a problem with a photo" disabled={busy} onClick={() => setMenuOpen((o) => !o)}>
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" />
+                    </svg>
+                  </button>
+                  {menuOpen && (
+                    <div className="attach-menu" role="menu">
+                      <button type="button" role="menuitem" onClick={() => cameraInput.current.click()}>Take a photo</button>
+                      <button type="button" role="menuitem" onClick={() => galleryInput.current.click()}>Upload a photo</button>
+                    </div>
+                  )}
+                  <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden
+                         onChange={(e) => { pickPhoto(e.target.files[0]); e.target.value = ""; }} />
+                  <input ref={galleryInput} type="file" accept="image/png,image/jpeg,image/webp" hidden
+                         onChange={(e) => { pickPhoto(e.target.files[0]); e.target.value = ""; }} />
+                </div>
+              )}
+              <textarea id="question" ref={input} rows={1} placeholder={photo ? "Describe the problem (optional)" : "Message NEMSAI"} aria-label="Your question"
                         value={text} onChange={(e) => setText(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
-              <button className="send" type="button" disabled={busy || !text.trim()} onClick={() => send()} aria-label="Send">
+              <MicButton compact value={text} onChange={setText} disabled={busy} />
+              <button className="send" type="button" disabled={busy || (!text.trim() && !photo)} onClick={() => send()} aria-label="Send">
                 {busy ? "…" : <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>}
               </button>
             </div>
-            <p className="footnote">Enter to send, Shift+Enter for a new line.</p>
+            <p className="footnote">Enter to send, Shift+Enter for a new line.{canPhoto && " Use the camera button to report a problem with a photo."}</p>
           </div>
         </div>
       </main>

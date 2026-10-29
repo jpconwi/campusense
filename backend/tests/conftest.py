@@ -18,7 +18,7 @@ os.environ.update({
     "GOOGLE_CLIENT_ID": "test-id", "GOOGLE_CLIENT_SECRET": "test-secret",
     "SECRET_KEY": "test-secret-key", "ADMIN_EMAILS": "admin@nemsu.edu.ph",
     "MODEL": "fake", "API_KEY": "fake", "ADMIN_LOGIN_SECRET": "mysecrets-test",
-    "ADMIN_PASSWORD": "",
+    "ADMIN_PASSWORD": "", "COOKIE_SECURE": "false",
 })
 
 import pytest                                              # noqa: E402
