@@ -163,6 +163,15 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     # A known academic program in "how about Computer Science?" is a request to learn
     # about it, not to repeat the college's location fact.
     normalized = normalize(question)
+    if conversation:
+        last_ai = next((m.get("text", "") for m in reversed(conversation)
+                        if m.get("role") == "ai"), "")
+        if ("full program name" in normalize(last_ai)
+                and len(normalized.split()) <= 6
+                and not intents.has(normalized, "what", "where", "why", "how", "when")):
+            clarification = f"What major subject areas are taught in {question.strip()}?"
+            return _program_curriculum_reply(db, clarification, user, earlier, conversation)
+
     followup = re.fullmatch(r"how about (.+)", normalized)
     if followup:
         subject = followup.group(1).strip()

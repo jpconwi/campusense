@@ -445,7 +445,7 @@ def detect(db, question, role):
                     "what", "which", "list", "offer", "offered"))
         or (has(q, "subject", "course")
             and has(q, "what", "which", "list", "teach", "offer", "offered")
-            and has(q, "in", "for", "of")))
+            and has(q, "in", "for", "of", "by", "from")))
     if curriculum_question:
         return {"intent": "program_curriculum"}
 
