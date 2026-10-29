@@ -2,24 +2,70 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
 import { Donut, HBars, Trend } from "../components/Charts.jsx";
+import { Icon, Loading, PATHS } from "../components/Ui.jsx";
+
+// where a stat card leads to, and how it looks
+function statInfo(label) {
+  const l = label.toLowerCase();
+  const pending = l.includes("pending") ? "?status=Pending" : "";
+  if (l.includes("urgent") || l.includes("hazard")) return { to: "/admin/reports?urgent=1", icon: PATHS.alert, tone: "red" };
+  if (l.includes("negative")) return { to: "/admin/feedback?sentiment=Negative", icon: PATHS.feedback, tone: "red" };
+  if (l.includes("concern")) return { to: "/admin/concerns" + pending, icon: PATHS.concern, tone: pending ? "amber" : "blue" };
+  if (l.includes("report") && l.includes("faculty")) return { to: "/admin/faculty", icon: PATHS.faculty, tone: "blue" };
+  if (l.includes("report")) return { to: "/admin/reports" + (l.includes("resolved") ? "?status=Resolved" : pending), icon: PATHS.report, tone: l.includes("resolved") ? "green" : pending ? "amber" : "teal" };
+  if (l.includes("feedback")) return { to: "/admin/feedback", icon: PATHS.feedback, tone: "violet" };
+  if (l.includes("reservation")) return { to: "/admin/reservations", icon: PATHS.reserve, tone: "green" };
+  if (l.includes("student") || l.includes("instructor")) return { to: "/admin/users", icon: PATHS.users, tone: "slate" };
+  return { to: "/admin", icon: PATHS.dashboard, tone: "blue" };
+}
 
 const short = (text, n = 90) => (text && text.length > n ? text.slice(0, n - 1) + "…" : text || "");
 
 export default function AdminDashboard() {
   const [d, setD] = useState(null);
   useEffect(() => { document.title = "Admin Dashboard | NEMSU"; api("/api/admin/dashboard").then(setD).catch(() => {}); }, []);
-  if (!d) return <div className="page" />;
+  if (!d) return <Loading label="Loading the dashboard..." />;
   const c = d.charts;
+  const stat = (name) => (d.stats.find(([label]) => label === name) || [0, 0])[1];
+  const attention = [
+    [stat("Urgent Photo Reports (open)"), "possible hazard", "possible hazards", "/admin/reports?urgent=1", "red"],
+    [stat("Pending Concerns"), "concern waiting", "concerns waiting", "/admin/concerns?status=Pending", "amber"],
+    [stat("Pending Reports"), "report waiting", "reports waiting", "/admin/reports?status=Pending", "amber"],
+    [d.negative_feedback.length, "unhappy feedback", "unhappy feedback", "/admin/feedback?sentiment=Negative", "red"],
+  ].filter(([n]) => n > 0);
 
   return (
     <div className="page">
       <h2 className="page-title">Admin Dashboard</h2>
-      <p className="page-intro">All numbers below are real counts from the database.</p>
+      <p className="page-intro">All numbers below are real counts from the database. Click a card to open the list.</p>
 
-      <div className="grid">
-        {d.stats.map(([label, number]) => (
-          <div className="stat" key={label}><div className="num">{number}</div><div className="lbl">{label}</div></div>
-        ))}
+      {attention.length > 0 ? (
+        <section className="attention" aria-label="Needs your attention">
+          <strong><Icon d={PATHS.alert} size={18} /> Needs your attention</strong>
+          <div className="attention-items">
+            {attention.map(([n, one, many, to, tone]) => (
+              <Link key={to} to={to} className={`attn tone-${tone}`}><b>{n}</b> {n === 1 ? one : many}</Link>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section className="attention ok" aria-label="Needs your attention">
+          <strong><Icon d={PATHS.check} size={18} /> All clear</strong>
+          <span>Nothing is waiting for review right now.</span>
+        </section>
+      )}
+
+      <div className="stat-grid">
+        {d.stats.map(([label, number]) => {
+          const info = statInfo(label);
+          return (
+            <Link className={`stat2 tone-${info.tone}`} to={info.to} key={label}>
+              <span className="stat-ico"><Icon d={info.icon} size={20} /></span>
+              <span className="num">{number}</span>
+              <span className="lbl">{label}</span>
+            </Link>
+          );
+        })}
       </div>
 
       {d.urgent_reports && d.urgent_reports.length > 0 && (

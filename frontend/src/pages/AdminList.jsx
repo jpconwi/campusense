@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, slug } from "../api.js";
 import { useAuth } from "../auth.jsx";
+import { EmptyState, Loading, SearchBox, matches } from "../components/Ui.jsx";
 
 const LONG_TEXT = ["description", "message", "purpose", "additional_info"];
 
@@ -29,6 +30,12 @@ function StatusForm({ kind, row, statuses, onChanged }) {
       <button className="btn small" type="submit">Save</button>
     </form>
   );
+}
+
+/** "2026-10-29 11:26:02" -> date on one line, time (smaller) below it. */
+function DateCell({ value }) {
+  const [date, ...time] = String(value || "").split(" ");
+  return <span>{date}{time.length > 0 && <><br /><small className="muted">{time.join(" ")}</small></>}</span>;
 }
 
 const CONF = { high: "fairly sure", medium: "somewhat sure", low: "not sure" };
@@ -100,6 +107,7 @@ export default function AdminList({ kind }) {
   const urgent = params.get("urgent") || "";
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(null);                 // id of the report whose details are shown
+  const [q, setQ] = useState("");                         // search box
 
   const load = useCallback(() => {
     const q = new URLSearchParams();
@@ -108,11 +116,19 @@ export default function AdminList({ kind }) {
     if (urgent) q.set("urgent", urgent);
     api(`/api/admin/records/${kind}` + (q.toString() ? `?${q}` : "")).then(setData).catch(() => {});
   }, [kind, status, sentiment, urgent]);
-  useEffect(() => { setData(null); load(); }, [load]);
+  useEffect(() => { setData(null); setQ(""); load(); }, [load]);
   useEffect(() => { if (data) document.title = `${data.spec.title} | NEMSU`; }, [data]);
 
-  if (!data) return <div className="page" style={{ maxWidth: 1400 }} />;
-  const { spec, rows, columns, statuses, current } = data;
+  if (!data) return <Loading />;
+  const { spec, rows: allRows, columns, statuses, current } = data;
+  const rows = allRows.filter((r) => matches(r, q));
+  const showImage = !!spec.image && allRows.some((r) => r.image_filename);       // no empty Photo column
+  // the status badge sits with the status form; email + "From" are shown small under the name
+  const nameCol = columns.find(([h]) => h === "Name");
+  const emailKey = (columns.find(([h]) => h === "Email") || [])[1];
+  const fromKey = (columns.find(([h]) => h === "From") || [])[1];
+  const mergeWho = !!(nameCol && emailKey);
+  const shownColumns = columns.filter(([h, key]) => key !== "status" && !(mergeWho && (h === "Email" || h === "From")));
   const base = `/admin/${kind}`;
   const withSent = (s) => (sentiment ? `&sentiment=${sentiment}` : "");
 
@@ -140,25 +156,33 @@ export default function AdminList({ kind }) {
           ))}
         </div>
       )}
+      {allRows.length > 0 && (
+        <SearchBox value={q} onChange={setQ} shown={rows.length} total={allRows.length}
+                   placeholder={`Search ${spec.title.toLowerCase()}...`} />
+      )}
       {rows.length ? (
-        <div className="table-wrap"><table>
+        <div className="table-wrap"><table className="data-table">
           <thead><tr>
-            {columns.map(([header]) => <th key={header}>{header}</th>)}
-            {spec.image && <th>Photo</th>}{spec.pdf && <th>PDF</th>}<th>Change status</th>
+            {shownColumns.map(([header]) => <th key={header}>{header}</th>)}
+            {showImage && <th>Photo</th>}{spec.pdf && <th>PDF</th>}<th>Status</th>
           </tr></thead>
           <tbody>
             {rows.map((r) => (<Fragment key={r.id}>
               <tr className={r.urgent ? "row-urgent" : undefined}>
-                {columns.map(([header, key]) => key === "status"
-                  ? <td key={key}><span className={"badge s-" + slug(r[key])}>{r[key]}</span></td>
-                  : key === "flags"
-                  ? <td key={key}><Flags r={r} /></td>
+                {shownColumns.map(([header, key]) => key === "flags"
+                  ? <td key={key} data-label={header}><Flags r={r} /></td>
                   : key === "sentiment"
-                  ? <td key={key}>{r.sentiment && <span className={"badge sent-" + slug(r.sentiment)} title={`Score ${r.sentiment_score} (-100 to 100)`}>{r.sentiment}</span>}</td>
-                  : <td key={key} className={LONG_TEXT.includes(key) ? "desc" : undefined}>{r[key] || ""}</td>)}
-                {spec.image && <td>{r.image_filename && <a href={`/api/uploads/${r.image_filename}`} target="_blank" rel="noopener noreferrer">View</a>}</td>}
-                {spec.pdf && <td><a href={`/api/pdf/${kind}/${r.id}`} target="_blank" rel="noopener noreferrer">PDF</a></td>}
-                <td>
+                  ? <td key={key} data-label={header}>{r.sentiment && <span className={"badge sent-" + slug(r.sentiment)} title={`Score ${r.sentiment_score} (-100 to 100)`}>{r.sentiment}</span>}</td>
+                  : mergeWho && header === "Name"
+                  ? <td key={key} data-label={header}><span><strong>{r[key]}</strong><br />
+                      <small className="muted">{[r[emailKey], fromKey && r[fromKey]].filter(Boolean).join(" · ")}</small></span></td>
+                  : key === "created_at"
+                  ? <td key={key} data-label={header} className="when"><DateCell value={r[key]} /></td>
+                  : <td key={key} data-label={header} className={LONG_TEXT.includes(key) ? "desc" : undefined}>{r[key] || ""}</td>)}
+                {showImage && <td data-label="Photo">{r.image_filename && <a href={`/api/uploads/${r.image_filename}`} target="_blank" rel="noopener noreferrer">View</a>}</td>}
+                {spec.pdf && <td data-label="PDF"><a href={`/api/pdf/${kind}/${r.id}`} target="_blank" rel="noopener noreferrer">PDF</a></td>}
+                <td data-label="Status" className="status-cell">
+                  <span className={"badge s-" + slug(r.status)}>{r.status}</span>
                   <StatusForm kind={kind} row={r} statuses={statuses} onChanged={load} />
                   {r.source === "photo" && (
                     <button type="button" className="btn small ghost" style={{ marginTop: 6 }} aria-expanded={open === r.id}
@@ -167,14 +191,20 @@ export default function AdminList({ kind }) {
                 </td>
               </tr>
               {open === r.id && (
-                <tr className="detail-row"><td colSpan={columns.length + (spec.image ? 1 : 0) + (spec.pdf ? 1 : 0) + 1}>
+                <tr className="detail-row"><td colSpan={shownColumns.length + (showImage ? 1 : 0) + (spec.pdf ? 1 : 0) + 1}>
                   <PhotoDetail row={r} onChanged={load} />
                 </td></tr>
               )}
             </Fragment>))}
           </tbody>
         </table></div>
-      ) : <p className="empty">Nothing here{urgent ? " marked as a possible hazard" : ""}{current ? " with status " + current : ""}{sentiment ? " with " + sentiment.toLowerCase() + " sentiment" : ""}.</p>}
+      ) : q && allRows.length ? (
+        <EmptyState title="No matches">Nothing matches "{q}". Try fewer or different words.</EmptyState>
+      ) : (
+        <EmptyState title="Nothing here">
+          Nothing here{urgent ? " marked as a possible hazard" : ""}{current ? " with status " + current : ""}{sentiment ? " with " + sentiment.toLowerCase() + " sentiment" : ""}.
+        </EmptyState>
+      )}
     </div>
   );
 }
