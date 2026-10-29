@@ -169,8 +169,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         if ("full program name" in normalize(last_ai)
                 and len(normalized.split()) <= 6
                 and not intents.has(normalized, "what", "where", "why", "how", "when")):
-            clarification = f"What major subject areas are taught in {question.strip()}?"
-            return _program_curriculum_reply(db, clarification, user, earlier, conversation)
+            return _program_availability_reply(db, question, user, earlier, conversation)
 
     followup = re.fullmatch(r"how about (.+)", normalized)
     if followup:
@@ -206,6 +205,8 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
                                     earlier=earlier, conversation=conversation)
     if name == "program_curriculum":
         return _program_curriculum_reply(db, question, user, earlier, conversation)
+    if name == "program_availability":
+        return _program_availability_reply(db, question, user, earlier, conversation)
     if name == "program_fit":
         return _program_fit_reply(db, question, user, earlier, conversation)
     if name == "help_ask":                      # "help me" -> what help do you need?
@@ -505,6 +506,40 @@ Tandag college. Never fill gaps with guessed subjects.
                   "subject-by-subject curriculum here. Please check with the program's Tandag "
                   "college for its current prospectus.")
     return response.message(answer + "\n\n" + knowledge_service.sources_text(docs))
+
+
+def _program_availability_reply(db, question, user, earlier, conversation):
+    """Answer where a named program is offered from official records."""
+    view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
+    asked = view["english"] if view and view["kind"] == "campus" else question
+    docs = [d for d in knowledge_service.search(
+        db, f"{asked} program offered at which campuses Tandag", limit=5)
+            if d.get("source_type") == "nemsu_page"]
+    if docs:
+        context = build_user_context(user)
+        prompt = build_system_prompt(
+            db, context["role"], news=knowledge_service.for_prompt(docs, education=True))
+        prompt += """
+
+PROGRAM AVAILABILITY MODE:
+Answer whether the named program is offered at NEMSU Tandag Main Campus. If the official
+source names other campuses offering this same program and the student asks where else it is
+available, list only those campus names stated in the source. Do not give course offerings or
+curriculum details for other campuses. If the source does not state a campus, say you could not
+verify that campus. Do not confuse Tandag with another campus.
+"""
+        answer = ask_model(prompt, asked)
+        if answer:
+            return response.message(answer + "\n\n" + knowledge_service.sources_text(docs))
+
+    info = campus_service.lookup(db, asked)
+    if info and "available campuses:" in info.lower():
+        return _data(info)
+    if info:
+        return _data(info)
+    return response.message(
+        "I couldn't verify that program's campus availability in the official NEMSU information "
+        "I have yet. Please check the Tandag college or its current program list.")
 
 
 def _program_fit_reply(db, question, user, earlier, conversation):

@@ -436,6 +436,10 @@ def detect(db, question, role):
             and has(q, "math", "course", "program", "college", "computer science", "bshm", "bscs")):
         return {"intent": "program_fit"}
 
+    if (has(q, "available", "availability", "offered", "offer", "which campuses", "what campus")
+            and has(q, "course", "program", "campus", "in", "at", "where", "which")):
+        return {"intent": "program_availability"}
+
     curriculum_question = (
         has(q, "curriculum", "prospectus")
         or (has(q, "semester", "sem") and has(q, "subject", "subjects", "course", "courses",
