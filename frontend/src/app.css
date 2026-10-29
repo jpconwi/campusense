@@ -560,9 +560,19 @@ h2.page-title { letter-spacing: -.01em; }
 .data-table th, .data-table td { padding: 8px 9px; }
 .data-table td.when { white-space: nowrap; }
 .data-table td.when small { font-size: .78rem; }
-.admin-users-table { min-width: 1120px; }
-.admin-users-table td[data-label="Verification"] { min-width: 250px; }
-.admin-users-table td[data-label="Actions"] { min-width: 190px; }
+.admin-users-table { min-width: 1480px; table-layout: fixed; }
+.admin-users-table th:nth-child(1), .admin-users-table td:nth-child(1) { width: 130px; }
+.admin-users-table th:nth-child(2), .admin-users-table td:nth-child(2) { width: 220px; }
+.admin-users-table th:nth-child(3), .admin-users-table td:nth-child(3) { width: 155px; }
+.admin-users-table th:nth-child(4), .admin-users-table td:nth-child(4) { width: 200px; }
+.admin-users-table th:nth-child(5), .admin-users-table td:nth-child(5) { width: 130px; }
+.admin-users-table th:nth-child(6), .admin-users-table td:nth-child(6) { width: 105px; }
+.admin-users-table th:nth-child(7), .admin-users-table td:nth-child(7) { width: 175px; white-space: nowrap; }
+.admin-users-table th:nth-child(8), .admin-users-table td:nth-child(8) { width: 125px; }
+.admin-users-table th:nth-child(9), .admin-users-table td:nth-child(9) { width: 240px; }
+.admin-users-table td[data-label="Email"], .admin-users-table td[data-label="Name"] { overflow-wrap: anywhere; }
+.admin-users-table td[data-label="Verification"] { min-width: 0; }
+.admin-users-table td[data-label="Actions"] { min-width: 0; }
 .admin-users-table .registration-review-note { max-width: 360px; font-size: .82rem; overflow-wrap: anywhere; }
 .admin-users-table .btn.small { margin: 2px 3px 2px 0; }
 .admin-users-table form.inline { margin: 2px 3px 2px 0; }
@@ -570,6 +580,7 @@ h2.page-title { letter-spacing: -.01em; }
 .admin-filter-label { display: grid; gap: 4px; min-width: 180px; color: var(--muted); font-size: .86rem; font-weight: 600; }
 .admin-filter-label select { border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); padding: 8px 10px; }
 .admin-user-document-links, .admin-user-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 8px; }
+.admin-user-actions { min-width: 0; }
 .admin-user-review { margin-top: 7px; }
 .admin-user-review summary { color: var(--blue); cursor: pointer; font-size: .88rem; font-weight: 700; }
 .admin-users-empty { padding: 22px; color: var(--muted); text-align: center; }
@@ -709,6 +720,8 @@ h2.page-title { letter-spacing: -.01em; }
   .admin-users-controls, .help-messages-controls { grid-template-columns: 1fr; }
   .admin-filter-label { min-width: 0; }
   .admin-users-table { min-width: 0; font-size: .94rem; background: transparent; }
+  .admin-users-table { table-layout: auto; }
+  .admin-users-table th, .admin-users-table td { width: auto; white-space: normal; }
   .admin-users-table tbody tr { padding: 10px 8px; margin-bottom: 14px; }
   .admin-users-table td { align-items: flex-start; text-align: right; overflow-wrap: anywhere; }
   .admin-users-table td[data-label="Verification"] { display: block; text-align: left; }
