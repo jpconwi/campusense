@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { Header } from "../components/Layout.jsx";
 import NotFound from "./NotFound.jsx";
+import { Sk } from "../components/Skeletons.jsx";
 import { useAuth } from "../auth.jsx";
 import { api } from "../api.js";
 
@@ -23,7 +24,13 @@ export default function AdminLogin() {
       .catch(() => setState("missing"));
   }, [secret]);
 
-  if (state === "checking") return null;
+  if (state === "checking") return (
+    <div className="center-wrap" aria-busy="true"><span className="sr-only" role="status">Checking...</span>
+      <div className="login-card" aria-hidden="true"><Sk h={96} w={96} r={999} style={{ margin: "0 auto 14px" }} />
+        <Sk h={28} w="60%" r={8} style={{ margin: "0 auto 10px" }} /><Sk h={14} w="45%" style={{ margin: "0 auto 26px" }} />
+        <Sk h={42} w="100%" r={8} style={{ marginBottom: 14 }} /><Sk h={42} w="100%" r={8} style={{ marginBottom: 18 }} /><Sk h={44} w="100%" r={9} /></div>
+    </div>
+  );
   if (state === "missing") return <NotFound />;
   if (state === "admin") return <Navigate to="/admin" replace />;
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
+import { Loading } from "../components/Ui.jsx";
 
 function RoleForm({ user, onChanged }) {
   const { setFlash } = useAuth();
@@ -37,7 +38,7 @@ export default function AdminUsers() {
     load();
   }
 
-  if (!rows) return <div className="page" style={{ maxWidth: 1300 }} />;
+  if (!rows) return <Loading label="Loading users..." wide={1300} />;
   return (
     <div className="page" style={{ maxWidth: 1300 }}>
       <h2 className="page-title">Users</h2>

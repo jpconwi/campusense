@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth.jsx";
 import { api } from "../api.js";
+import { HistorySkeleton } from "./Skeletons.jsx";
 
 /** Header + navigation + flash messages around every signed-in page. */
 export function Header({ children }) {
@@ -65,13 +66,34 @@ function Icon({ d }) {
   );
 }
 
+const TRASH = "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3";
+const CHAT = "M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.5A8 8 0 1 1 21 12z";
+const SEARCH = "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-4.5-4.5";
+
+/** Which group of the history list a chat belongs to. */
+function bucket(iso) {
+  const day = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const age = Math.round((day(new Date()) - day(new Date(iso))) / 86400000);
+  if (age <= 0) return "Today";
+  if (age === 1) return "Yesterday";
+  if (age < 7) return "Previous 7 days";
+  return "Earlier";
+}
+const BUCKETS = ["Today", "Yesterday", "Previous 7 days", "Earlier"];
+
 /** Sidebar list of saved chats (kept for a few days, then deleted automatically). */
 function ChatHistory({ activeId, tick, onOpen, onDeleted }) {
   const [data, setData] = useState({ chats: [], keep_days: 3 });
+  const [loading, setLoading] = useState(true);       // skeleton only on the first load
+  const [failed, setFailed] = useState(false);
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     let alive = true;
-    api("/api/chats").then((d) => { if (alive) setData(d); }).catch(() => {});
+    api("/api/chats")
+      .then((d) => { if (alive) { setData(d); setFailed(false); } })
+      .catch(() => { if (alive) setFailed(true); })
+      .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [tick]);
 
@@ -88,32 +110,84 @@ function ChatHistory({ activeId, tick, onOpen, onDeleted }) {
     onDeleted(null);
   }
 
+  const shown = data.chats.filter((c) => c.title.toLowerCase().includes(q.trim().toLowerCase()));
+  const groups = BUCKETS.map((name) => [name, shown.filter((c) => bucket(c.updated_at) === name)]).filter(([, l]) => l.length);
+
   return (
     <section className="sb-history lbl" aria-label="Chat history">
       <div className="sb-history-head">
-        <strong>Chat history</strong>
+        <strong>Recent chats</strong>
         {data.chats.length > 0 && <button type="button" className="sb-clear" onClick={clearAll}>Clear all</button>}
       </div>
-      {data.chats.length === 0 ? (
-        <p className="sb-history-empty">No saved chats yet.</p>
+
+      {data.chats.length > 5 && (
+        <label className="sb-search">
+          <Icon d={SEARCH} />
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search chats" aria-label="Search chats" />
+        </label>
+      )}
+
+      {loading ? (
+        <HistorySkeleton />
+      ) : failed && data.chats.length === 0 ? (
+        <p className="sb-history-empty">Could not load your chats.</p>
+      ) : data.chats.length === 0 ? (
+        <div className="sb-history-empty-box">
+          <Icon d={CHAT} />
+          <p>No saved chats yet.<br />Ask something and it shows up here.</p>
+        </div>
+      ) : groups.length === 0 ? (
+        <p className="sb-history-empty">No chats match "{q}".</p>
       ) : (
-        <ul className="sb-history-list">
-          {data.chats.map((c) => (
-            <li key={c.id}>
-              <button type="button" className={"sb-chat" + (c.id === activeId ? " active" : "")}
-                      onClick={() => onOpen(c.id)} title={c.title}>
-                <span className="sb-chat-title">{c.title}</span>
-                <span className="sb-chat-del" role="button" tabIndex={0} aria-label={`Delete chat ${c.title}`}
-                      onClick={(e) => remove(e, c.id)}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") remove(e, c.id); }}>&times;</span>
-              </button>
-            </li>
+        <div className="sb-history-scroll">
+          {groups.map(([name, list]) => (
+            <div className="sb-bucket" key={name}>
+              <h4>{name}</h4>
+              <ul className="sb-history-list">
+                {list.map((c) => (
+                  <li key={c.id}>
+                    <button type="button" className={"sb-chat" + (c.id === activeId ? " active" : "")}
+                            onClick={() => onOpen(c.id)} title={c.title} aria-current={c.id === activeId ? "true" : undefined}>
+                      <span className="sb-chat-title">{c.title}</span>
+                      <span className="sb-chat-del" role="button" tabIndex={0} aria-label={`Delete chat ${c.title}`}
+                            onClick={(e) => remove(e, c.id)}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); remove(e, c.id); } }}>
+                        <Icon d={TRASH} />
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
       <p className="sb-history-note">Chats are deleted automatically after {data.keep_days} days.</p>
     </section>
   );
+}
+
+// Sidebar sections. The server sends a flat list; the groups are decided here by path.
+const GROUPS = {
+  "/": "Menu", "/ai": "Menu", "/admin": "Overview",
+  "/reports": "My records", "/concerns": "My records", "/feedback": "My records",
+  "/reservations": "My records", "/faculty": "My records",
+  "/profile": "Account",
+  "/admin/concerns": "Inbox", "/admin/reports": "Inbox", "/admin/faculty": "Inbox",
+  "/admin/feedback": "Inbox", "/admin/reservations": "Inbox",
+  "/admin/users": "Manage", "/admin/rooms": "Manage", "/admin/campus": "Manage", "/admin/announcements": "Manage",
+};
+function groupNav(nav, role) {
+  const out = [];
+  for (const item of nav) {
+    // Campus AI sits with the overview for admins
+    const name = item.path === "/ai" && role === "admin" ? "Overview" : GROUPS[item.path] || "More";
+    let g = out.find((x) => x.name === name);
+    if (!g) { g = { name, items: [] }; out.push(g); }
+    g.items.push(item);
+  }
+  const ORDER = ["Menu", "Overview", "Inbox", "Manage", "My records", "Account", "More"];
+  return out.sort((a, b) => ORDER.indexOf(a.name) - ORDER.indexOf(b.name));
 }
 
 export default function Layout() {
@@ -136,6 +210,8 @@ export default function Layout() {
   const afterDelete = (id) => { if (id === null || id === chat.id) setChat((c) => ({ key: c.key + 1, id: null })); };
 
   const showNav = user && user.role;
+  const groups = showNav ? groupNav(nav, user.role) : [];
+  const pageLabel = (nav.find((n) => n.path === location.pathname) || {}).label || "NEMSAI";
   const initials = (user?.name || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
   return (
@@ -156,17 +232,23 @@ export default function Layout() {
           </button>
         )}
         {showNav && (
-          <nav className="sb-nav">
-            {nav.map((item) => (
-              <NavLink key={item.path} to={item.path} end title={item.label}
-                       className={({ isActive }) => (isActive ? "active" : "")}>
-                <Icon d={ICONS[item.path] || FALLBACK_ICON} /><span className="lbl">{item.label}</span>
-              </NavLink>
-            ))}
-          </nav>
-        )}
-        {showNav && (
-          <ChatHistory activeId={chat.id} tick={historyTick} onOpen={openChat} onDeleted={afterDelete} />
+          <div className="sb-scroll">
+            <nav className="sb-nav" aria-label="Pages">
+              {groups.map((g) => (
+                <div className="sb-group" key={g.name} role="group" aria-label={g.name}>
+                  <p className="sb-group-name lbl">{g.name}</p>
+                  {g.items.map((item) => (
+                    <NavLink key={item.path} to={item.path} end title={item.label}
+                             className={({ isActive }) => (isActive ? "active" : "")}>
+                      <span className="sb-ico"><Icon d={ICONS[item.path] || FALLBACK_ICON} /></span>
+                      <span className="lbl">{item.label}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              ))}
+            </nav>
+            <ChatHistory activeId={chat.id} tick={historyTick} onOpen={openChat} onDeleted={afterDelete} />
+          </div>
         )}
         {user && (
           <div className="sb-bottom">
@@ -188,7 +270,7 @@ export default function Layout() {
       <div className="main">
         <div className="mobilebar">
           <button type="button" onClick={() => setOpen(true)} aria-label="Open menu"><Icon d="M4 6h16M4 12h16M4 18h16" /></button>
-          <strong>NEMSU AI</strong>
+          <span className="mb-title"><img src="/logo.png" alt="" /><strong>{pageLabel}</strong></span>
           <button type="button" className="mb-profile" onClick={() => navigate("/profile")} aria-label="Profile">
             <span className="sb-avatar">{initials}</span>
           </button>

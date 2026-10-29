@@ -43,7 +43,7 @@ def _to_login(request: Request, code):
 def _landing(role):
     if role is None:
         return "/select-role"
-    return "/admin" if role == "admin" else "/ai"
+    return "/admin" if role == "admin" else "/"   # students/instructors land on their dashboard (Home)
 
 
 # --------------------------------------------------------------- who am I
@@ -117,7 +117,7 @@ def select_role(body: RoleBody, user=Depends(authenticated_only), db: Session = 
         return {"role": user.role, "next": _landing(user.role)}
     if not user_service.set_role_first_time(db, user.id, body.role):
         raise HTTPException(400, "Please select Student or Instructor.")
-    return {"role": body.role, "next": "/ai"}
+    return {"role": body.role, "next": _landing(body.role)}
 
 
 # ----------------------------------------------------------------- logout

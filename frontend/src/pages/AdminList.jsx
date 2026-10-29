@@ -119,7 +119,7 @@ export default function AdminList({ kind }) {
   useEffect(() => { setData(null); setQ(""); load(); }, [load]);
   useEffect(() => { if (data) document.title = `${data.spec.title} | NEMSU`; }, [data]);
 
-  if (!data) return <Loading />;
+  if (!data) return <Loading wide={1400} />;
   const { spec, rows: allRows, columns, statuses, current } = data;
   const rows = allRows.filter((r) => matches(r, q));
   const showImage = !!spec.image && allRows.some((r) => r.image_filename);       // no empty Photo column

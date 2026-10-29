@@ -6,6 +6,7 @@ import { useAuth } from "../auth.jsx";
 import PhotoReportCard from "../components/PhotoReportCard.jsx";
 import RecordForm, { SuccessCard } from "../components/RecordForm.jsx";
 import MicButton from "../components/Voice.jsx";
+import { ChatSkeleton, ReplySkeleton } from "../components/Skeletons.jsx";
 
 const FORM_TYPES = {
   concern_form: "concern", report_form: "report", feedback_form: "feedback",
@@ -102,7 +103,7 @@ function Row({ item, onSuggest }) {
       {ai && <img className="avatar" src="/logo.png" alt="" />}
       <div className="stack">
         {item.kind === "typing" && (
-          <div className="bubble rich"><span className="typing" aria-label="NEMSAI is typing"><span></span><span></span><span></span></span></div>
+          <div className="bubble rich"><ReplySkeleton /></div>
         )}
         {item.kind === "text" && (
           <div className={"bubble" + (item.error ? " error" : "") + (ai && !item.error ? " rich" : "")}>
@@ -163,6 +164,7 @@ export default function Chat() {
   const [items, setItems] = useState([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loadingChat, setLoadingChat] = useState(false);   // an old chat is being opened
   const bottom = useRef(null);
   const input = useRef(null);
   const nextId = useRef(1);
@@ -177,12 +179,14 @@ export default function Chat() {
   useEffect(() => {                                    // "New chat" or a chat picked from the history
     let alive = true;
     setItems([]); setText(""); sessionId.current = null; nextId.current = 1;
+    setLoadingChat(!!openId);
     if (openId) {
       api(`/api/chats/${openId}`).then((d) => {
         if (!alive) return;
         const { rows, next } = restore(d.messages);
         sessionId.current = d.id; nextId.current = next; setItems(rows);
-      }).catch(() => { if (alive) onSaved(); });       // deleted meanwhile: just refresh the list
+      }).catch(() => { if (alive) onSaved(); })        // deleted meanwhile: just refresh the list
+        .finally(() => { if (alive) setLoadingChat(false); });
     }
     input.current && input.current.focus();
     return () => { alive = false; };
@@ -292,7 +296,8 @@ export default function Chat() {
       <main className="chat">
         <div className="messages" aria-live="polite">
           <div className="thread">
-            {items.length === 0 && (
+            {loadingChat && <ChatSkeleton />}
+            {!loadingChat && items.length === 0 && (
               <div className="welcome">
                 <img src="/logo.png" alt="" />
                 <h2>How can I help you today?</h2>

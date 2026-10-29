@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth.jsx";
 import Layout from "./components/Layout.jsx";
+import { AppSkeleton } from "./components/Skeletons.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminDataset from "./pages/AdminDataset.jsx";
 import AdminFaculty from "./pages/AdminFaculty.jsx";
@@ -30,7 +31,7 @@ function Guard({ roles, children }) {
 
 export default function App() {
   const { loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <AppSkeleton />;
 
   const page = (element, roles) => <Guard roles={roles}>{element}</Guard>;
   const person = ["student", "instructor"];

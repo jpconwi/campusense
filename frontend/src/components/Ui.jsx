@@ -1,4 +1,5 @@
 /* Ui.jsx - small shared pieces used by several pages (icons, loading, empty states, search). */
+import { PageSkeleton } from "./Skeletons.jsx";
 
 export const PATHS = {
   chat: "M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.5A8 8 0 1 1 21 12z",
@@ -26,19 +27,9 @@ export function Icon({ d, size = 20 }) {
   );
 }
 
-/** Shown while a page loads: calm placeholder blocks instead of a blank screen. */
-export function Loading({ label = "Loading..." }) {
-  return (
-    <div className="page" aria-busy="true">
-      <div role="status" className="loading">
-        <span className="spinner" aria-hidden="true" /> {label}
-      </div>
-      <div className="skeleton-row" aria-hidden="true">
-        <div className="skeleton" /><div className="skeleton" /><div className="skeleton" />
-      </div>
-      <div className="skeleton block" aria-hidden="true" />
-    </div>
-  );
+/** Shown while a page loads: a skeleton shaped like the page (see Skeletons.jsx). */
+export function Loading({ label = "Loading...", variant = "table", wide }) {
+  return <PageSkeleton variant={variant} label={label} wide={wide} />;
 }
 
 /** Friendly "nothing here yet" box. */

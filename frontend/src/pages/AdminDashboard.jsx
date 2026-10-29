@@ -24,7 +24,7 @@ const short = (text, n = 90) => (text && text.length > n ? text.slice(0, n - 1) 
 export default function AdminDashboard() {
   const [d, setD] = useState(null);
   useEffect(() => { document.title = "Admin Dashboard | NEMSU"; api("/api/admin/dashboard").then(setD).catch(() => {}); }, []);
-  if (!d) return <Loading label="Loading the dashboard..." />;
+  if (!d) return <Loading variant="dashboard" label="Loading the dashboard..." />;
   const c = d.charts;
   const stat = (name) => (d.stats.find(([label]) => label === name) || [0, 0])[1];
   const attention = [

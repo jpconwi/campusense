@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
+import { Loading } from "../components/Ui.jsx";
 
 /** Rooms, Campus Information and Announcements: add a row, list rows, delete a row. */
 export default function AdminDataset({ kind }) {            // kind = "rooms" | "campus" | "announcements"
@@ -31,7 +32,7 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
     load();
   }
 
-  if (!data) return <div className="page" style={{ maxWidth: 1300 }} />;
+  if (!data) return <Loading label="Loading..." wide={1300} />;
   const { title, fields, rows, empty } = data;
   // announcements carry a computed Active / Scheduled / Expired status (rooms already have their own field)
   const extraStatus = rows.length > 0 && rows[0].status !== undefined && !fields.some(([n]) => n === "status");

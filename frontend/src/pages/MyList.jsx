@@ -21,7 +21,7 @@ export default function MyList({ kind }) {
   useEffect(() => { if (data) document.title = `${data.spec.title} | NEMSU`; }, [data]);
 
   if (error) return <div className="page"><p className="empty">{error}</p></div>;
-  if (!data) return <Loading />;
+  if (!data) return <Loading variant="form" />;
   const { spec, rows: allRows, columns } = data;
   const rows = allRows.filter((r) => matches(r, q));
 

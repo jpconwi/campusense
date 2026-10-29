@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, padId, slug } from "../api.js";
 import { useAuth } from "../auth.jsx";
+import { Loading } from "../components/Ui.jsx";
 
 export default function AdminFaculty() {
   const { setFlash } = useAuth();
@@ -16,7 +17,7 @@ export default function AdminFaculty() {
     load();
   }
 
-  if (!rows) return <div className="page" style={{ maxWidth: 1300 }} />;
+  if (!rows) return <Loading label="Loading faculty reports..." wide={1300} />;
   return (
     <div className="page" style={{ maxWidth: 1300 }}>
       <h2 className="page-title">Faculty Reports</h2>

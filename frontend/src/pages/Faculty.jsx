@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, padId, slug } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import RecordForm, { SuccessCard } from "../components/RecordForm.jsx";
+import { TableSkeleton } from "../components/Skeletons.jsx";
 
 export default function Faculty() {
   const { setFlash } = useAuth();
@@ -42,7 +43,7 @@ export default function Faculty() {
       )}
 
       <h3 style={{ fontFamily: "var(--serif)", color: "var(--blue-deep)", margin: "20px 0 8px" }}>Your reports</h3>
-      {rows && rows.length ? (
+      {!rows ? <TableSkeleton rows={3} cols={6} title={false} toolbar={false} /> : rows.length ? (
         <div className="table-wrap"><table>
           <thead><tr><th>ID</th><th>Reason</th><th>Absence date</th><th>Expected return</th><th>Submitted</th><th>Status</th><th>PDF</th></tr></thead>
           <tbody>
@@ -55,7 +56,7 @@ export default function Faculty() {
             ))}
           </tbody>
         </table></div>
-      ) : rows && <p className="empty">No faculty reports yet.</p>}
+      ) : <p className="empty">No faculty reports yet.</p>}
     </div>
   );
 }

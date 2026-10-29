@@ -18,7 +18,7 @@ const MESSAGES = {
 export function landingFor(user) {
   if (!user) return "/login";
   if (user.role === null) return "/select-role";
-  return user.role === "admin" ? "/admin" : "/ai";
+  return user.role === "admin" ? "/admin" : "/";   // students + instructors -> dashboard (Home)
 }
 
 export default function Login() {
