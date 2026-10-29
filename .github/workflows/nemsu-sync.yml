@@ -26,7 +26,11 @@ jobs:
             echo "Configure NEMSU_SYNC_URL and NEMSU_SYNC_TOKEN in repository Actions secrets."
             exit 1
           fi
-          curl --fail-with-body --silent --show-error --max-time 1700 \
+          # Render may briefly return 502 while a sleeping service starts or a deploy settles.
+          # Retry transient transport and HTTP errors; permanent failures still fail the job.
+          curl --fail-with-body --silent --show-error \
+            --connect-timeout 30 --max-time 1700 \
+            --retry 5 --retry-all-errors --retry-delay 20 --retry-max-time 600 \
             --request POST \
             --header "X-Sync-Token: $SYNC_TOKEN" \
             "$SYNC_URL"
