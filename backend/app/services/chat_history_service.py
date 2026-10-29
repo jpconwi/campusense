@@ -93,6 +93,19 @@ def recent_questions(db: Session, user_id, session_id, limit=6):
         .order_by(ChatMessage.id.desc()).limit(limit)).scalars().all())
 
 
+def recent_messages(db: Session, user_id, session_id, limit=8):
+    """The current user's latest turns, including NEMSAI answers, in chronological order."""
+    if not session_id:
+        return []
+    row = db.get(ChatSession, session_id)
+    if row is None or row.user_id != user_id:
+        return []
+    messages = db.execute(select(ChatMessage.role, ChatMessage.text).where(
+        ChatMessage.session_id == session_id)
+        .order_by(ChatMessage.id.desc()).limit(limit)).all()
+    return [{"role": role, "text": text} for role, text in reversed(messages)]
+
+
 def list_chats(db: Session, user_id):
     purge_old(db)
     rows = db.execute(select(ChatSession).where(ChatSession.user_id == user_id)

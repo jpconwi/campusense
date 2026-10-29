@@ -79,7 +79,8 @@ def ask(body: AskBody, user: CurrentUser = Depends(login_required), db: Session 
         raise HTTPException(429, "Please wait a moment before asking again.")
     try:
         earlier = chat_history_service.recent_questions(db, user.id, body.session_id)
-        answer = ask_ai(db, question, user, earlier=earlier)
+        conversation = chat_history_service.recent_messages(db, user.id, body.session_id)
+        answer = ask_ai(db, question, user, earlier=earlier, conversation=conversation)
     except Exception as error:               # never leak details to the browser
         print("AI ERROR:", repr(error))
         raise HTTPException(500, "Something went wrong. Please try again.")
