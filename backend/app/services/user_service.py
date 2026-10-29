@@ -5,10 +5,13 @@ Stored: Google account ID, name, email, role, dates, active flag.
 NOT stored here: passwords (admin password hashes live in admin_credentials), OAuth tokens.
 """
 
-from sqlalchemy import func, select
+from datetime import timedelta
+
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.models import User
+from app.models import (ChatMessage, ChatSession, Concern, Feedback, PhotoDraft, Report,
+                        Reservation, User)
 from app.services.common import ValidationError, now
 
 
@@ -131,7 +134,7 @@ def admin_set_role(db: Session, user_id, role):
     if role not in ("student", "instructor"):
         return False
     user = db.get(User, user_id)
-    if user is None or user.role == "admin" or user.approval_status != "Approved":
+    if user is None or user.role == "admin" or user.approval_status != "Approved" or user.deleted_at:
         return False
     user.role = role
     db.commit()
@@ -140,7 +143,7 @@ def admin_set_role(db: Session, user_id, role):
 
 def set_active(db: Session, user_id, active):
     user = db.get(User, user_id)
-    if user is None or user.role == "admin" or user.approval_status == "Pending":
+    if user is None or user.role == "admin" or user.approval_status == "Pending" or user.deleted_at:
         return False
     user.is_active = bool(active)
     db.commit()
@@ -149,7 +152,7 @@ def set_active(db: Session, user_id, active):
 
 def approve_personal_registration(db: Session, user_id):
     user = db.get(User, user_id)
-    if user is None or user.approval_status != "Pending":
+    if user is None or user.approval_status != "Pending" or user.deleted_at:
         return False
     if user.registration_type == "instructor":
         if not user.student_id or not user.department:
@@ -173,13 +176,49 @@ def approve_student_registration(db: Session, user_id):
 
 def reject_student_registration(db: Session, user_id):
     user = db.get(User, user_id)
-    if user is None or user.approval_status != "Pending":
+    if user is None or user.approval_status != "Pending" or user.deleted_at:
         return False
     user.approval_status = "Rejected"
     user.role = None
     user.is_active = False
     db.commit()
     return True
+
+
+def soft_delete_user(db: Session, user_id):
+    user = db.get(User, user_id)
+    if user is None or user.role == "admin" or user.deleted_at:
+        return False
+    stamp = now()
+    user.is_active = False
+    user.approval_status = "Deleted"
+    user.deleted_at = stamp
+    user.purge_after = stamp + timedelta(days=7)
+    db.commit()
+    return True
+
+
+def purge_deleted_safely():
+    """Permanently remove accounts and their user-owned records after seven days."""
+    from app.database import SessionLocal
+
+    try:
+        with SessionLocal() as db:
+            stamp = now()
+            user_ids = list(db.execute(select(User.id).where(
+                User.purge_after.is_not(None), User.purge_after <= stamp)).scalars())
+            if not user_ids:
+                return
+            session_ids = select(ChatSession.id).where(ChatSession.user_id.in_(user_ids))
+            db.execute(delete(ChatMessage).where(ChatMessage.session_id.in_(session_ids)))
+            db.execute(delete(ChatSession).where(ChatSession.user_id.in_(user_ids)))
+            db.execute(delete(PhotoDraft).where(PhotoDraft.user_id.in_(user_ids)))
+            for model in (Concern, Report, Feedback, Reservation):
+                db.execute(delete(model).where(model.user_id.in_(user_ids)))
+            db.execute(delete(User).where(User.id.in_(user_ids)))
+            db.commit()
+    except Exception as exc:
+        print("DELETED ACCOUNT PURGE ERROR:", repr(exc)[:200])
 
 
 def list_users(db: Session):

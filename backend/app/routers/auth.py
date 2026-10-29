@@ -23,7 +23,8 @@ from app import config
 from app.database import SessionLocal, get_db
 from app.security import (NAV, authenticated_only, csrf_protect, ensure_csrf_token,
                           get_current_user, is_admin_email, is_nemsu_email)
-from app.services import registration_verification_service, room_service, user_service
+from app.services import (registration_help_service, registration_verification_service,
+                          room_service, user_service)
 from app.services.common import ValidationError, clean_text
 
 router = APIRouter(prefix="/api/auth", tags=["auth"], dependencies=[Depends(csrf_protect)])
@@ -268,6 +269,20 @@ def personal_registration_status(request: Request):
     if not identity or time.time() - int(started) > 15 * 60:
         raise HTTPException(401, "Your registration session expired. Start again with personal Gmail.")
     return {"email": identity.get("email", ""), "google_name": identity.get("google_name", "")}
+
+
+class RegistrationHelpBody(BaseModel):
+    name: str = ""
+    email: str = ""
+    applicant_type: str = ""
+    message: str = ""
+
+
+@router.post("/registration-help")
+def registration_help(body: RegistrationHelpBody, db: Session = Depends(get_db)):
+    registration_help_service.create_message(
+        db, body.name, body.email, body.applicant_type, body.message)
+    return {"success": True, "message": "Your message was sent to the NEMSU admin inbox."}
 
 
 @router.get("/student-registration")

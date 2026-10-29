@@ -3,6 +3,7 @@ import { Link, Navigate } from "react-router-dom";
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import { Header } from "../components/Layout.jsx";
+import RegistrationHelp from "../components/RegistrationHelp.jsx";
 
 export default function Register() {
   const { loading, user } = useAuth();
@@ -11,6 +12,7 @@ export default function Register() {
   const [fullName, setFullName] = useState("");
   const [studentId, setStudentId] = useState("");
   const [department, setDepartment] = useState("");
+  const [studentDocumentType, setStudentDocumentType] = useState("school_id");
   const [idFile, setIdFile] = useState(null);
   const [idBackFile, setIdBackFile] = useState(null);
   const [corFile, setCorFile] = useState(null);
@@ -41,14 +43,19 @@ export default function Register() {
       form.append("instructor_id", studentId);
       form.append("department", department);
     } else {
-      if (!idFile && !corFile) return setError("Capture or choose an ID-front or COR image. The ID back alone is not enough.");
-      if ([idFile, idBackFile, corFile].filter(Boolean).some((file) => file.size > 5 * 1024 * 1024)) {
+      if (studentDocumentType === "school_id" && !idFile) return setError("Capture or choose a photo of your school ID.");
+      if (studentDocumentType === "cor" && !corFile) return setError("Capture or choose a photo of your Certificate of Registration.");
+      const selectedFiles = studentDocumentType === "school_id" ? [idFile, idBackFile] : [corFile];
+      if (selectedFiles.filter(Boolean).some((file) => file.size > 5 * 1024 * 1024)) {
         return setError("Each image must be 5 MB or smaller.");
       }
       form.append("student_id", studentId);
-      if (idFile) form.append("school_id_document", idFile);
-      if (idBackFile) form.append("school_id_back_document", idBackFile);
-      if (corFile) form.append("cor_document", corFile);
+      if (studentDocumentType === "school_id") {
+        form.append("school_id_document", idFile);
+        if (idBackFile) form.append("school_id_back_document", idBackFile);
+      } else {
+        form.append("cor_document", corFile);
+      }
       form.append("ai_review_consent", aiConsent ? "true" : "false");
     }
     setBusy(true);
@@ -117,25 +124,40 @@ export default function Register() {
                         NEMSU school ID number
                         <input value={studentId} onChange={(e) => setStudentId(e.target.value)} maxLength={50} required />
                       </label>
-                      <p className="registration-scan-help">Capture with your camera or choose saved images. A COR can be screened on its own. For automatic screening with a school ID, include both front and back; otherwise the application stays pending for admin review.</p>
                       <label>
-                        School ID photo
-                        <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
-                          onChange={(e) => setIdFile(e.target.files?.[0] || null)} />
-                        <small>{idFile ? `Selected: ${idFile.name}` : "JPG, PNG, or WEBP; maximum 5 MB. Camera opens when supported."}</small>
+                        Document to scan
+                        <select value={studentDocumentType} onChange={(e) => {
+                          setStudentDocumentType(e.target.value);
+                          setIdFile(null); setIdBackFile(null); setCorFile(null);
+                        }}>
+                          <option value="school_id">NEMSU School ID</option>
+                          <option value="cor">Certificate of Registration (COR)</option>
+                        </select>
                       </label>
-                      <label>
-                        School ID back (optional)
-                        <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
-                          onChange={(e) => setIdBackFile(e.target.files?.[0] || null)} />
-                        <small>{idBackFile ? `Selected: ${idBackFile.name}` : "Add the reverse side if you want to include it with your application."}</small>
-                      </label>
-                      <label>
-                        Certificate of Registration (COR, optional)
-                        <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
-                          onChange={(e) => setCorFile(e.target.files?.[0] || null)} />
-                        <small>{corFile ? `Selected: ${corFile.name}` : "Add a COR image for the same visual-structure review."}</small>
-                      </label>
+                      <p className="registration-scan-help">Choose either your school ID or your COR, then capture it with your camera or select an image. School ID automatic screening requires front and back; a COR can be screened by itself.</p>
+                      {studentDocumentType === "school_id" ? (
+                        <>
+                          <label>
+                            School ID front
+                            <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" required
+                              onChange={(e) => setIdFile(e.target.files?.[0] || null)} />
+                            <small>{idFile ? `Selected: ${idFile.name}` : "JPG, PNG, or WEBP; maximum 5 MB."}</small>
+                          </label>
+                          <label>
+                            School ID back (required for automatic screening)
+                            <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
+                              onChange={(e) => setIdBackFile(e.target.files?.[0] || null)} />
+                            <small>{idBackFile ? `Selected: ${idBackFile.name}` : "Without the back, the application stays pending for admin review."}</small>
+                          </label>
+                        </>
+                      ) : (
+                        <label>
+                          Certificate of Registration (COR)
+                          <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" required
+                            onChange={(e) => setCorFile(e.target.files?.[0] || null)} />
+                          <small>{corFile ? `Selected: ${corFile.name}` : "JPG, PNG, or WEBP; maximum 5 MB."}</small>
+                        </label>
+                      )}
                       <label className="registration-consent">
                         <input type="checkbox" checked={aiConsent} onChange={(e) => setAiConsent(e.target.checked)} />
                         <span>I agree to send my scan images to the configured AI provider for visual screening of the NEMSU logo, colors, Tandag campus name, and university president/campus director signature areas. AI ignores names, ID numbers, faces, courses, QR codes, and other personal fields. It does not verify signatures or prove authenticity, so a false match is possible. If all required visual checks pass, my account may be activated automatically; otherwise it stays pending for admin review. Image metadata is removed first, and administrators can view the stored scans.</span>
@@ -151,6 +173,7 @@ export default function Register() {
             </>
           )}
         </section>
+        <RegistrationHelp />
       </div>
     </>
   );

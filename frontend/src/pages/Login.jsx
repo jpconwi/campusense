@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { Header } from "../components/Layout.jsx";
 import { useAuth } from "../auth.jsx";
+import RegistrationHelp from "../components/RegistrationHelp.jsx";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -104,6 +105,7 @@ export default function Login() {
             Gmail, choose Student or Instructor and submit the requested details for admin approval.
             <br />Google handles sign-in; this site never sees your Google password.
           </p>
+          <RegistrationHelp />
         </div>
       </div>
     </>

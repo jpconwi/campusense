@@ -74,6 +74,8 @@ def _add_student_registration_columns():
         "verification_id_back_content_type": "VARCHAR(100)",
         "verification_id_back_filename": "VARCHAR(255)",
         "verification_ai_note": "TEXT",
+        "deleted_at": "TIMESTAMP",
+        "purge_after": "TIMESTAMP",
     }
     with engine.begin() as conn:
         for name, kind in additions.items():

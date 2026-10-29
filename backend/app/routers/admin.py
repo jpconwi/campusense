@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_email)
 from app.services import (announcement_service, campus_service, chart_service, common, faculty_service,
-                          photo_report_service, reservation_service, room_service, user_service)
+                          photo_report_service, registration_help_service, reservation_service,
+                          room_service, user_service)
 from app.services.common import ValidationError
 
 # admin_required runs first so non-admins cannot even tell these URLs exist
@@ -239,6 +240,26 @@ def user_active(user_id: int, body: ActiveBody, me: CurrentUser = Depends(admin_
         raise ValidationError("Could not change that account.")
     return {"success": True,
             "message": "Account activated." if body.active else "Account deactivated."}
+
+
+@router.delete("/users/{user_id}")
+def user_delete(user_id: int, me: CurrentUser = Depends(admin_required),
+                db: Session = Depends(get_db)):
+    if user_id == me.id or not user_service.soft_delete_user(db, user_id):
+        raise ValidationError("That account cannot be deleted.")
+    return {"success": True, "message": "Account disabled and scheduled for permanent deletion in 7 days."}
+
+
+@router.get("/registration-help")
+def registration_help_inbox(db: Session = Depends(get_db)):
+    return {"rows": registration_help_service.list_messages(db)}
+
+
+@router.post("/registration-help/{message_id}/resolve")
+def registration_help_resolve(message_id: int, db: Session = Depends(get_db)):
+    if not registration_help_service.resolve_message(db, message_id):
+        raise ValidationError("That message is missing or already resolved.")
+    return {"success": True, "message": "Applicant message marked as resolved."}
 
 
 # ------------------------------------------------------ rooms / campus

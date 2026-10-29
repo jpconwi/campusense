@@ -112,6 +112,13 @@ td select { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px;
 .registration-form .btn, .registration-success .btn { display: block; width: 100%; text-align: center; }
 .registration-success { display: grid; gap: 12px; }
 .registration-success h2 { color: var(--blue-deep); font-family: var(--serif); }
+.registration-help { margin-top: 18px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface, #fff); }
+.registration-help summary { color: var(--blue-deep); cursor: pointer; font-weight: 700; }
+.registration-help[open] .registration-form { margin-top: 12px; }
+.registration-help-inbox { margin: 18px 0; }
+.registration-help-list { display: grid; gap: 12px; }
+.registration-help-message { padding: 13px; border: 1px solid var(--line); border-radius: 10px; overflow-wrap: anywhere; }
+.registration-help-message p { white-space: pre-wrap; margin: 8px 0; }
 
 /* ---------- chat layout ---------- */
 .layout { flex: 1; min-height: 0; width: 100%; max-width: 1440px; margin: 0 auto; display: grid; grid-template-columns: 300px 1fr; }
@@ -550,6 +557,12 @@ h2.page-title { letter-spacing: -.01em; }
 .data-table th, .data-table td { padding: 8px 9px; }
 .data-table td.when { white-space: nowrap; }
 .data-table td.when small { font-size: .78rem; }
+.admin-users-table { min-width: 1120px; }
+.admin-users-table td[data-label="Verification"] { min-width: 250px; }
+.admin-users-table td[data-label="Actions"] { min-width: 190px; }
+.admin-users-table .registration-review-note { max-width: 360px; font-size: .82rem; overflow-wrap: anywhere; }
+.admin-users-table .btn.small { margin: 2px 3px 2px 0; }
+.admin-users-table form.inline { margin: 2px 3px 2px 0; }
 .data-table .status-cell { min-width: 150px; }
 .data-table .status-cell .badge { margin-bottom: 6px; }
 .data-table .status-cell form.inline { display: flex; }
@@ -673,6 +686,21 @@ h2.page-title { letter-spacing: -.01em; }
 .sk-chat { padding-top: 6px; }
 .sk-msg { display: flex; gap: 12px; margin-bottom: 24px; align-items: flex-start; }
 .sk-msg.user { justify-content: flex-end; }
+/* User management keeps wide rows on desktop and switches to readable cards on phones. */
+.admin-users-table-wrap { width: 100%; max-width: 100%; }
+.admin-user-separator { display: block; color: var(--muted); font-size: .84rem; }
+@media (max-width: 720px) {
+  .admin-users-table { min-width: 0; font-size: .94rem; background: transparent; }
+  .admin-users-table tbody tr { padding: 10px 8px; margin-bottom: 14px; }
+  .admin-users-table td { align-items: flex-start; text-align: right; overflow-wrap: anywhere; }
+  .admin-users-table td[data-label="Verification"] { display: block; text-align: left; }
+  .admin-users-table td[data-label="Verification"]::before { display: block; max-width: none; margin-bottom: 5px; }
+  .admin-users-table .registration-review-note { max-width: none; margin-top: 8px; font-size: .88rem; }
+  .admin-users-table td[data-label="Actions"] { display: flex; flex-wrap: wrap; justify-content: flex-start; text-align: left; gap: 5px; }
+  .admin-users-table td[data-label="Actions"]::before { flex-basis: 100%; max-width: none; }
+  .admin-users-table td[data-label="Actions"] form.inline { justify-content: flex-start; }
+}
+
 .sk-msg .sk { flex: none; }
 .sk-msg .sk-lines .sk { flex: none; }
 .sk-reply { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; min-width: min(230px, 60vw); }

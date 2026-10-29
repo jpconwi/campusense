@@ -49,6 +49,22 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     last_login: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    purge_after: Mapped[Optional[datetime]] = mapped_column(DateTime, index=True)
+
+
+class RegistrationHelpMessage(Base):
+    """Pre-account help requests from students and instructors having signup trouble."""
+    __tablename__ = "registration_help_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    applicant_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="New", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
 
 class AdminCredential(Base):
