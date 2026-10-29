@@ -199,9 +199,9 @@ def user_id_back_document(user_id: int, db: Session = Depends(get_db)):
 @router.post("/users/{user_id}/approve")
 def approve_user_registration(user_id: int, me: CurrentUser = Depends(admin_required),
                               db: Session = Depends(get_db)):
-    if user_id == me.id or not user_service.approve_student_registration(db, user_id):
-        raise ValidationError("That student registration is not pending or is missing verification.")
-    return {"success": True, "message": "Student account approved."}
+    if user_id == me.id or not user_service.approve_personal_registration(db, user_id):
+        raise ValidationError("That personal-Gmail registration is not pending or is missing required details.")
+    return {"success": True, "message": "Account registration approved."}
 
 
 @router.post("/users/{user_id}/reject")
@@ -209,7 +209,7 @@ def reject_user_registration(user_id: int, me: CurrentUser = Depends(admin_requi
                              db: Session = Depends(get_db)):
     if user_id == me.id or not user_service.reject_student_registration(db, user_id):
         raise ValidationError("That student registration is not pending.")
-    return {"success": True, "message": "Student registration rejected."}
+    return {"success": True, "message": "Account registration rejected."}
 
 
 class RoleBody(BaseModel):

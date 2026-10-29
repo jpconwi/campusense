@@ -7,8 +7,10 @@ import { Header } from "../components/Layout.jsx";
 export default function Register() {
   const { loading, user } = useAuth();
   const [email, setEmail] = useState("");
+  const [registrationType, setRegistrationType] = useState("student");
   const [fullName, setFullName] = useState("");
   const [studentId, setStudentId] = useState("");
+  const [department, setDepartment] = useState("");
   const [idFile, setIdFile] = useState(null);
   const [idBackFile, setIdBackFile] = useState(null);
   const [corFile, setCorFile] = useState(null);
@@ -16,12 +18,13 @@ export default function Register() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submissionMessage, setSubmissionMessage] = useState("");
 
   useEffect(() => {
-    document.title = "Student registration | NEMSU";
+    document.title = "Personal Gmail registration | NEMSU";
     if (loading || user) return;
-    api("/api/auth/student-registration")
-      .then((data) => setEmail(data.email))
+    api("/api/auth/personal-registration")
+      .then((data) => { setEmail(data.email); setFullName(data.google_name || ""); })
       .catch((err) => setError(err.message || "Your registration session expired. Start again from sign in."));
   }, [loading, user]);
 
@@ -30,21 +33,29 @@ export default function Register() {
   async function submit(event) {
     event.preventDefault();
     setError("");
-    if (!idFile && !corFile) return setError("Capture or choose an ID-front or COR image. The ID back alone is not enough.");
-    if ([idFile, idBackFile, corFile].filter(Boolean).some((file) => file.size > 5 * 1024 * 1024)) {
-      return setError("Each image must be 5 MB or smaller.");
-    }
-
     const form = new FormData();
     form.append("full_name", fullName);
-    form.append("student_id", studentId);
-    if (idFile) form.append("school_id_document", idFile);
-    if (idBackFile) form.append("school_id_back_document", idBackFile);
-    if (corFile) form.append("cor_document", corFile);
-    form.append("ai_review_consent", aiConsent ? "true" : "false");
+    if (registrationType === "instructor") {
+      if (studentId.trim().length < 3) return setError("Enter your instructor ID number.");
+      if (department.trim().length < 2) return setError("Enter your department.");
+      form.append("instructor_id", studentId);
+      form.append("department", department);
+    } else {
+      if (!idFile && !corFile) return setError("Capture or choose an ID-front or COR image. The ID back alone is not enough.");
+      if ([idFile, idBackFile, corFile].filter(Boolean).some((file) => file.size > 5 * 1024 * 1024)) {
+        return setError("Each image must be 5 MB or smaller.");
+      }
+      form.append("student_id", studentId);
+      if (idFile) form.append("school_id_document", idFile);
+      if (idBackFile) form.append("school_id_back_document", idBackFile);
+      if (corFile) form.append("cor_document", corFile);
+      form.append("ai_review_consent", aiConsent ? "true" : "false");
+    }
     setBusy(true);
     try {
-      await api("/api/auth/student-registration", { method: "POST", form });
+      const result = await api(registrationType === "instructor" ? "/api/auth/instructor-registration" : "/api/auth/student-registration",
+        { method: "POST", form });
+      setSubmissionMessage(result.message || "Registration submitted.");
       setSubmitted(true);
     } catch (err) {
       setError(err.message || "Registration could not be submitted.");
@@ -59,13 +70,14 @@ export default function Register() {
       <div className="center-wrap">
         <section className="login-card register-card">
           <img src="/logo.png" alt="NEMSU seal" />
-          <h1>Student registration</h1>
+          <h1>Personal Gmail registration</h1>
           <p className="sub">NEMSU Tandag Main Campus</p>
 
           {submitted ? (
             <div className="registration-success" role="status">
               <h2>Application submitted</h2>
-              <p>Your account is pending admin review. You can sign in with <strong>{email}</strong> after it is approved.</p>
+              <p>{submissionMessage}</p>
+              <p>Sign in with <strong>{email}</strong> to continue or check your account status.</p>
               <Link className="btn" to="/login">Back to sign in</Link>
             </div>
           ) : (
@@ -77,38 +89,61 @@ export default function Register() {
               ) : (
                 <form className="registration-form" onSubmit={submit}>
                   <label>
-                    Full name as shown on your school ID or COR
+                    Register as
+                    <select value={registrationType} onChange={(e) => setRegistrationType(e.target.value)}>
+                      <option value="student">Student</option>
+                      <option value="instructor">Instructor</option>
+                    </select>
+                  </label>
+                  <label>
+                    Full name
                     <input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={120} required />
                   </label>
-                  <label>
-                    NEMSU school ID number
-                    <input value={studentId} onChange={(e) => setStudentId(e.target.value)} maxLength={50} required />
-                  </label>
-                  <p className="registration-scan-help">Capture with your camera or choose saved images. Submit the ID front or COR; add the ID back to include its QR code.</p>
-                  <label>
-                    School ID photo
-                    <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
-                      onChange={(e) => setIdFile(e.target.files?.[0] || null)} />
-                    <small>{idFile ? `Selected: ${idFile.name}` : "JPG, PNG, or WEBP; maximum 5 MB. Camera opens when supported."}</small>
-                  </label>
-                  <label>
-                    School ID back (optional)
-                    <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
-                      onChange={(e) => setIdBackFile(e.target.files?.[0] || null)} />
-                    <small>{idBackFile ? `Selected: ${idBackFile.name}` : "Add the reverse side so AI can check whether a QR code is visible and readable-looking."}</small>
-                  </label>
-                  <label>
-                    Certificate of Registration (COR, optional)
-                    <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
-                      onChange={(e) => setCorFile(e.target.files?.[0] || null)} />
-                    <small>{corFile ? `Selected: ${corFile.name}` : "Add a COR image for the same visual-structure review."}</small>
-                  </label>
-                  <label className="registration-consent">
-                    <input type="checkbox" checked={aiConsent} onChange={(e) => setAiConsent(e.target.checked)} />
-                    <span>I agree to send my scan images to the configured AI provider for a visual-structure review of NEMSU branding, campus label, layout, and ID-back QR visibility. AI must ignore names, ID numbers, faces, courses, and other personal fields. It does not decode the QR or verify authenticity against an official template. Image metadata is removed first. Administrators can view the stored scans. AI results may be wrong and do not approve or reject my account. If unchecked, an administrator reviews my documents manually.</span>
-                  </label>
+                  {registrationType === "instructor" ? (
+                    <>
+                      <label>
+                        Instructor ID number
+                        <input value={studentId} onChange={(e) => setStudentId(e.target.value)} maxLength={50} required />
+                      </label>
+                      <label>
+                        Department
+                        <input value={department} onChange={(e) => setDepartment(e.target.value)} maxLength={120} required />
+                      </label>
+                      <p className="registration-scan-help">Your instructor account will remain pending until an administrator reviews your details.</p>
+                    </>
+                  ) : (
+                    <>
+                      <label>
+                        NEMSU school ID number
+                        <input value={studentId} onChange={(e) => setStudentId(e.target.value)} maxLength={50} required />
+                      </label>
+                      <p className="registration-scan-help">Capture with your camera or choose saved images. A COR can be screened on its own. For automatic screening with a school ID, include both front and back; otherwise the application stays pending for admin review.</p>
+                      <label>
+                        School ID photo
+                        <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
+                          onChange={(e) => setIdFile(e.target.files?.[0] || null)} />
+                        <small>{idFile ? `Selected: ${idFile.name}` : "JPG, PNG, or WEBP; maximum 5 MB. Camera opens when supported."}</small>
+                      </label>
+                      <label>
+                        School ID back (optional)
+                        <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
+                          onChange={(e) => setIdBackFile(e.target.files?.[0] || null)} />
+                        <small>{idBackFile ? `Selected: ${idBackFile.name}` : "Add the reverse side if you want to include it with your application."}</small>
+                      </label>
+                      <label>
+                        Certificate of Registration (COR, optional)
+                        <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
+                          onChange={(e) => setCorFile(e.target.files?.[0] || null)} />
+                        <small>{corFile ? `Selected: ${corFile.name}` : "Add a COR image for the same visual-structure review."}</small>
+                      </label>
+                      <label className="registration-consent">
+                        <input type="checkbox" checked={aiConsent} onChange={(e) => setAiConsent(e.target.checked)} />
+                        <span>I agree to send my scan images to the configured AI provider for visual screening of the NEMSU logo, colors, Tandag campus name, and university president/campus director signature areas. AI ignores names, ID numbers, faces, courses, QR codes, and other personal fields. It does not verify signatures or prove authenticity, so a false match is possible. If all required visual checks pass, my account may be activated automatically; otherwise it stays pending for admin review. Image metadata is removed first, and administrators can view the stored scans.</span>
+                      </label>
+                    </>
+                  )}
                   <button className="btn" type="submit" disabled={busy}>
-                    {busy ? "Scanning and submitting..." : "Submit for admin approval"}
+                    {busy ? "Submitting..." : "Submit registration"}
                   </button>
                 </form>
               )}

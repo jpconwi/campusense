@@ -52,13 +52,13 @@ export default function AdminUsers() {
   return (
     <div className="page" style={{ maxWidth: 1300 }}>
       <h2 className="page-title">Users</h2>
-      <p className="page-intro">Administrators are set only through ADMIN_EMAILS in backend/.env. Review personal-Gmail student applications here; official NEMSU Gmail accounts are approved automatically.</p>
+      <p className="page-intro">Administrators are set only through ADMIN_EMAILS in backend/.env. Review personal-Gmail student and instructor applications here; official NEMSU Gmail accounts are approved automatically.</p>
       <div className="table-wrap"><table>
-        <thead><tr><th>Name</th><th>Email</th><th>School ID</th><th>Verification</th><th>Approval</th><th>Role</th><th>Created</th><th>Active</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>ID / Department</th><th>Verification</th><th>Approval</th><th>Role</th><th>Created</th><th>Active</th><th>Actions</th></tr></thead>
         <tbody>
           {rows.map((u) => (
             <tr key={u.id}>
-              <td>{u.name}</td><td>{u.email}</td><td>{u.student_id || "—"}</td>
+              <td>{u.name}</td><td>{u.email}</td><td>{u.student_id || "—"}{u.department && <><br /><small>{u.department}</small></>}</td>
               <td>{u.has_verification_document ? (
                 <a href={`${API_BASE}/api/admin/users/${u.id}/verification-document`}
                   target="_blank" rel="noreferrer">View {u.verification_document_kind === "cor" ? "COR" : "school ID"}</a>
@@ -79,7 +79,7 @@ export default function AdminUsers() {
                   <>
                     {u.approval_status === "Pending" ? (
                       <>
-                        <button className="btn small" type="button" onClick={() => decide(u, "approve")}>Approve student</button>{" "}
+                        <button className="btn small" type="button" onClick={() => decide(u, "approve")}>Approve {u.registration_type === "instructor" ? "instructor" : "student"}</button>{" "}
                         <button className="btn small danger" type="button" onClick={() => decide(u, "reject")}>Reject</button>
                       </>
                     ) : (

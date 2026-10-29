@@ -28,13 +28,15 @@ def submit_student_registration(db: Session, google_id, full_name, email, studen
                                 document, content_type, filename, document_kind="school_id",
                                 cor_document=None, cor_content_type=None, cor_filename=None,
                                 id_back_document=None, id_back_content_type=None,
-                                id_back_filename=None, ai_note=None):
-    """Create an inactive personal-Gmail student account for admin review."""
+                                id_back_filename=None, ai_note=None, auto_approve=False):
+    """Create a student account; activate only after the visual screen passes."""
     if get_by_google_id(db, google_id) or get_by_email(db, email):
         raise ValidationError("An account already exists for this Google email. Sign in to check its status.")
     stamp = now()
-    user = User(google_id=google_id, name=full_name, email=email, role=None,
-                approval_status="Pending", student_id=student_id,
+    user = User(google_id=google_id, name=full_name, email=email,
+                role="student" if auto_approve else None,
+                approval_status="Approved" if auto_approve else "Pending",
+                registration_type="student", student_id=student_id,
                 verification_document=document, verification_content_type=content_type,
                 verification_filename=filename, verification_document_kind=document_kind,
                 verification_cor_document=cor_document,
@@ -43,8 +45,25 @@ def submit_student_registration(db: Session, google_id, full_name, email, studen
                 verification_id_back_document=id_back_document,
                 verification_id_back_content_type=id_back_content_type,
                 verification_id_back_filename=id_back_filename,
-                verification_ai_note=ai_note, is_active=False,
+                verification_ai_note=ai_note, is_active=bool(auto_approve),
                 created_at=stamp, last_login=stamp)
+    db.add(user)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise ValidationError("This account could not be registered. Please sign in and try again.")
+    return user
+
+
+def submit_instructor_registration(db: Session, google_id, full_name, email, instructor_id, department):
+    """Create an inactive personal-Gmail instructor application for admin review."""
+    if get_by_google_id(db, google_id) or get_by_email(db, email):
+        raise ValidationError("An account already exists for this Google email. Sign in to check its status.")
+    stamp = now()
+    user = User(google_id=google_id, name=full_name, email=email, role=None,
+                approval_status="Pending", registration_type="instructor", student_id=instructor_id,
+                department=department, is_active=False, created_at=stamp, last_login=stamp)
     db.add(user)
     try:
         db.commit()
@@ -128,16 +147,28 @@ def set_active(db: Session, user_id, active):
     return True
 
 
-def approve_student_registration(db: Session, user_id):
+def approve_personal_registration(db: Session, user_id):
     user = db.get(User, user_id)
-    if (user is None or user.approval_status != "Pending" or not user.student_id
-            or not user.verification_document):
+    if user is None or user.approval_status != "Pending":
         return False
+    if user.registration_type == "instructor":
+        if not user.student_id or not user.department:
+            return False
+        role = "instructor"
+    else:
+        if not user.student_id or not user.verification_document:
+            return False
+        role = "student"
     user.approval_status = "Approved"
-    user.role = "student"
+    user.role = role
     user.is_active = True
     db.commit()
     return True
+
+
+def approve_student_registration(db: Session, user_id):
+    """Backward-compatible name for existing call sites."""
+    return approve_personal_registration(db, user_id)
 
 
 def reject_student_registration(db: Session, user_id):

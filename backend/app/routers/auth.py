@@ -69,7 +69,7 @@ async def google_login(request: Request, purpose: str = "login"):
     if not config.GOOGLE_CLIENT_ID or not config.GOOGLE_CLIENT_SECRET:
         return _to_login(request, "not_configured")
     is_registration = purpose == "register"
-    request.session["auth_purpose"] = "student_registration" if is_registration else "login"
+    request.session["auth_purpose"] = "personal_registration" if is_registration else "login"
     redirect_uri = f"{config.PUBLIC_URL}/api/auth/callback"
     # hd = hint so Google shows NEMSU accounts first. The REAL check is below.
     params = {"prompt": "select_account"}
@@ -128,16 +128,19 @@ async def callback(request: Request):
 
     info = token.get("userinfo") or {}
     purpose = request.session.pop("auth_purpose", "login")
-    is_registration = purpose == "student_registration"
+    is_registration = purpose in ("personal_registration", "student_registration")
     result, user_id, role = await run_in_threadpool(
         _finish_login, info, allow_personal_registration=is_registration)
     if result == "registration_required":
         request.session.clear()
-        request.session["student_registration"] = {
+        registration = {
             "google_id": info["sub"], "email": info["email"].strip().lower(),
             "google_name": (info.get("name") or "").strip()[:120],
         }
-        request.session["student_registration_started_at"] = int(time.time())
+        request.session["personal_registration"] = registration
+        request.session["student_registration"] = registration  # legacy student-form session key
+        request.session["personal_registration_started_at"] = int(time.time())
+        request.session["student_registration_started_at"] = request.session["personal_registration_started_at"]
         return RedirectResponse("/register", status_code=302)
     if result != "ok":
         return _to_login(request, {
@@ -197,9 +200,10 @@ async def student_registration(request: Request, full_name: str = Form(...),
         raise ValidationError("Capture or choose an image of the ID front or COR. The ID back alone is not enough.")
 
     ai_note = "AI visual review not requested; administrator must inspect the documents manually."
+    auto_approve = False
     if ai_review_consent.lower() == "true":
-        ai_note = await run_in_threadpool(
-            registration_verification_service.review_note,
+        ai_note, auto_approve = await run_in_threadpool(
+            registration_verification_service.review_documents,
             (id_scan["data"], id_scan["content_type"]) if id_scan else None,
             (id_back_scan["data"], id_back_scan["content_type"]) if id_back_scan else None,
             (cor_scan["data"], cor_scan["content_type"]) if cor_scan else None,
@@ -217,10 +221,53 @@ async def student_registration(request: Request, full_name: str = Form(...),
         id_back_document=id_back_scan["data"] if id_back_scan else None,
         id_back_content_type=id_back_scan["content_type"] if id_back_scan else None,
         id_back_filename=id_back_scan["filename"] if id_back_scan else None,
-        ai_note=ai_note)
+        ai_note=ai_note, auto_approve=auto_approve)
+    request.session.clear()
+    if auto_approve:
+        return {"success": True, "approval_status": "Approved",
+                "message": "Your document passed the visual screening and your student account is active. Sign in to continue."}
+    return {"success": True, "approval_status": "Pending",
+            "message": "Your documents need manual admin review. Your account will remain pending until it is approved."}
+
+
+@router.post("/instructor-registration")
+async def instructor_registration(request: Request, full_name: str = Form(...),
+                                  instructor_id: str = Form(...), department: str = Form(...),
+                                  db: Session = Depends(get_db)):
+    """Submit personal-Gmail instructor details for administrator review."""
+    identity = request.session.get("personal_registration")
+    started = request.session.get("personal_registration_started_at", 0)
+    if not identity or time.time() - int(started) > 15 * 60:
+        request.session.clear()
+        raise HTTPException(401, "Your registration session expired. Start again with personal Gmail.")
+    email = identity.get("email", "")
+    if email.rsplit("@", 1)[-1].lower() != "gmail.com":
+        raise HTTPException(400, "Instructor registration requires a verified personal Gmail account.")
+
+    name = clean_text(full_name, "Full name", 120)
+    employee_id = clean_text(instructor_id, "Instructor ID number", 50)
+    unit = clean_text(department, "Department", 120)
+    if len(name) < 3:
+        raise ValidationError("Enter your full name.")
+    if len(employee_id) < 3:
+        raise ValidationError("Enter a valid instructor ID number.")
+    if len(unit) < 2:
+        raise ValidationError("Enter your department.")
+
+    user_service.submit_instructor_registration(
+        db, identity["google_id"], name, email, employee_id, unit)
     request.session.clear()
     return {"success": True,
-            "message": "Your student registration is pending admin review. You can sign in after it is approved."}
+            "message": "Your instructor registration is pending admin review. You can sign in after it is approved."}
+
+
+@router.get("/personal-registration")
+def personal_registration_status(request: Request):
+    identity = request.session.get("personal_registration")
+    started = request.session.get("personal_registration_started_at", 0)
+    if not identity or time.time() - int(started) > 15 * 60:
+        raise HTTPException(401, "Your registration session expired. Start again with personal Gmail.")
+    return {"email": identity.get("email", ""), "google_name": identity.get("google_name", "")}
 
 
 @router.get("/student-registration")

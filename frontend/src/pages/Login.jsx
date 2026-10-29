@@ -8,9 +8,9 @@ const API_BASE = import.meta.env.VITE_API_URL || "";
 // The server sends a short code in ?error=... and this page turns it into a message.
 const MESSAGES = {
   wrong_account: "Please use your official NEMSU Google account.",
-  approval_pending: "Your student registration is waiting for admin approval. Try signing in again after it is approved.",
-  approval_rejected: "Your student registration was not approved. Please contact the NEMSU administrator.",
-  personal_only: "Student registration requires a verified personal Gmail account.",
+  approval_pending: "Your registration is waiting for admin approval. Try signing in again after it is approved.",
+  approval_rejected: "Your registration was not approved. Please contact the NEMSU administrator.",
+  personal_only: "Personal registration requires a verified Gmail account.",
   cancelled: "Google sign-in was cancelled or failed. Please try again.",
   not_configured:
     "Google sign-in is not configured yet. Please contact the administrator.",
@@ -44,8 +44,9 @@ export default function Login() {
   const message = MESSAGES[code] || (flash && flash.text);
   const kind = MESSAGES[code] ? "error" : flash && flash.kind;
 
-  const googleLoginUrl = `${API_BASE}/api/auth/google`;
-  const studentRegisterUrl = `${API_BASE}/api/auth/google?purpose=register`;
+  // One Google OAuth entry supports both automatic NEMSU accounts and
+  // personal-Gmail applications. The backend routes based on the verified email.
+  const googleLoginUrl = `${API_BASE}/api/auth/google?purpose=register`;
 
   return (
     <>
@@ -98,14 +99,9 @@ export default function Login() {
             Continue with Google
           </a>
 
-          <a className="google-btn personal-google-btn" href={studentRegisterUrl}>
-            Continue with personal Gmail
-          </a>
-
           <p className="note">
-            NEMSU Gmail accounts are activated automatically. Students using personal Gmail must
-            submit their full name, school ID number, and a photo or PDF of their NEMSU Tandag
-            Main Campus ID or Certificate of Registration for admin approval.
+            Continue with your NEMSU Google account for automatic account setup. If you use personal
+            Gmail, choose Student or Instructor and submit the requested details for admin approval.
             <br />Google handles sign-in; this site never sees your Google password.
           </p>
         </div>

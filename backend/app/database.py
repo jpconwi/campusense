@@ -60,7 +60,9 @@ def _add_student_registration_columns():
     binary_type = "BYTEA" if engine.dialect.name == "postgresql" else "BLOB"
     additions = {
         "approval_status": "VARCHAR(20) NOT NULL DEFAULT 'Approved'",
+        "registration_type": "VARCHAR(20)",
         "student_id": "VARCHAR(50)",
+        "department": "VARCHAR(120)",
         "verification_document": binary_type,
         "verification_content_type": "VARCHAR(100)",
         "verification_filename": "VARCHAR(255)",
