@@ -2,7 +2,11 @@
 
 ## What a student sees
 1. In the chat, tap the camera button: **Take a photo** or **Upload a photo** (PNG/JPG/WEBP, 5 MB). A preview appears; remove it any time.
+<<<<<<< HEAD
 2. Type or speak a description (optional). The mic button (Chrome, Edge, Safari, Android Chrome) puts the words in the text box so they can be corrected before sending. Hidden in browsers without speech recognition.
+=======
+2. Type or speak a description (optional). The mic button (Chrome, Edge, Safari, Android Chrome) puts the words in the text box so they can be corrected before sending. English or Filipino. Hidden in browsers without speech recognition.
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
 3. The AI checks the photo together with the description and answers in plain words, saying what it *appears* to show, then asks for what is missing (where, when, cause).
 4. The student edits, presses **Check again** if they changed something, then **Send report**. Nothing reaches administrators before that.
 5. Unrelated / unclear photos get a friendly reply and are not sent.

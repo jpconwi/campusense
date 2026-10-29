@@ -14,7 +14,11 @@ const Recognition = typeof window !== "undefined"
 
 export const voiceSupported = () => Boolean(Recognition);
 
+<<<<<<< HEAD
 const LANG = "en-PH";
+=======
+const LANGS = [["en-PH", "English"], ["fil-PH", "Filipino"]];
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
 
 const ERRORS = {
   "not-allowed": "Microphone access is blocked. Allow the microphone in your browser settings, or type instead.",
@@ -24,22 +28,42 @@ const ERRORS = {
   "language-not-supported": "That language is not supported for voice input here.",
 };
 
+<<<<<<< HEAD
+=======
+function savedLang() {
+  try { return localStorage.getItem("voiceLang") || "en-PH"; } catch { return "en-PH"; }
+}
+
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
 /** value / onChange work like a normal controlled text box. */
 export function useVoice(value, onChange) {
   const [listening, setListening] = useState(false);
   const [error, setError] = useState("");
+<<<<<<< HEAD
+=======
+  const [lang, setLangState] = useState(savedLang);
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
   const rec = useRef(null);
   const base = useRef("");
   const latest = useRef({ value, onChange });
   latest.current = { value, onChange };
 
+<<<<<<< HEAD
+=======
+  const setLang = (l) => { setLangState(l); try { localStorage.setItem("voiceLang", l); } catch { /* private mode */ } };
+
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
   function stop() { if (rec.current) rec.current.stop(); }
 
   function start() {
     if (!Recognition) return;
     setError("");
     const r = new Recognition();
+<<<<<<< HEAD
     r.lang = LANG;
+=======
+    r.lang = lang;
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
     r.continuous = true;
     r.interimResults = true;
     base.current = latest.current.value ? latest.current.value.replace(/\s+$/, "") + " " : "";
@@ -56,7 +80,11 @@ export function useVoice(value, onChange) {
   }
 
   useEffect(() => () => { if (rec.current) rec.current.abort(); }, []);
+<<<<<<< HEAD
   return { supported: voiceSupported(), listening, error, toggle: () => (listening ? stop() : start()) };
+=======
+  return { supported: voiceSupported(), listening, error, lang, setLang, toggle: () => (listening ? stop() : start()) };
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
 }
 
 /** Mic button (+ language picker + status). Renders nothing when the browser cannot do it. */
@@ -72,6 +100,15 @@ export default function MicButton({ value, onChange, disabled, compact }) {
           <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
         </svg>
       </button>
+<<<<<<< HEAD
+=======
+      {!compact && (
+        <select className="mic-lang" aria-label="Speech language" value={v.lang} disabled={v.listening}
+                onChange={(e) => v.setLang(e.target.value)}>
+          {LANGS.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+        </select>
+      )}
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
       {v.listening && <span className="mic-status" role="status">Listening… tap the mic to stop, then fix any mistakes.</span>}
       {v.error && <span className="mic-error" role="alert">{v.error}</span>}
     </span>

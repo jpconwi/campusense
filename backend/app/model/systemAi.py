@@ -52,10 +52,17 @@ COOLDOWN_AFTER_BAD_KEY = 600        # ...and this long after a 401 / 403 (wrong 
 # ---- photo analysis: only free-tier / open-source vision models, tried in this order
 VISION_PROVIDER_ORDER = ("huggingface", "openrouter", "groq", "google")
 DEFAULT_VISION_MODELS = {
+<<<<<<< HEAD
     "huggingface": ["Qwen/Qwen3-VL-8B-Instruct", "Qwen/Qwen2.5-VL-7B-Instruct", "google/gemma-3-27b-it"],
     "openrouter": ["qwen/qwen2.5-vl-72b-instruct:free", "google/gemma-3-27b-it:free"],
     "groq": ["meta-llama/llama-4-scout-17b-16e-instruct"],
     "google": ["gemini-2.5-flash", "gemini-flash-latest"],
+=======
+    "huggingface": ["Qwen/Qwen2.5-VL-7B-Instruct", "Qwen/Qwen2.5-VL-32B-Instruct", "google/gemma-3-27b-it"],
+    "openrouter": ["qwen/qwen2.5-vl-72b-instruct:free", "google/gemma-3-27b-it:free"],
+    "groq": ["meta-llama/llama-4-scout-17b-16e-instruct"],
+    "google": ["gemini-2.5-flash"],
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
 }
 VISION_MAX_TOKENS = 700
 VISION_GOOGLE_MAX_TOKENS = 2000
@@ -249,6 +256,7 @@ def ask_model(system_prompt, question):
 
 
 # ------------------------------------------------------------ photo (vision) chain
+<<<<<<< HEAD
 _discovered = {}                    # provider -> (time, [model ids]) so the lists are fetched once an hour
 DISCOVERY_SECONDS = 3600
 
@@ -296,15 +304,21 @@ def _discover_vision_models(provider):
     return found
 
 
+=======
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
 def _vision_models(provider):
     configured = _split(getattr(config, {"huggingface": "HF_VISION_MODEL",
                                          "openrouter": "OPENROUTER_VISION_MODEL",
                                          "groq": "GROQ_VISION_MODEL",
                                          "google": "GOOGLE_VISION_MODEL"}[provider], None))
+<<<<<<< HEAD
     models = configured or list(DEFAULT_VISION_MODELS[provider])
     if not configured:                  # a model you chose yourself is the only one used
         models += [m for m in _discover_vision_models(provider) if m not in models]
     return models
+=======
+    return configured or list(DEFAULT_VISION_MODELS[provider])
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
 
 
 def _vision_callers():

@@ -221,7 +221,11 @@ def can_submit(analysis, description=""):
     result = outcome(analysis, description)
     if result == "issue":
         return True
+<<<<<<< HEAD
     return result == "unavailable"             # AI is down: the photo goes to an administrator to review by hand
+=======
+    return result == "unavailable" and bool((description or "").strip())
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
 
 
 def follow_up_questions(analysis, description, location, noticed_when, observed_cause):
@@ -259,9 +263,16 @@ def student_message(analysis, description="", questions=()):
 
     if state == "unavailable":
         text = ("I couldn't check the photo with AI right now. "
+<<<<<<< HEAD
                 + "You can still send your report with the photo"
                 + (" and your description" if (description or "").strip() else " (a short description helps)")
                 + ", and an administrator will review it by hand.")
+=======
+                + ("You can still send your report with the photo and your description, and an administrator "
+                   "will review it by hand." if (description or "").strip()
+                   else "Please add a short description of the problem and I'll send it with your photo "
+                        "for an administrator to review."))
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
     elif state == "no_issue":
         if kind == "people":
             text = ("That looks like a photo of people, and I can't use it for a campus report. "

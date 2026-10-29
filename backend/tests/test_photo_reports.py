@@ -129,17 +129,25 @@ def test_description_that_the_photo_does_not_support_is_flagged_not_dropped(stud
 def test_ai_down_manual_review_still_possible(student, admin, vision):
     vision["reply"] = None
     body = analyze(student).json()
+<<<<<<< HEAD
     assert body["outcome"] == "unavailable" and body["can_submit"]       # photo alone can go to an admin
     assert "administrator will review it by hand" in body["message"]
     sent = student.post(f"/api/reports/photo/{body['draft_id']}/submit", data={})
     assert sent.status_code == 200
     assert admin.get("/api/admin/records/reports").json()["rows"][0]["ai_status"] == "unavailable"
+=======
+    assert body["outcome"] == "unavailable" and not body["can_submit"]
+    assert "short description" in body["message"]
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
     body = analyze(student, description="Broken chair in the library").json()
     assert body["can_submit"]
     student.post(f"/api/reports/photo/{body['draft_id']}/submit", data={})
     row = admin.get("/api/admin/records/reports").json()["rows"][0]
     assert row["ai_status"] == "unavailable" and row["report_type"] == "Other"
+<<<<<<< HEAD
     assert row["description"] == "Broken chair in the library"
+=======
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
 
 
 @pytest.mark.parametrize("garbage", ["I think it is a leak!", "{not json", "[1,2]", ""])
@@ -286,6 +294,7 @@ def test_vision_without_any_key_returns_nothing(monkeypatch):
     for name in ("HUGGINGFACE_API_KEY", "OPENROUTER_API_KEY", "GROQ_API_KEY", "GOOGLE_API_KEY"):
         monkeypatch.setattr(config, name, "")
     assert systemAi.ask_vision("s", "t", "QUJD") == (None, None, None)
+<<<<<<< HEAD
 
 
 def test_vision_models_are_discovered_when_names_change(monkeypatch):
@@ -323,3 +332,5 @@ def test_discovery_failure_keeps_the_defaults(monkeypatch):
     monkeypatch.setattr(systemAi, "_http_get", lambda u, h: (_ for _ in ()).throw(RuntimeError("down")))
     assert systemAi._vision_models("huggingface") == systemAi.DEFAULT_VISION_MODELS["huggingface"]
     systemAi.reset_cooldowns()
+=======
+>>>>>>> 7b2f77da7aab77f1b933031e132d68de6680299f
