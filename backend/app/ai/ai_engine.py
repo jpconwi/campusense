@@ -671,11 +671,11 @@ def _program_list_reply(db, question):
     if not pages:
         if requested_campus:
             return response.message(
-                f"I don't have the official {requested_campus} Campus program list loaded yet. "
-                "Please run the NEMSU page sync, then ask again.")
+                f"Sorry, I can't retrieve the official {requested_campus} Campus program list right now. "
+                "Please try again later or check NEMSU's official website: https://nemsu.edu.ph/.")
         return response.message(
-            "I don't have the official campus program lists loaded yet. Please run the NEMSU page sync, "
-            "then ask again.")
+            "Sorry, I can't retrieve NEMSU's official program lists right now. Please try again later "
+            "or check the university website: https://nemsu.edu.ph/.")
 
     blocks = []
     for page in sorted(pages, key=lambda item: item["campus"]):
@@ -700,8 +700,8 @@ def _program_list_reply(db, question):
     missing = set(campus_names) - available
     answer = "Official NEMSU program offerings:\n\n" + "\n\n".join(blocks)
     if missing and not requested_campus:
-        answer += ("\n\nThe latest synced program list is available for "
-                   f"{len(available)} of 7 campuses. Lists not loaded: " + ", ".join(sorted(missing)) + ".")
+        answer += ("\n\nI could verify program lists for "
+                   f"{len(available)} of NEMSU's 7 campuses, so this may not be the complete university list.")
     return response.message(answer + "\n\n" + knowledge_service.sources_text(pages))
 
 
