@@ -166,6 +166,16 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if conversation:
         last_ai = next((m.get("text", "") for m in reversed(conversation)
                         if m.get("role") == "ai"), "")
+        correction_markers = ("that is", "thats", "i mean", "actually", "the correct answer",
+                              "you are wrong", "you got it wrong")
+        if (intents.has(normalized, *correction_markers)
+                and intents.has(normalize(last_ai), "program", "bachelor", "degree", "course")
+                and intents.has(normalized, "program", "bachelor", "degree", "course",
+                                "hospitality", "midwifery", "science", "management")):
+            result = _learn_about_program(db, question, question, user,
+                                          earlier=earlier, conversation=conversation)
+            result["answer"] = "You're right—sorry for the mix-up. " + result.get("answer", "")
+            return result
         if ("full program name" in normalize(last_ai)
                 and len(normalized.split()) <= 6
                 and not intents.has(normalized, "what", "where", "why", "how", "when")):

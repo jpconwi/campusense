@@ -42,6 +42,9 @@ likely NEMSU program from the student's wording and conversation, including unfa
 phonetic spellings, and abbreviations. Use the campus or official-page context when available.
 Normalize the program name in "english" so the information lookup can find it. Do not guess when
 several programs could match; preserve the wording and let the assistant ask a clarifying question.
+If the student explicitly corrects a course/program name or a previous answer, treat the new
+message as a correction: preserve the corrected course name and clarify what they want to know
+about it. Do not repeat the mistaken answer or argue with the correction.
 
 Examples:
 "asa ang cr dapit sa cite" -> {"kind":"campus","english":"Where is the comfort room near CITE?"}
