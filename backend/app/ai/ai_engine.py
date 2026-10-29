@@ -223,6 +223,15 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         result = response.message(texts.en("help_ask"))
         result["suggestions"] = ["Where is the library?", "I lost my phone", "I have a concern"]
         return result
+    if name == "record_privacy_complaint":
+        return response.message(
+            "I'm sorry—I shouldn't display your saved concerns unless you ask to view them. "
+            "I understand why that felt unexpected, and I'll only show those records when you "
+            "clearly request them.")
+    if name == "personal_relationship_concern":
+        return response.message(
+            "I'm sorry you're dealing with that. I can listen or help you think through what to "
+            "say to her. If you meant a concern about something on campus, tell me what happened.")
     if name in ("about_me", "about_system", "languages", "thanks", "friends", "how_are_you", "ack"):
         return response.message(texts.en(name))
 
@@ -481,7 +490,7 @@ def _program_curriculum_reply(db, question, user, earlier, conversation):
             answer = ("I don't know the subject list for that semester yet. I can only share "
                       "general subject areas from the official program information, not a "
                       "verified semester-by-semester list. Please check the current prospectus "
-                      "with the program's Tandag college.")
+                      "with the college offering the program.")
             if docs:
                 answer += "\n\n" + knowledge_service.sources_text(docs[:3])
             return response.message(answer)
@@ -489,9 +498,9 @@ def _program_curriculum_reply(db, question, user, earlier, conversation):
 
     if not docs:
         return response.message(
-            "I couldn't find official subject information for that program in the NEMSU Tandag "
-            "data I have yet. Please check with the program's Tandag college for its current "
-            "prospectus, or tell me the full program name so I can look for its overview.")
+            "I couldn't find official subject information for that program in the NEMSU data I "
+            "have yet. Please check with the college offering it for the current prospectus, or "
+            "tell me the full program name so I can look for its overview.")
 
     context = build_user_context(user)
     prompt = build_system_prompt(
@@ -500,14 +509,14 @@ def _program_curriculum_reply(db, question, user, earlier, conversation):
 
 PROGRAM SUBJECTS MODE:
 Answer using only details explicitly present in the provided official NEMSU pages or prospectus.
-This assistant covers NEMSU Tandag Main Campus only. Do not list programs or campus availability
-belonging only to other campuses. Prefer a linked prospectus/course list for an exact subject list.
+Do not transfer a subject list or curriculum from one campus or program to another. Prefer a
+linked prospectus/course list for an exact subject list.
 For a broad question about what a program teaches, summarize its verified major subject areas or
 learning areas from the program overview. Keep this brief and label them as subject areas, not
 exact course titles or a semester curriculum. Give exact semester subjects only when the student
 asks about a semester and the source explicitly lists that same semester. If a prospectus has a
 stated academic year, state it and advise the student to confirm the current curriculum with the
-Tandag college. Never fill gaps with guessed subjects.
+college offering the program. Never fill gaps with guessed subjects.
 """
     answer = ask_model(prompt, asked)
     if not answer:
@@ -524,6 +533,33 @@ def _program_availability_reply(db, question, user, earlier, conversation):
     if not asked:
         view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
         asked = view["english"] if view and view["kind"] == "campus" else question
+
+    offering = knowledge_service.program_offerings(db, asked)
+    campuses = offering["campuses"]
+    sources = offering["sources"]
+    tandag_listed = "Tandag" in offering["campus_pages"]
+    if sources and (campuses or offering["college_mapping"] or tandag_listed):
+        towns = {"Tandag": "Tandag City", "Bislig": "Bislig City", "Cantilan": "Cantilan",
+                 "Tagbina": "Tagbina", "Lianga": "Lianga", "San Miguel": "San Miguel",
+                 "Cagwait": "Cagwait"}
+        if "Tandag" in campuses:
+            other = [name for name in campuses if name != "Tandag"]
+            answer = f"Yes. {asked} is offered at NEMSU Tandag Main Campus."
+            if other:
+                answer += " The official listings also show it at " + ", ".join(
+                    f"{name} ({towns[name]})" for name in other) + "."
+        elif offering["college_mapping"] or tandag_listed:
+            if campuses:
+                places = ", ".join(f"{name} ({towns[name]})" for name in campuses)
+                answer = (f"No. {asked} is not listed among NEMSU Tandag Main Campus offerings. "
+                          f"The official NEMSU listings show it at {places}.")
+            else:
+                answer = (f"I couldn't find {asked} in the official program lists for NEMSU Tandag. "
+                          "Please confirm with the university if you have a newer program list.")
+        else:
+            answer = f"The official NEMSU listings show {asked} at " + ", ".join(
+                f"{name} ({towns[name]})" for name in campuses) + "."
+        return response.message(answer + "\n\n" + knowledge_service.sources_text(sources))
 
     def search_official_pages(topic):
         matches = []
@@ -544,6 +580,13 @@ def _program_availability_reply(db, question, user, earlier, conversation):
         if retry and retry["kind"] == "campus" and normalize(retry["english"]) != normalize(asked):
             asked = retry["english"]
             docs = search_official_pages(asked)
+
+    # Include the current program-offering sections from every campus page so the model
+    # can verify both positive availability and a Tandag absence against the full lists.
+    by_url = {doc.get("source_url"): doc for doc in docs}
+    for page in knowledge_service.campus_program_pages(db):
+        by_url[page["source_url"]] = page
+    docs = list(by_url.values())
 
     asks_location = intents.has(normalize(question), "where", "location", "located",
                                  "what campus", "which campus", "which campuses")
@@ -567,13 +610,13 @@ def _program_availability_reply(db, question, user, earlier, conversation):
         prompt += """
 
 PROGRAM AVAILABILITY MODE:
-Answer whether the named course/program is offered at NEMSU Tandag Main Campus. Use the official
-pages for any course, not special-case rules for one program. If the student asks which campuses
-offer it, list only campuses explicitly named for that same program in the sources. Do not give
-course offerings or curriculum details for other campuses. If a campus is not named, say you
-could not verify it. When a location is requested, include the matching Tandag college/building
-description if provided in the related campus data. Never transfer availability from one program
-to another or confuse Tandag with another campus.
+Use the official NEMSU college pages and campus program-offering lists to identify every campus
+that explicitly offers the named program. When a complete Tandag program list is included and the
+program is absent from it, clearly say that it is not listed/offered at Tandag Main Campus, then
+name the campuses whose official lists do include it. If the sources do not provide a complete
+list or do not identify the program, say availability could not be verified; do not guess. Keep
+campus-specific offerings separate and never transfer a program from one campus to another.
+When a campus location is requested, give its town if the source provides it.
 """
         if location:
             prompt += "\nVERIFIED TANDAG LOCATION DESCRIPTION:\n" + location
@@ -589,7 +632,7 @@ to another or confuse Tandag with another campus.
     availability_queries = (f"{asked} program availability campuses",
                             f"{question} program availability campuses",
                             f"{asked} offered campuses")
-    info = next((fact for query in availability_queries
+    info = _program_availability_fact(db, asked) or next((fact for query in availability_queries
                  if (fact := campus_service.lookup(db, query))
                  and any(phrase in fact.lower() for phrase in ("offered at", "available at"))), None)
     if info:
@@ -600,7 +643,24 @@ to another or confuse Tandag with another campus.
         return _data(info)
     return response.message(
         "I couldn't verify that program's campus availability in the official NEMSU information "
-        "I have yet. Please check the Tandag college or its current program list.")
+        "I have yet. Please check the relevant college or its current program list.")
+
+
+def _program_availability_fact(db, program):
+    """Find an explicit campus-list seed record for a named program."""
+    query = normalize(program)
+    matches = []
+    for row in campus_service.list_info(db):
+        if "campus availability" not in normalize(row.get("topic", "")):
+            continue
+        answer = row.get("answer", "")
+        if not any(phrase in answer.lower() for phrase in ("offered at", "available at")):
+            continue
+        aliases = [normalize(alias) for alias in (row.get("keywords") or "").split(";")]
+        matched = [alias for alias in aliases if alias and f" {alias} " in f" {query} "]
+        if matched:
+            matches.append((max(map(len, matched)), answer))
+    return max(matches, default=(0, None))[1]
 
 
 def _program_name_from_context(db, question, conversation):
@@ -641,6 +701,16 @@ def _program_name_from_context(db, question, conversation):
     current = match_in(question)
     if current:
         return current
+    context_only_words = {
+        "where", "which", "what", "when", "why", "does", "do", "is", "are", "it", "this",
+        "that", "there", "the", "a", "an", "in", "at", "of", "to", "for", "and", "or",
+        "campus", "campuses", "nemsu", "tandag", "main", "available", "availability",
+        "offered", "offer", "course", "courses", "program", "programs", "located",
+        "location", "map", "maps", "direction", "directions", "guide", "go", "can", "i",
+        "me", "my", "you", "does", "do", "have", "has", "provide", "provides",
+    }
+    if any(token not in context_only_words for token in normalize(question).split()):
+        return None
     for message in reversed(conversation or []):
         if message.get("role") == "ai":
             return match_in(message.get("text", ""))

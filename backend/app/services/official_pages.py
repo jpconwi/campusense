@@ -33,4 +33,10 @@ OFFICIAL_PAGES = [
     "https://nemsu.edu.ph/research-innovation-extension/publications",
     # campuses
     "https://nemsu.edu.ph/campuses/tandag",
+    "https://nemsu.edu.ph/campuses/bislig",
+    "https://nemsu.edu.ph/campuses/cantilan",
+    "https://nemsu.edu.ph/campuses/tagbina",
+    "https://nemsu.edu.ph/campuses/lianga",
+    "https://nemsu.edu.ph/campuses/san-miguel",
+    "https://nemsu.edu.ph/campuses/cagwait",
 ]

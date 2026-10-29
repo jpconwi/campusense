@@ -772,6 +772,10 @@ def parse_official_page(html, url):
                         source_type=PAGE)
 
 
+def normalize_line(line):
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", (line or "").lower()).split())
+
+
 def drop_shared_lines(docs, share=0.5, minimum_docs=4):
     """Menus, footers and site-wide settings repeat on every page. A line found on at
     least half of the pages says nothing about ONE page, so it is removed."""
@@ -782,9 +786,22 @@ def drop_shared_lines(docs, share=0.5, minimum_docs=4):
         for line in {ln.strip().lower() for ln in d.content.split("\n") if ln.strip()}:
             count[line] = count.get(line, 0) + 1
     limit = max(2, share * len(docs))
+    campus_program_lines = set()
+    for doc in docs:
+        if not re.match(r"^/campuses/[a-z-]+/?$", urlsplit(doc.source_url).path, re.I):
+            continue
+        lines = doc.content.split("\n")
+        start = next((i for i, line in enumerate(lines)
+                      if normalize_line(line) == "program offerings"), None)
+        if start is None:
+            continue
+        end = next((i for i in range(start + 1, len(lines))
+                    if normalize_line(lines[i]) in {"facilities", "services", "updates"}), len(lines))
+        campus_program_lines.update(line.strip().lower() for line in lines[start:end] if line.strip())
     for d in docs:
         kept = [ln for ln in d.content.split("\n")
-                if not ln.strip() or count.get(ln.strip().lower(), 0) < limit]
+                if (not ln.strip() or count.get(ln.strip().lower(), 0) < limit
+                    or ln.strip().lower() in campus_program_lines)]
         d.content = clean_text("\n".join(kept))
     return docs
 
@@ -811,16 +828,13 @@ _SKIP_PAGE_PREFIX = ("/login", "/logout", "/register", "/admin", "/api", "/wp-ad
 def _crawlable_page(url, base):
     parts = urlsplit(url)
     path = parts.path.lower()
-    # Keep the knowledge base focused on the main campus; other campuses have
-    # their own pages and should not be mistaken for Tandag program offerings.
-    other_campus = re.match(r"^/campuses/(?!tandag(?:/|$))[^/]+(?:/|$)", path)
     # Prospectuses are often stored under /files or /storage, which are otherwise
     # skipped as asset directories. Allow only clearly named curriculum PDFs there.
     prospectus_pdf = bool(_PDF_SUFFIX.search(path) and
                           re.search(r"prospectus|curricul|program|course", path))
     blocked_prefix = any(path.startswith(prefix) for prefix in _SKIP_PAGE_PREFIX)
     return (_same_site(url, base) and not _NON_PAGE_SUFFIX.search(path)
-            and (not blocked_prefix or prospectus_pdf) and not other_campus
+            and (not blocked_prefix or prospectus_pdf)
             and not re.search(r"/(?:print|download|share)(?:/|$)", path))
 
 

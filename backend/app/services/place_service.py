@@ -21,7 +21,8 @@ PLACES = {
             ["ict building", "ict unit", "ict area", "ict"]),
     "cite": ("CITE Building and Laboratories", 9.038193, 126.2154214,
              ["cite building", "cite laboratories", "cite laboratory", "cite lab",
-              "cite labs", "cite"]),
+              "cite labs", "cite", "computer science", "computer science department",
+              "comscie", "compsci", "bscs"]),
     "midwifery": ("Midwifery Building", 9.0381378, 126.2157206,
                   ["midwifery building", "midwifery"]),
     "gym": ("Gym", 9.0385356, 126.2163785, ["gym", "gymnasium"]),
@@ -40,7 +41,11 @@ PLACES = {
     "clinic": ("Clinic", 9.039706, 126.215162, ["clinic", "school clinic", "campus clinic"]),
     "library": ("Library", 9.039372, 126.2150642, ["library"]),
     "cas": ("CAS Building", 9.0391116, 126.2148098,
-            ["cas building", "college of arts and sciences building", "cas"]),
+            ["cas building", "college of arts and sciences building", "cas",
+             "biology", "bs biology", "economics", "ba economics", "english language",
+             "ba english", "filipino", "political science", "polsci", "psychology",
+             "bs psychology", "mathematics", "bs mathematics", "environmental science",
+             "envsci"]),
     "admin": ("NEMSU Administration Building", 9.0384389, 126.2148704,
               ["nemsu administration building", "administration building", "admin building",
                "administration office", "admin office"]),
@@ -63,7 +68,10 @@ PLACES = {
             ["hrm main building", "hrm building", "hrm"]),
     "igp": ("IGP Office", 9.0403246, 126.2158972, ["igp office", "igp"]),
     "cbm": ("CBM Building", 9.0396482, 126.2166117,
-            ["cbm building", "college of business and management building", "cbm"]),
+            ["cbm building", "college of business and management building", "cbm",
+             "hospitality management", "bshm", "financial management", "bsba fm",
+             "human resource management", "bsba hrm", "marketing management", "bsba mm",
+             "public administration", "bpa"]),
     "cet": ("CET Building (unfinished)", 9.039042, 126.216574,
             ["cet unfinished building", "cet building", "cet"]),
     "electrical": ("Electrical and Automotive Building", 9.0387924, 126.2168236,
@@ -72,6 +80,21 @@ PLACES = {
     "rotc": ("ROTC Office", 9.0385114, 126.2164844, ["rotc office", "rotc"]),
     "forest": ("NEMSU Forest", 9.03874, 126.214362, ["nemsu forest", "forest"]),
 }
+
+PROGRAM_PLACE_TERMS = (
+    "computer science", "computer science department", "comscie", "compsci", "bscs",
+    "biology", "bs biology", "economics", "ba economics", "english language", "ba english",
+    "filipino", "political science", "polsci", "psychology", "bs psychology", "mathematics",
+    "bs mathematics", "environmental science", "envsci", "hospitality management", "bshm",
+    "financial management", "bsba fm", "human resource management", "bsba hrm",
+    "marketing management", "bsba mm", "public administration", "bpa",
+)
+
+
+def is_program_place_query(q):
+    """Whether this query identifies a program whose location maps to its college."""
+    padded = f" {q} "
+    return any(f" {term} " in padded for term in PROGRAM_PLACE_TERMS)
 
 # a general word that could mean several places -> we ask which one
 GROUPS = {
@@ -88,7 +111,18 @@ def place_map(key):
     name, lat, lng, _ = PLACES[key]
     url = f"https://www.google.com/maps?q={lat},{lng}"
     embed = f"https://www.google.com/maps?q={lat},{lng}&z=19&output=embed"
-    text = f"{name} is inside the NEMSU Tandag Main Campus. Here is the map:"
+    guides = {
+        "cite": "CITE is in the ICT area, near the 3rd Gate. Use the 3rd Gate as a nearby landmark.",
+        "ict": "The ICT area is near the 3rd Gate.",
+        "cbm": "CBM is near the 1st Gate and not far from the 2nd Gate.",
+        "cas": "CAS is near the Library and the 2nd Canteen.",
+        "midwifery": "The Midwifery Building is in the academic area of the campus.",
+    }
+    guide = guides.get(key)
+    text = f"{name} is inside the NEMSU Tandag Main Campus. "
+    if guide:
+        text += guide + " "
+    text += "Here is the map:"
     return text, name, url, embed
 
 

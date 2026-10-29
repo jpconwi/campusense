@@ -146,8 +146,24 @@ def concern_request(q):
         return False
     if has(q, "how do i", "how to", "how can i", "what is", "what are", "what does"):
         return False
-    return bool(has(q, *CONCERN_OWNERSHIP, *OBJECT_WORDS, *FACILITY_WORDS)
+    # Mentioning a personal concern ("my girlfriend", "my family") is not a campus
+    # maintenance request. Require a campus object, place, or explicit filing action.
+    return bool(has(q, *OBJECT_WORDS, *FACILITY_WORDS, "file", "submit", "report")
                 or extract_area(q) or extract_concern_type(q))
+
+
+_RECORD_DENIALS = (
+    "not told you to show", "not tell you to show", "did not ask you to show",
+    "didnt ask you to show", "never asked you to show", "not ask you to show",
+    "without asking me", "not told you to list", "did not ask you to list",
+    "didnt ask you to list", "never asked you to list", "not ask you to list",
+    "you showed me my concerns", "you showed me my reports",
+)
+
+
+def denied_record_request(q):
+    """Recognize a complaint that private records were shown without being requested."""
+    return has(q, *_RECORD_DENIALS)
 
 
 LOCATION_ASK = [
@@ -243,11 +259,15 @@ def place_request(q):
     from app.services import place_service
     if _looks_like_form(q) or rooms_request(q, q):
         return None
-    asks_where = has(q, *LOCATION_ASK, "maps", "google map", "google maps")
+    asks_where = (has(q, *LOCATION_ASK, "maps", "google map", "google maps")
+                  or has(q, "not the main", "not nemsu main", "not the department",
+                         "not department", "wrong map", "main campus not"))
     if not asks_where and has(q, "available", "availability", "open", "closed", "hours",
                               "schedule", "time", "reserve"):
         return None                      # "is the library available?" is not a map question
     if asks_where or len(q.split()) <= 4 or place_service.is_only_a_place_name(q):
+        if place_service.is_program_place_query(q) and not asks_where:
+            return None                  # a bare course name asks about the program, not for a map
         return place_service.find_place(q)
     return None
 
@@ -429,6 +449,13 @@ def detect(db, question, role):
     if not q:
         return {"intent": "empty"}
 
+    if denied_record_request(q):
+        return {"intent": "record_privacy_complaint"}
+    if (has(q, *CONCERN_WORDS, "problem", "issue", "upset")
+            and has(q, "girlfriend", "boyfriend", "wife", "husband", "partner",
+                    "relationship", "dating", "breakup")):
+        return {"intent": "personal_relationship_concern"}
+
     if re.fullmatch(r"(?:(?:can|could|will|would) you )?teach me(?: something)?(?: please)?", q):
         return {"intent": "learn_ask"}
 
@@ -436,8 +463,12 @@ def detect(db, question, role):
             and has(q, "math", "course", "program", "college", "computer science", "bshm", "bscs")):
         return {"intent": "program_fit"}
 
-    if (has(q, "available", "availability", "offered", "offer", "which campuses", "what campus")
-            and has(q, "course", "program", "campus", "campuses", "in", "at", "where", "which")):
+    asks_offering = has(q, "available", "availability", "offered", "offer", "which campuses",
+                        "what campus")
+    asks_program_location = (has(q, "where", "located", "location")
+                             and has(q, "course", "program", "degree", "major"))
+    if ((asks_offering and has(q, "course", "program", "campus", "campuses", "in", "at",
+                               "where", "which")) or asks_program_location):
         return {"intent": "program_availability"}
 
     curriculum_question = (
@@ -523,7 +554,8 @@ def detect(db, question, role):
         if (nouns and (status or list_words)) or (status and list_words):
             return {"intent": "records", "kinds": nouns or ["concerns", "reports"],
                     "status": status}
-    elif nouns and (status or has(q, "my", "status")) and not has(q, "how do i"):
+    elif (nouns and (status or list_words)
+          and not has(q, "how do i") and not denied_record_request(q)):
         return {"intent": "records", "kinds": nouns, "status": status, "own": True}
 
     # faculty (answered from the CSV, never by the LLM)

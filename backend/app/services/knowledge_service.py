@@ -11,6 +11,7 @@ Simple keyword search (no embeddings, no new services):
 """
 
 import re
+from urllib.parse import urlsplit
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -168,6 +169,122 @@ def _rows(db: Session, limit=SCAN_LIMIT, official=True):
             .order_by(KnowledgeDocument.id)
         rows += _as_dicts(db.execute(pages))
     return rows
+
+
+_CAMPUS_SLUGS = {
+    "tandag": "Tandag", "bislig": "Bislig", "cantilan": "Cantilan",
+    "tagbina": "Tagbina", "lianga": "Lianga", "san-miguel": "San Miguel",
+    "cagwait": "Cagwait",
+}
+
+
+def campus_program_pages(db):
+    """Return official campus pages narrowed to their complete program-offering sections."""
+    pages = []
+    for row in _rows(db, official=True):
+        if row.get("source_type") != OFFICIAL:
+            continue
+        match = re.fullmatch(r"/campuses/([a-z-]+)/?", urlsplit(row.get("source_url", "")).path)
+        if not match or match.group(1) not in _CAMPUS_SLUGS:
+            continue
+        lines = tidy(row.get("content", "")).splitlines()
+        start = next((i for i, line in enumerate(lines)
+                      if normalize(line).strip() == "program offerings"), None)
+        if start is None:
+            continue
+        end = next((i for i in range(start + 1, len(lines))
+                    if normalize(lines[i]).strip() in {
+                        "facilities", "services", "spaces for learning research and service",
+                        "student experiences beyond the classroom", "updates",
+                    }), len(lines))
+        section = "\n".join(line.strip() for line in lines[start:end] if line.strip())
+        if len(section) < 40:
+            continue
+        campus = _CAMPUS_SLUGS[match.group(1)]
+        pages.append({**row, "title": f"{campus} Campus program offerings",
+                      "content": section, "passage": section, "campus": campus})
+    return pages
+
+
+_PROGRAM_FILLER = {"bachelor", "bachelors", "degree", "program", "course", "major", "in", "of",
+                   "the", "at", "and", "bs", "bsc", "ba", "bachelor's", "what", "where",
+                   "is", "are", "does", "do", "or", "here", "there", "located", "location",
+                   "offer", "offered", "available", "availability",
+                   "campus", "campuses", "main", "tandag", "bislig", "cantilan", "tagbina",
+                   "lianga", "cagwait", "san", "miguel", "nemsu", "north", "eastern",
+                   "mindanao", "state", "university"}
+_CAMPUS_NAMES = ("San Miguel", "Tandag", "Bislig", "Cantilan", "Tagbina", "Lianga", "Cagwait")
+
+
+def _program_terms(text):
+    return [w for w in normalize(text).split() if w not in _PROGRAM_FILLER]
+
+
+def _program_matches(requested, listed):
+    wanted = _program_terms(requested)
+    available = set(normalize(listed).split())
+    return bool(wanted) and all(any(word == candidate or
+                                    (len(word) >= 4 and candidate.startswith(word))
+                                    or (word.endswith("y") and word[:-1] + "ies" == candidate)
+                                    for candidate in available) for word in wanted)
+
+
+def program_offerings(db, program):
+    """Find explicit program-to-campus mappings and entries in official campus lists.
+
+    Returns the listed campuses, sources, and completeness information for a grounded
+    answer about whether the course appears in Tandag's official list.
+    """
+    sources = []
+    offered = set()
+    has_college_mapping = False
+    for row in _rows(db, official=True):
+        if row.get("source_type") != OFFICIAL:
+            continue
+        lines = [line.strip() for line in tidy(row.get("content", "")).splitlines() if line.strip()]
+        for index, line in enumerate(lines):
+            found = re.search(r"\bOffered at\s*(.*)$", line, re.I)
+            if not found:
+                continue
+            offered_text = found.group(1)
+            program_label = line[:found.start()].strip(" -:•")
+            if not program_label and index:
+                program_label = lines[index - 1].strip(" -:•")
+            if not offered_text and index + 1 < len(lines):
+                offered_text = lines[index + 1]
+            if not _program_matches(program, program_label):
+                continue
+            campuses = {name for name in _CAMPUS_NAMES
+                        if re.search(rf"\b{re.escape(name)}\s+Campus\b", offered_text, re.I)}
+            if campuses:
+                has_college_mapping = True
+                offered.update(campuses)
+                sources.append(dict(row, passage=line))
+
+    campus_pages = campus_program_pages(db)
+    for page in campus_pages:
+        offering_lines = [line for line in page["content"].splitlines()
+                          if line.strip() and not normalize(line).startswith("college of")]
+        if any(_program_matches(program, line) for line in offering_lines):
+            offered.add(page["campus"])
+            sources.append(dict(page, passage=page["content"]))
+    tandag_page = next((page for page in campus_pages if page["campus"] == "Tandag"), None)
+    specific = bool(_program_terms(program))
+    if specific and tandag_page:
+        sources.append(dict(tandag_page, passage=tandag_page["content"]))
+    # Deduplicate page sources when a college offering line and campus listing share a URL.
+    unique = {}
+    for source in sources:
+        unique[source["source_url"]] = source
+    return {
+        "program": program,
+        "campuses": sorted(offered),
+        "sources": list(unique.values()),
+        "college_mapping": has_college_mapping,
+        "campus_pages": sorted(page["campus"] for page in campus_pages),
+        "campus_lists_complete": len(campus_pages) == len(_CAMPUS_SLUGS),
+        "specific_program": specific,
+    }
 
 
 def search(db: Session, question, limit=MAX_DOCS):
