@@ -215,6 +215,8 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
                                     earlier=earlier, conversation=conversation)
     if name == "program_curriculum":
         return _program_curriculum_reply(db, question, user, earlier, conversation)
+    if name == "program_list":
+        return _program_list_reply(db, question)
     if name == "program_availability":
         return _program_availability_reply(db, question, user, earlier, conversation)
     if name == "program_fit":
@@ -534,10 +536,18 @@ def _program_availability_reply(db, question, user, earlier, conversation):
         view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
         asked = view["english"] if view and view["kind"] == "campus" else question
 
+    asked = knowledge_service.resolve_program_name(db, asked)
     offering = knowledge_service.program_offerings(db, asked)
     campuses = offering["campuses"]
     sources = offering["sources"]
     tandag_listed = "Tandag" in offering["campus_pages"]
+    seeded_availability = _program_availability_fact(db, asked)
+    if seeded_availability and not campuses:
+        if (intents.has(normalize(question), "tandag", "main campus", "nemsu main")
+                and "tandag" in seeded_availability.lower()
+                and not seeded_availability.lstrip().lower().startswith(("yes", "no"))):
+            seeded_availability = "Yes. " + seeded_availability
+        return _data(seeded_availability)
     if sources and (campuses or offering["college_mapping"] or tandag_listed):
         towns = {"Tandag": "Tandag City", "Bislig": "Bislig City", "Cantilan": "Cantilan",
                  "Tagbina": "Tagbina", "Lianga": "Lianga", "San Miguel": "San Miguel",
@@ -644,6 +654,55 @@ When a campus location is requested, give its town if the source provides it.
     return response.message(
         "I couldn't verify that program's campus availability in the official NEMSU information "
         "I have yet. Please check the relevant college or its current program list.")
+
+
+def _program_list_reply(db, question):
+    """List programs directly from the official campus offering sections."""
+    all_pages = knowledge_service.campus_program_pages(db)
+    pages = all_pages
+    q = normalize(question)
+    campus_names = ("Tandag", "Bislig", "Cantilan", "Tagbina", "Lianga", "San Miguel", "Cagwait")
+    requested_campus = next((name for name in campus_names
+                             if intents.has(q, name.lower())
+                             or name == "Tandag" and intents.has(q, "main campus", "tandag main")), None)
+    if requested_campus:
+        pages = [page for page in pages if page["campus"] == requested_campus]
+
+    if not pages:
+        if requested_campus:
+            return response.message(
+                f"I don't have the official {requested_campus} Campus program list loaded yet. "
+                "Please run the NEMSU page sync, then ask again.")
+        return response.message(
+            "I don't have the official campus program lists loaded yet. Please run the NEMSU page sync, "
+            "then ask again.")
+
+    blocks = []
+    for page in sorted(pages, key=lambda item: item["campus"]):
+        entries = []
+        for raw in page["content"].splitlines():
+            line = raw.strip().lstrip("*•- ").strip()
+            if not line or normalize(line) in {"program offerings", "facilities", "services"}:
+                continue
+            if normalize(line).startswith("college of "):
+                heading = re.sub(r"\s+\d+\s+programs?$", "", line, flags=re.I)
+                entries.append(f"**{heading}**")
+            elif (normalize(line).startswith(("bachelor", "batsilyer", "master", "doctor", "diploma",
+                                              "juris doctor", "associate"))):
+                entries.append(f"- {line}")
+        if entries:
+            blocks.append(f"**{page['campus']} Campus**\n" + "\n".join(entries))
+
+    if not blocks:
+        return response.message("I found the campus pages, but their program lists were empty after parsing.")
+
+    available = {page["campus"] for page in all_pages}
+    missing = set(campus_names) - available
+    answer = "Official NEMSU program offerings:\n\n" + "\n\n".join(blocks)
+    if missing and not requested_campus:
+        answer += ("\n\nThe latest synced program list is available for "
+                   f"{len(available)} of 7 campuses. Lists not loaded: " + ", ".join(sorted(missing)) + ".")
+    return response.message(answer + "\n\n" + knowledge_service.sources_text(pages))
 
 
 def _program_availability_fact(db, program):

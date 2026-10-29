@@ -11,6 +11,7 @@ Simple keyword search (no embeddings, no new services):
 """
 
 import re
+from difflib import SequenceMatcher
 from urllib.parse import urlsplit
 
 from sqlalchemy import select
@@ -225,8 +226,35 @@ def _program_matches(requested, listed):
     available = set(normalize(listed).split())
     return bool(wanted) and all(any(word == candidate or
                                     (len(word) >= 4 and candidate.startswith(word))
+                                    or (len(word) >= 5 and SequenceMatcher(None, word, candidate).ratio() >= .78)
                                     or (word.endswith("y") and word[:-1] + "ies" == candidate)
                                     for candidate in available) for word in wanted)
+
+
+def resolve_program_name(db, requested):
+    """Return the official program label that best matches a possibly misspelled name."""
+    requested_terms = _program_terms(requested)
+    if not requested_terms:
+        return requested
+    candidates = []
+    for row in _rows(db, official=True):
+        if row.get("source_type") != OFFICIAL:
+            continue
+        lines = [line.strip() for line in tidy(row.get("content", "")).splitlines() if line.strip()]
+        for index, line in enumerate(lines):
+            offered = re.search(r"\bOffered at\s*(.*)$", line, re.I)
+            if not offered:
+                continue
+            label = line[:offered.start()].strip(" -:â€¢")
+            if not label and index:
+                label = lines[index - 1].strip(" -:â€¢")
+            if label and _program_matches(requested, label):
+                # Prefer a title whose meaningful tokens closely match the requested name.
+                wanted = " ".join(requested_terms)
+                terms = " ".join(_program_terms(label))
+                score = SequenceMatcher(None, wanted, terms).ratio()
+                candidates.append((score, label))
+    return max(candidates, default=(0, requested))[1]
 
 
 def program_offerings(db, program):
@@ -235,6 +263,7 @@ def program_offerings(db, program):
     Returns the listed campuses, sources, and completeness information for a grounded
     answer about whether the course appears in Tandag's official list.
     """
+    program = resolve_program_name(db, program)
     sources = []
     offered = set()
     has_college_mapping = False

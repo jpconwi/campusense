@@ -7,7 +7,7 @@ Only normal campus questions are sent to the language model.
 
 import re
 
-from app.services import faculty_service, room_service
+from app.services import campus_service, faculty_service, room_service
 from app.services.campus_service import normalize
 
 # ----------------------------------------------------------------- helpers
@@ -467,8 +467,33 @@ def detect(db, question, role):
                         "what campus")
     asks_program_location = (has(q, "where", "located", "location")
                              and has(q, "course", "program", "degree", "major"))
+    # Students commonly ask availability as a direct yes/no question, e.g.
+    # "does NEMSU Tandag have BS Fisheries?" without saying "available".
+    asks_degree_availability = (
+        has(q, "has", "have", "offers", "offer", "offered", "available", "availability")
+        and has(q, "bs", "bachelor", "bachelors", "degree", "program", "course", "bsc", "ba")
+        and has(q, "tandag", "campus", "nemsu")
+    )
+    asks_bisaya_program_availability = (
+        has(q, "naay", "naa")
+        and has(q, "diri", "dinhi", "campus", "main", "tandag", "nemsu")
+        and any(
+            (row.get("topic", "").lower().startswith(("bachelor", "batsilyer", "master", "doctor"))
+             and any(alias and f" {normalize(alias)} " in f" {q} "
+                     for alias in (row.get("keywords") or "").split(";")))
+            for row in campus_service.list_info(db)
+        )
+    )
+    asks_program_list = (
+        has(q, "courses", "programs", "degrees")
+        and has(q, "nemsu", "university", "campus", "campuses", "tandag", "all campuses")
+        and has(q, "all", "list", "what", "which", "offer", "offers", "offered", "available", "in")
+    )
+    if asks_program_list:
+        return {"intent": "program_list"}
     if ((asks_offering and has(q, "course", "program", "campus", "campuses", "in", "at",
-                               "where", "which")) or asks_program_location):
+                               "where", "which")) or asks_program_location or asks_degree_availability
+            or asks_bisaya_program_availability):
         return {"intent": "program_availability"}
 
     curriculum_question = (
