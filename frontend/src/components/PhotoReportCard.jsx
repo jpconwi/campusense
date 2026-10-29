@@ -1,11 +1,10 @@
 /*
  * PhotoReportCard.jsx - shown in the chat after a student sends a photo.
  * Shows what the AI thinks (as a guess), asks the follow-up questions, lets the student
- * correct everything (typing or speaking) and sends the report to the administrators.
+ * correct everything (by typing) and sends the report to the administrators.
  */
 import { useState } from "react";
 import { api } from "../api.js";
-import MicButton from "./Voice.jsx";
 
 const FIELDS = [
   ["location", "Where did this happen?", "e.g. CITE building, 2nd floor"],
@@ -123,8 +122,7 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
       <label htmlFor="pr-desc">{asked.has("description") ? result.questions.find((q) => q.key === "description").question : "Your description"}</label>
       <div className="with-mic">
         <textarea id="pr-desc" rows={3} maxLength={2000} disabled={!!busy} value={vals.description}
-                  placeholder="Type or speak what happened" onChange={(e) => set("description", e.target.value)} />
-        <MicButton value={vals.description} onChange={(v) => set("description", v)} disabled={!!busy} />
+                  placeholder="Type what happened" onChange={(e) => set("description", e.target.value)} />
       </div>
 
       {FIELDS.map(([key, label, placeholder]) => (
@@ -133,7 +131,6 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
           <div className="with-mic">
             <input id={"pr-" + key} type="text" maxLength={key === "observed_cause" ? 500 : 120} disabled={!!busy}
                    value={vals[key]} placeholder={placeholder} onChange={(e) => set(key, e.target.value)} />
-            <MicButton compact value={vals[key]} onChange={(v) => set(key, v)} disabled={!!busy} />
           </div>
         </div>
       ))}
