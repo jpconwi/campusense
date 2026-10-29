@@ -182,17 +182,24 @@ def _date(d):
     return d["published_at"].strftime("%b %d, %Y").replace(" 0", " ") if d.get("published_at") else ""
 
 
-def for_prompt(docs):
+def for_prompt(docs, education=False):
     """Text block that goes into the AI's system prompt."""
     blocks = []
     for i, d in enumerate(docs, 1):
         blocks.append(f"[{i}] {tidy(d['title'])} ({_date(d) or 'no date'})\n{d['passage']}")
-    return (
-        "OFFICIAL NEMSU INFORMATION (NEMSU Newsroom articles and pages of the official NEMSU "
-        "website). Answer the question ONLY from these sources. If they do not contain the "
-        "answer, say you could not find it in the official NEMSU information. Never invent "
-        "names, dates, positions or numbers.\n\n"
-        + "\n\n".join(blocks))
+    if education:
+        instruction = (
+            "OFFICIAL NEMSU INFORMATION. Use these sources for claims about NEMSU offerings. "
+            "When teaching the academic subject, you may add clearly labeled general educational "
+            "background, but do not present it as NEMSU's curriculum. Never invent NEMSU-specific "
+            "names, dates, positions, requirements, or numbers.\n\n")
+    else:
+        instruction = (
+            "OFFICIAL NEMSU INFORMATION (NEMSU Newsroom articles and pages of the official NEMSU "
+            "website). Answer the question ONLY from these sources. If they do not contain the "
+            "answer, say you could not find it in the official NEMSU information. Never invent "
+            "names, dates, positions or numbers.\n\n")
+    return instruction + "\n\n".join(blocks)
 
 
 def sources_text(docs):

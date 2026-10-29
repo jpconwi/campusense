@@ -10,6 +10,7 @@ Order of work for every question:
 """
 
 import difflib
+import re
 
 from app.ai import intent as intents
 from app.ai import language, response, style, texts, understand
@@ -159,10 +160,20 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
             if intents.asks_location(normalize(old)):
                 return _answer(db, old, user, None, lang, conversation=conversation)
 
+    # A known academic program in "how about Computer Science?" is a request to learn
+    # about it, not to repeat the college's location fact.
+    normalized = normalize(question)
+    followup = re.fullmatch(r"how about (.+)", normalized)
+    if followup:
+        subject = followup.group(1).strip()
+        known = campus_service.lookup(db, subject)
+        if known and any(token in known.lower() for token in
+                         ("bachelor", "program", "degree", "course", "college")):
+            return _learn_about_program(db, question, subject, user)
+
     # Short meaning/explanation follow-ups refer to the last NEMSAI answer. Answer from
     # that saved turn so phrases like "what does mean?" don't become a new vague query.
     if conversation and any(m.get("role") == "ai" for m in conversation):
-        normalized = normalize(question)
         if _is_example_followup(normalized):
             view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
             if view and view["kind"] == "campus" and normalize(view["english"]) != normalized:
@@ -179,6 +190,8 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         return _greeting(role)
     if name == "course_share":
         return response.message(texts.en("course_share"))
+    if name == "learn_program":
+        return _learn_about_program(db, question, found["topic"], user)
     if name == "help_ask":                      # "help me" -> what help do you need?
         result = response.message(texts.en("help_ask"))
         result["suggestions"] = ["Where is the library?", "I lost my phone", "I have a concern"]
@@ -329,6 +342,49 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if not answer or response.NO_INFO.lower() in answer.lower() or _is_echo(answer, question):
         # nothing found (or the model gave up): ask the user to clarify
         return response.clarify(campus_service.suggest_topics(db, question))
+    return response.message(answer)
+
+
+def _learn_about_program(db, question, topic, user):
+    """Teach about a NEMSU program from official pages, with a general intro if needed."""
+    topic = normalize(topic or question)
+    info = campus_service.lookup(db, topic) or campus_service.lookup(db, question)
+    docs = [d for d in knowledge_service.search(db, topic, limit=3)
+            if d.get("source_type") == "nemsu_page"]
+
+    if not info and not docs:
+        return response.clarify(campus_service.suggest_topics(db, topic))
+
+    # A detailed answer already in the campus dataset is the most direct source.
+    if info and len(info) >= 350:
+        return _data(info)
+
+    context = build_user_context(user)
+    source_text = knowledge_service.for_prompt(docs, education=True) if docs else None
+    prompt = build_system_prompt(db, context["role"], news=source_text)
+    prompt += """
+
+PROGRAM LEARNING MODE:
+Give a friendly, beginner-level explanation of the academic subject the student asked about.
+Use official NEMSU sources for claims about NEMSU's program and campus. You may add clearly
+general academic background to teach the subject, but label it as general background; do not
+present it as NEMSU's official curriculum. Never invent course subjects, admission requirements,
+or schedules. Explain useful technical terms simply and invite the student to choose a topic to
+learn next.
+"""
+    if info:
+        prompt += "\nRELATED NEMSU CAMPUS DATA (may be a program listing or location fact):\n" + info
+    asked = f"Teach me about {topic}. Start with a short, beginner-friendly introduction."
+    answer = ask_model(prompt, asked)
+    if not answer:
+        if docs:
+            answer = knowledge_service.fallback_answer(docs)
+        elif info:
+            return _data(info)
+        else:
+            return response.clarify(campus_service.suggest_topics(db, question))
+    if docs:
+        answer += "\n\n" + knowledge_service.sources_text(docs)
     return response.message(answer)
 
 

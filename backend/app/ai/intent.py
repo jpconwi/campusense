@@ -429,6 +429,11 @@ def detect(db, question, role):
     if not q:
         return {"intent": "empty"}
 
+    learn_request = re.search(
+        r"\b(?:teach me about|teach me|learn about|learn|tell me about|explain)\s+(.+)", q)
+    if learn_request and learn_request.group(1).strip():
+        return {"intent": "learn_program", "topic": learn_request.group(1).strip()}
+
     # A student sharing what they study is small talk, not a request for the
     # location of a college merely because the course name matches campus data.
     course_share = (re.search(r"\bmy (?:course|program)(?: in [a-z0-9]+)? is .+", q)

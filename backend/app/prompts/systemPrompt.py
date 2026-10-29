@@ -34,6 +34,7 @@ ALLOWED TOPICS:
 - Campus navigation, campus gates, canteens, library
 - Colleges, departments, courses/programs
 - Introductory explanations of NEMSU programs, using the campus dataset or official NEMSU sources
+- Beginner-level teaching about the academic subjects in NEMSU programs; label general background clearly
 - Room availability, facility reservations, campus services
 - Student and faculty facility concerns, campus reports, feedback
 - Faculty availability and faculty absence reports
