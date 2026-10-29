@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_email)
 from app.services import (announcement_service, campus_service, chart_service, common, faculty_service,
-                          reservation_service, room_service, user_service)
+                          photo_report_service, reservation_service, room_service, user_service)
 from app.services.common import ValidationError
 
 # admin_required runs first so non-admins cannot even tell these URLs exist
@@ -44,6 +44,12 @@ def ai_status():
     return {"providers": systemAi.chain_status()}
 
 
+def _urgent_open(db):
+    rows = [r for r in common.list_rows(db, "reports") if r["urgent"]
+            and r["status"] in ("Pending", "Under Review", "In Progress")]
+    return [photo_report_service.for_admin(r) for r in rows]
+
+
 # ------------------------------------------------------------- dashboard
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db)):
@@ -54,6 +60,7 @@ def dashboard(db: Session = Depends(get_db)):
         ["Pending Concerns", common.count_rows(db, "concerns", "Pending")],
         ["Total Reports", common.count_rows(db, "reports")],
         ["Pending Reports", common.count_rows(db, "reports", "Pending")],
+        ["Urgent Photo Reports (open)", len(_urgent_open(db))],
         ["Resolved Reports", common.count_rows(db, "reports", "Resolved")],
         ["Faculty Reports", len(faculty)],
         ["Total Feedback", common.count_rows(db, "feedback")],
@@ -65,6 +72,7 @@ def dashboard(db: Session = Depends(get_db)):
         "charts": chart_service.dashboard_charts(db),
         "recent_concerns": common.list_rows(db, "concerns", status="Pending", limit=5),
         "recent_reports": common.list_rows(db, "reports", status="Pending", limit=5),
+        "urgent_reports": _urgent_open(db)[:5],
         "negative_feedback": common.list_rows(db, "feedback", status="Pending", sentiment="Negative", limit=5),
     }
 
@@ -72,19 +80,28 @@ def dashboard(db: Session = Depends(get_db)):
 # -------------------------------------------------------- record lists
 @router.get("/records/{kind}")
 def records(kind: str, status: Optional[str] = None, sentiment: Optional[str] = None,
-            db: Session = Depends(get_db)):
+            urgent: Optional[str] = None, db: Session = Depends(get_db)):
     if kind not in SECTIONS:
         raise HTTPException(404, "That page was not found.")
     if status and status not in common.TABLE_STATUSES[kind]:
         status = None
     if sentiment not in ("Positive", "Neutral", "Negative", "Mixed"):
         sentiment = None
+    rows = common.list_rows(db, kind, status=status, sentiment=sentiment)
+    if kind == "reports":
+        rows = [photo_report_service.for_admin(r) for r in rows]
+        if urgent == "1":
+            rows = [r for r in rows if r["urgent"]]
+        open_now = ("Pending", "Under Review", "In Progress")
+        # possible hazards that are still open come first (the sort keeps newest-first inside each group)
+        rows.sort(key=lambda r: not (r["urgent"] and r["status"] in open_now))
     return {
         "kind": kind, "spec": SECTIONS[kind], "current": status, "current_sentiment": sentiment,
+        "urgent_only": urgent == "1",
         "has_sentiment": kind != "reservations",
         "statuses": common.TABLE_STATUSES[kind],
         "columns": [[h, k] for h, k, _ in common.COLUMNS[kind]],
-        "rows": common.list_rows(db, kind, status=status, sentiment=sentiment),
+        "rows": rows,
     }
 
 
@@ -101,6 +118,19 @@ def change_status(kind: str, row_id: int, body: StatusBody, db: Session = Depend
     elif not common.update_status(db, kind, row_id, body.status):
         raise ValidationError("Record not found.")
     return {"success": True, "message": f"Status of #{row_id} changed to {body.status}."}
+
+
+class VerifyBody(BaseModel):
+    verification: str = ""
+    note: str = ""
+
+
+@router.post("/reports/{report_id}/verify")
+def verify_photo_report(report_id: int, body: VerifyBody, me: CurrentUser = Depends(admin_required),
+                        db: Session = Depends(get_db)):
+    """An administrator confirms or rejects what the AI found in a photo report."""
+    photo_report_service.verify(db, me, report_id, body.verification, body.note)
+    return {"success": True, "message": f"Report #{report_id} marked {body.verification}."}
 
 
 # ------------------------------------------------------------- faculty

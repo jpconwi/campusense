@@ -83,6 +83,18 @@ class Report(Base):
     status: Mapped[str] = mapped_column(String(30), default="Pending", nullable=False)
     sentiment: Mapped[Optional[str]] = mapped_column(String(10))        # Positive / Neutral / Negative / Mixed
     sentiment_score: Mapped[Optional[int]] = mapped_column(Integer)      # -100 .. 100
+    # --- photo reports (AI-assisted). Plain form reports leave these empty / default.
+    source: Mapped[str] = mapped_column(String(10), default="form", nullable=False)   # form | photo
+    ai_status: Mapped[Optional[str]] = mapped_column(String(15))      # analyzed | unavailable
+    ai_analysis: Mapped[Optional[str]] = mapped_column(Text)          # JSON, UNVERIFIED model output
+    ai_provider: Mapped[Optional[str]] = mapped_column(String(80))
+    urgent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)       # possible hazard
+    noticed_when: Mapped[Optional[str]] = mapped_column(String(120))
+    observed_cause: Mapped[Optional[str]] = mapped_column(String(500))
+    verification: Mapped[Optional[str]] = mapped_column(String(20))   # Unverified | Confirmed | Not confirmed
+    verification_note: Mapped[Optional[str]] = mapped_column(String(500))
+    verified_by: Mapped[Optional[str]] = mapped_column(String(255))
+    verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
 
@@ -226,3 +238,23 @@ class ChatMessage(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     payload: Mapped[Optional[str]] = mapped_column(Text)                   # JSON: type, map, suggestions
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
+
+
+class PhotoDraft(Base):
+    """A photo the student sent for an AI check but has not submitted yet. Never shown to
+    administrators. Deleted when submitted, discarded or after PHOTO_DRAFT_HOURS."""
+    __tablename__ = "photo_drafts"
+    __table_args__ = (Index("idx_photo_drafts_user", "user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    image_filename: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    location: Mapped[Optional[str]] = mapped_column(String(120))
+    noticed_when: Mapped[Optional[str]] = mapped_column(String(120))
+    observed_cause: Mapped[Optional[str]] = mapped_column(String(500))
+    analysis: Mapped[Optional[str]] = mapped_column(Text)             # JSON result of the last check
+    ai_provider: Mapped[Optional[str]] = mapped_column(String(80))
+    checks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
