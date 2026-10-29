@@ -7,13 +7,13 @@ keywords are separated by ";"  and "a+b" means both words must appear.
 """
 
 import csv
-import difflib
 import re
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import config
+from app.ai import preprocessing
 from app.models import CampusInfo
 from app.services.common import ValidationError, clean_text, row_to_dict
 
@@ -80,7 +80,7 @@ def lookup(db: Session, question):
     Misspelt words are corrected first, and words that only say "nemsu"/"what is"
     count for little, so "what is nemsu hymn" finds the hymn, not "About NEMSU"."""
     rows = list_info(db)
-    q = normalize(_correct_spelling(rows, question))
+    q = normalize(preprocessing.correct_spelling(rows, question))
     best, best_score = None, 0
     for row in rows:
         score = 0
@@ -93,68 +93,25 @@ def lookup(db: Session, question):
     return best["answer"] if best else None
 
 
-# ---------------------------------------------------------------- typo tolerance
-# Words that say nothing about WHICH fact is wanted.
-_FILLER = {
-    "a", "an", "the", "of", "is", "are", "was", "were", "what", "whats", "who", "where",
-    "when", "why", "how", "do", "does", "did", "can", "tell", "me", "about", "give",
-    "show", "please", "pls", "to", "in", "on", "for", "and", "or", "i", "my", "you",
-    "your", "it", "this", "that", "info", "information", "there", "any", "some",
-}
-_GENERIC = {"nemsu", "campus", "university", "tandag", "school"}
-
-
 def _phrase_weight(phrase):
     """Real topic words count 2 each; filler/generic-only phrases ("what is nemsu") count 1."""
-    real = [w for w in phrase.split() if w not in _FILLER and w not in _GENERIC]
+    real = [w for w in phrase.split()
+            if w not in preprocessing.FILLER and w not in preprocessing.GENERIC]
     return 2 * len(real) if real else 1
-
-
-def _correct_spelling(rows, question):
-    """Replace words not known anywhere in the campus data by their closest known
-    word (hym -> hymn, valus -> values). Unknown words with no close match stay."""
-    known = set(_FILLER) | _GENERIC
-    for row in rows:
-        known |= _row_vocab(row)
-    out = []
-    for w in normalize(question).split():
-        if w not in known and len(w) >= 3:
-            cutoff = 0.85 if len(w) <= 4 else 0.8
-            m = difflib.get_close_matches(w, list(known), n=1, cutoff=cutoff)
-            w = m[0] if m else w
-        out.append(w)
-    return " ".join(out)
-
-
-def _word_hit(word, vocab):
-    """2 = exact, 1 = close spelling (typo), 0 = no match."""
-    if word in vocab:
-        return 2
-    if len(word) < 3:
-        return 0
-    cutoff = 0.85 if len(word) <= 4 else 0.8
-    return 1 if difflib.get_close_matches(word, vocab, n=1, cutoff=cutoff) else 0
-
-
-def _row_vocab(row):
-    words = set(normalize(row.get("topic")).split())
-    for item in (row.get("keywords") or "").split(";"):
-        for part in item.split("+"):
-            words.update(normalize(part).split())
-    return words
 
 
 def _rank_rows(db, question):
     """[(score, row)] best first, for rows sharing at least one real word
     (exact or misspelt) with the question. Used for typo matching and suggestions."""
-    words = [w for w in normalize(question).split() if w not in _FILLER and len(w) >= 3]
-    key = [w for w in words if w not in _GENERIC]
+    words = [w for w in normalize(question).split()
+             if w not in preprocessing.FILLER and len(w) >= 3]
+    key = [w for w in words if w not in preprocessing.GENERIC]
     ranked = []
     if not key:
         return ranked
     for row in list_info(db):
-        vocab = list(_row_vocab(row))
-        hits = [_word_hit(w, vocab) for w in key]
+        vocab = list(preprocessing.row_vocabulary(row))
+        hits = [preprocessing.word_hit(w, vocab) for w in key]
         matched = sum(1 for h in hits if h)
         if not matched:
             continue

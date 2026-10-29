@@ -35,7 +35,8 @@ async def lifespan(app: FastAPI):
         raise RuntimeError(f"ADMIN_PASSWORD in backend/.env must be at least "
                            f"{config.ADMIN_MIN_PASSWORD} characters.")
     init_db()
-    print(f"Admin login: {config.PUBLIC_URL}{config.ADMIN_LOGIN_URL}  (keep this private)")
+    # ADMIN_LOGIN_URL contains the private path token; never print it to logs.
+    print("Admin login route configured.")
     print("AI providers (in order):", system_ai.describe_chain())
 
     async def cleanup_loop():          # saved chats older than CHAT_HISTORY_DAYS are deleted

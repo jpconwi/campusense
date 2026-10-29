@@ -684,17 +684,27 @@ def _program_list_reply(db, question):
             line = raw.strip().lstrip("*•- ").strip()
             if not line or normalize(line) in {"program offerings", "facilities", "services"}:
                 continue
-            if normalize(line).startswith("college of "):
-                heading = re.sub(r"\s+\d+\s+programs?$", "", line, flags=re.I)
-                entries.append(f"**{heading}**")
+            college = re.fullmatch(r"(College of .+?)\s+\d+\s+programs?", line, flags=re.I)
+            if college:
+                entries.append(f"**{college.group(1).strip()}**")
             elif (normalize(line).startswith(("bachelor", "batsilyer", "master", "doctor", "diploma",
-                                              "juris doctor", "associate"))):
-                entries.append(f"- {line}")
+                                              "juris doctor", "associate"))
+                  and " students " not in f" {normalize(line)} "
+                  and not re.search(r"\b(?:latest|news|update)\b", line, re.I)):
+                # Keep the course title, not an attached prospectus file path.
+                course = re.split(r"\s*:\s*(?=programs?/|https?://)|\s+programs?/", line,
+                                  maxsplit=1, flags=re.I)[0].strip()
+                if course:
+                    entries.append(f"- {course}")
         if entries:
             blocks.append(f"**{page['campus']} Campus**\n" + "\n".join(entries))
 
     if not blocks:
-        return response.message("I found the campus pages, but their program lists were empty after parsing.")
+        return response.message(
+            "I don't have a reliable university-wide course list available right now, and I don't "
+            "want to give you incorrect campus information. Ask about a specific course or campus, "
+            "and I can share what I can verify from NEMSU's official pages: https://nemsu.edu.ph/."
+        )
 
     available = {page["campus"] for page in all_pages}
     missing = set(campus_names) - available

@@ -198,7 +198,24 @@ def campus_program_pages(db):
                         "facilities", "services", "spaces for learning research and service",
                         "student experiences beyond the classroom", "updates",
                     }), len(lines))
-        section = "\n".join(line.strip() for line in lines[start:end] if line.strip())
+        # Older syncs sometimes flattened prospectus links from college pages
+        # into a campus page (for example, "Course: programs/BSCS.pdf"). Those
+        # link labels are not campus-specific offerings, so don't expose them
+        # as evidence for a campus list.
+        section_lines = []
+        for line in lines[start:end]:
+            clean = line.strip()
+            if not clean or re.search(r"(?:^|\s|:)programs?/[^\s]+\.pdf\b", clean, re.I):
+                continue
+            section_lines.append(clean)
+        # Campus pages publish program lists under counted college headings,
+        # such as "College of Business and Management 3 programs". Older
+        # polluted syncs contain only site-navigation labels like "College of
+        # Law" followed by unrelated links; reject those sections wholesale.
+        if not any(re.fullmatch(r"College of .+?\s+\d+\s+programs?", line, re.I)
+                   for line in section_lines):
+            continue
+        section = "\n".join(section_lines)
         if len(section) < 40:
             continue
         campus = _CAMPUS_SLUGS[match.group(1)]

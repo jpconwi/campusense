@@ -7,6 +7,7 @@ Only normal campus questions are sent to the language model.
 
 import re
 
+from app.ai import preprocessing
 from app.services import campus_service, faculty_service, room_service
 from app.services.campus_service import normalize
 
@@ -442,7 +443,9 @@ def asks_location(q):
 
 def detect(db, question, role):
     """Return a dict: {"intent": ..., plus extra data}."""
-    q = normalize(question)
+    # Clean high-confidence typos against the official campus vocabulary before
+    # classifying intent; keep `question` unchanged for form fields and replies.
+    q = normalize(preprocessing.correct_question(db, question))
     original = question
     tokens = q.split()
 

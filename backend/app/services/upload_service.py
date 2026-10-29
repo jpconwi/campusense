@@ -30,6 +30,10 @@ def _cloudinary():
                       api_key=config.CLOUDINARY_API_KEY,
                       api_secret=config.CLOUDINARY_API_SECRET,
                       secure=True)
+    # Import the SDK submodules explicitly. Importing only the package does not
+    # guarantee `cloudinary.uploader`/`cloudinary.utils` are attached to it.
+    import cloudinary.uploader  # noqa: F401
+    import cloudinary.utils  # noqa: F401
     return cloudinary
 
 

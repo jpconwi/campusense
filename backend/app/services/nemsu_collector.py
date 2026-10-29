@@ -786,7 +786,10 @@ def drop_shared_lines(docs, share=0.5, minimum_docs=4):
         for line in {ln.strip().lower() for ln in d.content.split("\n") if ln.strip()}:
             count[line] = count.get(line, 0) + 1
     limit = max(2, share * len(docs))
-    campus_program_lines = set()
+    # Preserve program lines only in the campus page they came from. A global
+    # set here made every campus inherit another campus's offerings whenever
+    # the same course title appeared on a different campus page.
+    campus_program_lines_by_doc = {}
     for doc in docs:
         if not re.match(r"^/campuses/[a-z-]+/?$", urlsplit(doc.source_url).path, re.I):
             continue
@@ -797,11 +800,14 @@ def drop_shared_lines(docs, share=0.5, minimum_docs=4):
             continue
         end = next((i for i in range(start + 1, len(lines))
                     if normalize_line(lines[i]) in {"facilities", "services", "updates"}), len(lines))
-        campus_program_lines.update(line.strip().lower() for line in lines[start:end] if line.strip())
+        campus_program_lines_by_doc[id(doc)] = {
+            line.strip().lower() for line in lines[start:end] if line.strip()
+        }
     for d in docs:
+        own_program_lines = campus_program_lines_by_doc.get(id(d), set())
         kept = [ln for ln in d.content.split("\n")
                 if (not ln.strip() or count.get(ln.strip().lower(), 0) < limit
-                    or ln.strip().lower() in campus_program_lines)]
+                    or ln.strip().lower() in own_program_lines)]
         d.content = clean_text("\n".join(kept))
     return docs
 
