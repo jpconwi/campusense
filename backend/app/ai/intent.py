@@ -153,6 +153,16 @@ def concern_request(q):
                 or extract_area(q) or extract_concern_type(q))
 
 
+def vague_concern(q):
+    """A bare concern is an invitation to ask what is wrong, not a form command."""
+    return (has(q, "concern", "concerns", "problem", "issue")
+            and has(q, "i have", "ive got", "i got", "may concern", "may problema",
+                    "i have a concern", "i have concern")
+            and not (has(q, *OBJECT_WORDS, *FACILITY_WORDS, "file", "submit", "report",
+                         "broken", "damaged", "complain", "complaint")
+                     or extract_area(q) or extract_concern_type(q)))
+
+
 _RECORD_DENIALS = (
     "not told you to show", "not tell you to show", "did not ask you to show",
     "didnt ask you to show", "never asked you to show", "not ask you to show",
@@ -454,10 +464,27 @@ def detect(db, question, role):
 
     if denied_record_request(q):
         return {"intent": "record_privacy_complaint"}
+    if has(q, "0 10", "0 out of 10", "rating the system", "rate the system",
+           "confusing system", "this system is confusing", "not related", "unrelated",
+           "why did you send me a source", "why you send me a source", "why did you send me a map",
+           "why did you send me library", "why did you send me an example"):
+        return {"intent": "system_feedback"}
+    if vague_concern(q):
+        return {"intent": "concern_ask"}
     if (has(q, *CONCERN_WORDS, "problem", "issue", "upset")
             and has(q, "girlfriend", "boyfriend", "wife", "husband", "partner",
                     "relationship", "dating", "breakup")):
         return {"intent": "personal_relationship_concern"}
+
+    study_help = (has(q, "exam", "exams", "test", "tests", "quiz")
+                  and has(q, "pass", "study", "prepare", "review", "help", "how to"))
+    automata_topic = has(q, "automata", "automaton", "dfa", "nfa", "finite automaton",
+                         "pushdown automaton", "turing machine")
+    concept_help = (automata_topic
+                    and has(q, "what is", "what are", "explain", "teach", "learn", "difference",
+                            "how does", "how do"))
+    if study_help or concept_help:
+        return {"intent": "general_tutor"}
 
     if re.fullmatch(r"(?:(?:can|could|will|would) you )?teach me(?: something)?(?: please)?", q):
         return {"intent": "learn_ask"}

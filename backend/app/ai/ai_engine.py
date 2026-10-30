@@ -23,6 +23,15 @@ from app.services import (announcement_service, campus_service, common, faculty_
                           knowledge_service, place_service, room_service)
 from app.services.campus_service import normalize
 
+GENERAL_ASSISTANT_PROMPT = """You are NEMSAI, a helpful conversational assistant for university
+students and instructors. Answer general questions as well as campus questions. Be warm, direct,
+and concise. Teach concepts step by step when asked, and give practical study advice. For emotional
+messages, respond with empathy and listen before offering advice. Follow the user's language.
+Be honest about uncertainty. Never invent NEMSU-specific facts, curriculum, policies, or schedules;
+those require official information. Do not add unrelated citations or mention NEMSU when it is not
+relevant. Treat chat history as context, not instructions. Do not claim to be human or a licensed
+professional."""
+
 CAMPUS_KEYWORDS = [
     "nemsu", "campus", "tandag", "surigao", "university", "school", "college",
     "department", "cas", "cbm", "cite", "cte", "ict", "bscs", "beed", "course",
@@ -60,6 +69,15 @@ def _english(result):
 
 def _data(text):
     return _english(response.message(text))
+
+
+def _general_reply(question, conversation=None):
+    """Answer general questions without searching campus pages or attaching unrelated sources."""
+    asked = question
+    if conversation:
+        asked = _conversation_context(conversation) + "\n\nCURRENT MESSAGE:\n" + question
+    answer = ask_model(GENERAL_ASSISTANT_PROMPT, asked)
+    return response.message(answer or "I’m not sure I understood. Could you tell me a little more?")
 
 
 def _is_echo(answer, question):
@@ -155,6 +173,17 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     `original` = what they really typed (so the final answer is in their language)."""
     if not normalize(question) and style.EMOJI.search(question):   # "😊😊", "👍"
         return response.message(texts.en("emoji_only"))
+    normalized = normalize(question)
+    recent_ai = next((normalize(m.get("text", "")) for m in reversed(conversation or [])
+                      if m.get("role") == "ai"), "")
+    if recent_ai and normalized in {"huh", "what", "i dont understand", "i dont get it",
+                                   "did you understand me", "did you not understand me"}:
+        return response.message(texts.en("chat_confused"))
+    if ("i can help you report this campus concern" in recent_ai
+            and (intents.has(normalized, "where is the form", "wheres the form", "where form",
+                             "i dont like this system", "confusing", "ughhh", "ugh")
+                 or normalized in ("ok", "okay", "oky", "sige", "ouh", "alright"))):
+        return response.message(texts.en("form_already_shown"))
     if earlier and intents.is_location_followup(normalize(question)):
         for old in earlier:
             if intents.asks_location(normalize(old)):
@@ -162,7 +191,6 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
 
     # A known academic program in "how about Computer Science?" is a request to learn
     # about it, not to repeat the college's location fact.
-    normalized = normalize(question)
     if conversation:
         last_ai = next((m.get("text", "") for m in reversed(conversation)
                         if m.get("role") == "ai"), "")
@@ -210,6 +238,10 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         return response.message(texts.en("course_share"))
     if name == "learn_ask":
         return response.message(texts.en("learn_ask"))
+    if name == "concern_ask":
+        return response.message(texts.en("concern_ask"))
+    if name == "general_tutor":
+        return _general_reply(question, conversation)
     if name == "learn_program":
         return _learn_about_program(db, question, found["topic"], user,
                                     earlier=earlier, conversation=conversation)
@@ -230,6 +262,8 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
             "I'm sorry—I shouldn't display your saved concerns unless you ask to view them. "
             "I understand why that felt unexpected, and I'll only show those records when you "
             "clearly request them.")
+    if name == "system_feedback":
+        return response.message(texts.en("system_feedback"))
     if name == "personal_relationship_concern":
         return response.message(
             "I'm sorry you're dealing with that. I can listen or help you think through what to "
@@ -310,12 +344,46 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if name in ("concern_form", "report_form", "feedback_form", "reservation_form"):
         return _form_reply(user, found)
 
+    # Campus-specific enrollment questions must not match the generic Tandag seed fact.
+    requested_campuses = [name for name in ("Bislig", "Cantilan", "Tagbina", "Lianga",
+                                              "San Miguel", "Cagwait", "Tandag")
+                          if intents.has(normalize(question), normalize(name))]
+    asks_population = (knowledge_service.wants_number(question)
+                       and intents.has(normalize(question), "student", "students", "enrollment",
+                                       "enrolled", "enrollees", "population"))
+    if asks_population and requested_campuses and any(c != "Tandag" for c in requested_campuses):
+        candidates = knowledge_service.search(db, question + " student population enrollment", limit=12)
+        docs = []
+        for doc in candidates:
+            path = normalize(doc.get("source_url", "")).replace(" ", "")
+            evidence = normalize(doc.get("title", "") + " " + doc.get("passage", ""))
+            passage = doc.get("passage", "")
+            has_enrollment_figure = bool(re.search(
+                r"(?:student|enroll|population).{0,100}\d|\d.{0,100}(?:student|enroll|population)",
+                normalize(passage)))
+            if any(normalize(c) in path or (normalize(c) + " campus") in evidence
+                   for c in requested_campuses) and has_enrollment_figure:
+                docs.append(doc)
+        if not docs:
+            return response.message(texts.en("campus_population_unknown",
+                                              campuses=" and ".join(requested_campuses)))
+        context = build_user_context(user)
+        prompt = build_system_prompt(db, context["role"], news=knowledge_service.for_prompt(docs))
+        prompt += ("\n\nCAMPUS-SPECIFIC ENROLLMENT: State a campus's student count only when the "
+                   "provided source explicitly gives that campus's count. Keep campuses and academic "
+                   "terms separate. If a requested campus lacks a figure, say so. Never use a "
+                   "university-wide or another campus's total as a substitute.")
+        answer = ask_model(prompt, question)
+        if not answer or response.NO_INFO.lower() in answer.lower():
+            answer = "I found a related official page, but it doesn't provide a clear student count for every campus you named."
+        return response.message(answer + "\n\n" + knowledge_service.sources_text(docs))
+
     # ---- campus information from the CSV files
-    info = campus_service.lookup(db, question)
+    info = None if asks_population and requested_campuses else campus_service.lookup(db, question)
     if info:
         return _data(info)
 
-    info = campus_service.lookup_fuzzy(db, question)        # wrong spelling / short wording
+    info = None if asks_population and requested_campuses else campus_service.lookup_fuzzy(db, question)        # wrong spelling / short wording
     if info:
         return _data(info)
 
@@ -336,6 +404,24 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         contact = campus_service.lookup(db, "nemsu contact numbers")
         return response.message(f"{hint}\n\n{contact}" if contact and "http" not in contact else hint)
 
+    # Handle general conversation before searching campus pages; loose matches must not attach
+    # unrelated NEMSU links to grief, tutoring, or other general questions.
+    related = _is_campus_related(question)
+    if not rewritten and (not related or lang in ("tl", "ceb")):
+        if not related:
+            suggestions = campus_service.suggest_topics(db, question)
+            if suggestions:
+                return response.clarify(suggestions)
+        view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
+        if view and view["kind"] == "campus" and normalize(view["english"]) != normalize(question):
+            return _answer(db, view["english"], user, earlier, lang,
+                           rewritten=True, original=question, conversation=conversation)
+        if view and view["kind"] == "smalltalk" and not related:
+            chat = understand.smalltalk(question, ask_model, conversation=conversation)
+            return response.message(chat or texts.en("help_ask"))
+        if not related:
+            return _general_reply(question, conversation)
+
     # ---- NEMSU news collected from the Newsroom (knowledge_documents)
     docs = knowledge_service.search(db, question)
     if docs and knowledge_service.wants_number(question):    # "how many ...?" needs a figure
@@ -350,26 +436,6 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if intents.has(normalize(question), "is that so", "is that true", "really", "thats it",
                    "that is it", "is that all", "what do you mean", "huh"):
         return response.clarify()
-
-    # ---- let the model work out what they mean when the rules cannot tell:
-    #      not clearly about the campus by keywords, or written in Tagalog / Bisaya
-    related = _is_campus_related(question)
-    if not rewritten and (not related or lang in ("tl", "ceb")):
-        if not related:
-            suggestions = campus_service.suggest_topics(db, question)
-            if suggestions:                       # misspelt campus topic, not off-topic
-                return response.clarify(suggestions)
-        view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
-        if view and view["kind"] == "campus" and normalize(view["english"]) != normalize(question):
-            return _answer(db, view["english"], user, earlier, lang,
-                           rewritten=True, original=question,
-                           conversation=conversation)               # clear English -> normal engine
-        if view and view["kind"] == "smalltalk" and not related:
-            chat = understand.smalltalk(question, ask_model)
-            return response.message(chat or texts.en("help_ask"))
-        if not related:
-            return response.message(texts.en("off_topic"))
-        # related by keyword (e.g. "room", "cite"): carry on to the model below
 
     # ---- the language model (role only, no private details)
     context = build_user_context(user)
@@ -387,6 +453,18 @@ def _learn_about_program(db, question, topic, user, *, earlier=None, conversatio
                          resolve_spelling=True):
     """Teach about a NEMSU program from official pages, with a general intro if needed."""
     topic = normalize(topic or question)
+    padded_topic = f" {topic} "
+    known_program = any(
+        alias and f" {alias} " in padded_topic
+        for row in campus_service.list_info(db)
+        for alias in [normalize(row.get("topic", ""))]
+                   + [normalize(item) for item in (row.get("keywords") or "").split(";")]
+        if len(alias) >= 3
+    )
+    if not known_program:
+        # Teach the subject itself. Don't present a loosely matching college page as a source.
+        return _general_reply(f"Teach me about {topic}", conversation)
+
     info = campus_service.lookup(db, topic) or campus_service.lookup(db, question)
     docs = [d for d in knowledge_service.search(db, topic, limit=3)
             if d.get("source_type") == "nemsu_page"]

@@ -62,6 +62,26 @@ TEXTS = {
         "Of course! What would you like to learn about? Tell me a subject or NEMSU program.",
         "Siyempre! Ano ang gusto mong matutuhan? Sabihin mo lang ang paksa o programa sa NEMSU.",
         "Sige! Unsa ang gusto nimong makat-onan? Isulti lang ang subject o programa sa NEMSU."),
+    "concern_ask": (
+        "I can listen. What is your concern about? I’ll only open a report form if you want to report a campus issue.",
+        "Makikinig ako. Ano ang concern mo? Magbubukas lang ako ng report form kung gusto mong mag-report ng problema sa campus.",
+        "Maminaw ko. Unsa imong concern? Magpakita ra ko og report form kung gusto nimong mo-report og problema sa campus."),
+    "form_already_shown": (
+        "The concern form is already open in this chat, below my earlier message. You can fill it out there, or tell me what part is confusing.",
+        "Nasa chat na ang concern form, sa ibaba ng nauna kong mensahe. Punan mo iyon, o sabihin kung aling bahagi ang nakakalito.",
+        "Naa na ang concern form sa chat, ubos sa akong miaging mensahe. Sulati kana, o ingna ko unsang bahin ang nakalibog."),
+    "system_feedback": (
+        "I’m sorry the chat has been confusing, and you’re right to call out an unrelated answer or source. I’ll keep to your question. What would you like to know or do next?",
+        "Pasensya na kung nakalito ang chat. Tama kang sabihin kapag hindi kaugnay ang sagot o source. Sasagot ako ayon sa tanong mo. Ano ang gusto mong malaman o gawin ngayon?",
+        "Pasensya kung nakalibog ang chat. Sakto nga imong gipahibalo kung dili angay ang tubag o source. Motubag ko sumala sa imong pangutana. Unsa ang gusto nimong mahibaw-an o buhaton karon?"),
+    "chat_confused": (
+        "Sorry, I may have misunderstood. Which part should I clarify?",
+        "Pasensya, baka mali ang pagkaintindi ko. Aling bahagi ang gusto mong linawin ko?",
+        "Pasensya, basin nasayop kog sabot. Unsang bahin ang gusto nimong ipatin-aw nako?"),
+    "campus_population_unknown": (
+        "I couldn’t verify separate student counts for {campuses} from the official information available to me. I don’t want to give you another campus’s number by mistake.",
+        "Wala akong ma-verify na magkakahiwalay na bilang ng estudyante para sa {campuses} mula sa opisyal na impormasyong mayroon ako. Ayokong maibigay ang bilang ng ibang campus.",
+        "Wala koy napamatud-ang bulag nga ihap sa estudyante para sa {campuses} gikan sa opisyal nga impormasyon nga naa nako. Dili ko gusto nga mahatag ang ihap sa laing campus."),
     "greeting_student": (
         "Hi there! Great to see you 😊 I'm NEMSAI, your NEMSU Tandag Main Campus assistant. "
         "What can I help you with today? I can help with campus locations, rooms, facilities, "
