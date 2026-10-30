@@ -344,6 +344,9 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if name == "faculty_availability":
         return _data(faculty_service.availability_reply(db, found["name"]))
 
+    if name == "faculty_availability_ask":
+        return response.message(texts.en("faculty_availability_ask"))
+
     if name == "faculty_return":
         return _data(faculty_service.return_reply(db, found["name"]))
 
@@ -545,11 +548,33 @@ def _program_curriculum_reply(db, question, user, earlier, conversation):
                            "third": "3", "3rd": "3", "fourth": "4", "4th": "4"}.get(
                                label, label)
 
+    program_label = knowledge_service.resolve_program_name(db, asked)
+    for row in campus_service.list_info(db):
+        if not row.get("topic", "").lower().startswith(("bachelor", "batsilyer", "master", "doctor", "diploma")):
+            continue
+        aliases = [row.get("topic", "")] + (row.get("keywords") or "").split(";")
+        if any(alias and f" {normalize(alias)} " in f" {normalize(asked)} " for alias in aliases):
+            program_label = row["topic"]
+            break
+
+    program_fillers = {"bachelor", "bachelors", "science", "arts", "degree", "program",
+                       "course", "courses", "subject", "subjects", "curriculum", "prospectus",
+                       "major", "in", "of", "the", "at", "what", "which", "are", "is",
+                       "bs", "bsc", "ba", "nemsu", "tandag", "campus", "campuses"}
+    program_terms = [word for word in normalize(program_label).split()
+                     if word not in program_fillers and len(word) > 2]
+
+    def matches_requested_program(doc):
+        if not program_terms:
+            return False
+        source = normalize(doc.get("title", "") + " " + doc.get("passage", ""))
+        return all(re.search(rf"\b{re.escape(term)}\b", source) for term in program_terms)
+
     def find_program_docs(query):
         matches = []
         for search_text in (query, f"{query} NEMSU Tandag curriculum prospectus major subjects"):
             for doc in knowledge_service.search(db, search_text, limit=5):
-                if doc.get("source_type") == "nemsu_page" and all(
+                if doc.get("source_type") == "nemsu_page" and matches_requested_program(doc) and all(
                         existing.get("source_url") != doc.get("source_url") for existing in matches):
                     matches.append(doc)
         return matches

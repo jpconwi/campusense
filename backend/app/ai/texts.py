@@ -78,6 +78,10 @@ TEXTS = {
         "Sorry, I may have misunderstood. Which part should I clarify?",
         "Pasensya, baka mali ang pagkaintindi ko. Aling bahagi ang gusto mong linawin ko?",
         "Pasensya, basin nasayop kog sabot. Unsang bahin ang gusto nimong ipatin-aw nako?"),
+    "faculty_availability_ask": (
+        "I can check the availability record for a specific instructor, but I don’t have a complete live roster of everyone on campus. Which instructor do you mean?",
+        "Maaari kong tingnan ang availability record ng isang partikular na instructor, pero wala akong kumpletong live na talaan ng lahat ng naroon sa campus. Sinong instructor ang tinutukoy mo?",
+        "Makasusi ko sa availability record sa usa ka piho nga instructor, pero wala koy kompletong live nga lista sa tanan nga naa sa campus. Kinsang instructor imong gipasabot?"),
     "campus_population_unknown": (
         "I couldn’t verify separate student counts for {campuses} from the official information available to me. I don’t want to give you another campus’s number by mistake.",
         "Wala akong ma-verify na magkakahiwalay na bilang ng estudyante para sa {campuses} mula sa opisyal na impormasyong mayroon ako. Ayokong maibigay ang bilang ng ibang campus.",

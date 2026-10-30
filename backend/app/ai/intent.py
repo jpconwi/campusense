@@ -284,7 +284,7 @@ def place_request(q):
     if _looks_like_form(q) or rooms_request(q, q):
         return None
     asks_where = (has(q, *LOCATION_ASK, "maps", "google map", "google maps")
-                  or has(q, "not the main", "not nemsu main", "not the department",
+                  or has(q, "i mean", "i meant", "not the main", "not nemsu main", "not the department",
                          "not department", "wrong map", "main campus not"))
     if not asks_where and has(q, "available", "availability", "open", "closed", "hours",
                               "schedule", "time", "reserve"):
@@ -539,7 +539,9 @@ def detect(db, question, role):
         has(q, "curriculum", "prospectus")
         or (has(q, "semester", "sem") and has(q, "subject", "subjects", "course", "courses"))
         or (named_program and has(q, "subjects", "courses")
-            and has(q, "what", "which", "list", "teach", "offer", "offered")))
+            and has(q, "what", "which", "list", "teach", "offer", "offered"))
+        or (has(q, "subject", "subjects", "course", "courses")
+            and bool(re.search(r"\b(?:bs|bsc|ba|bachelor of science|bachelor of arts)\s+", q))))
     if curriculum_question:
         return {"intent": "program_curriculum"}
 
@@ -632,6 +634,8 @@ def detect(db, question, role):
         target = _faculty_target(db, q)
         if target:
             return {"intent": "faculty_availability", "name": target}
+        if has(q, "who", "which") and has(q, "instructor", "teacher", "professor", "faculty"):
+            return {"intent": "faculty_availability_ask"}
 
     if not first_person and (has(q, "when") and has(q, "return", "back", "come back",
                                                     "coming back")
