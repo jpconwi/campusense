@@ -20,8 +20,6 @@ const timeNow = () => new Date().toLocaleTimeString([], { hour: "numeric", minut
 
 // ---------- Markdown (safe: React escapes every piece of text) ----------
 // Web addresses in an answer become real links (only http/https, so nothing unsafe can run).
-const URL_RE = /(https?:\/\/[^\s<>"]*[^\s<>".,;:!?)\]'])/g;
-
 function linkLabel(url) {
   try {
     const u = new URL(url);
@@ -32,21 +30,32 @@ function linkLabel(url) {
   }
 }
 
-function Linked({ text }) {
-  return text.split(URL_RE).map((part, i) =>
-    /^https?:\/\//.test(part)
-      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer">{linkLabel(part)}</a>
-      : <Fragment key={i}>{part}</Fragment>);
-}
-
 function Inline({ text }) {
-  return text.split(/(\*\*.+?\*\*)/g).map((part, i) =>
-    /^\*\*.+\*\*$/.test(part) ? <strong key={i}>{part.slice(2, -2)}</strong> : <Linked key={i} text={part} />);
+  const token = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>"]*[^\s<>".,;:!?)\]'])|\*\*(.+?)\*\*|__(.+?)__|`([^`]+)`|\*([^*]+)\*|_([^_]+)_/g;
+  const nodes = [];
+  let from = 0, match, key = 0;
+  while ((match = token.exec(text))) {
+    if (match.index > from) nodes.push(<Fragment key={key++}>{text.slice(from, match.index).replace(/\*\*/g, "")}</Fragment>);
+    if (match[2]) {
+      nodes.push(<a key={key++} href={match[2]} target="_blank" rel="noopener noreferrer"><Inline text={match[1]} /></a>);
+    } else if (match[3]) {
+      nodes.push(<a key={key++} href={match[3]} target="_blank" rel="noopener noreferrer">{linkLabel(match[3])}</a>);
+    } else if (match[4] || match[5]) {
+      nodes.push(<strong key={key++}><Inline text={match[4] || match[5]} /></strong>);
+    } else if (match[6]) {
+      nodes.push(<code key={key++}>{match[6]}</code>);
+    } else {
+      nodes.push(<em key={key++}>{match[7] || match[8]}</em>);
+    }
+    from = token.lastIndex;
+  }
+  if (from < text.length) nodes.push(<Fragment key={key}>{text.slice(from).replace(/\*\*/g, "")}</Fragment>);
+  return nodes;
 }
 
 function Markdown({ text }) {
   const blocks = [];
-  let para = [], list = null;
+  let para = [], list = null, code = null;
   const flushPara = () => {
     if (para.length) {
       blocks.push(<p key={blocks.length}>{para.map((l, i) => <Fragment key={i}>{i > 0 && <br />}<Inline text={l} /></Fragment>)}</p>);
@@ -62,6 +71,21 @@ function Markdown({ text }) {
   };
   for (const raw of text.split("\n")) {
     const line = raw.trim();
+    if (line.startsWith("```")) {
+      flushPara(); closeList();
+      if (code) {
+        blocks.push(<pre key={blocks.length}><code>{code.join("\n")}</code></pre>);
+        code = null;
+      } else code = [];
+      continue;
+    }
+    if (code) { code.push(raw); continue; }
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) {
+      flushPara(); closeList();
+      blocks.push(<h3 key={blocks.length}><Inline text={heading[2]} /></h3>);
+      continue;
+    }
     const ol = line.match(/^(\d+)\.\s+(.*)/);
     const ul = line.match(/^[-*]\s+(.*)/);
     if (ol || ul) {
@@ -72,6 +96,7 @@ function Markdown({ text }) {
     } else if (line === "") { flushPara(); closeList(); }
     else { closeList(); para.push(line); }
   }
+  if (code) blocks.push(<pre key={blocks.length}><code>{code.join("\n")}</code></pre>);
   flushPara(); closeList();
   return <>{blocks}</>;
 }

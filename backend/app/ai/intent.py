@@ -20,6 +20,19 @@ def has(q, *phrases):
     return any(f" {p} " in padded for p in phrases)
 
 
+def is_learning_request(q):
+    """Recognize learning intent by phrasing, without maintaining a list of subjects."""
+    q = normalize(q)
+    patterns = (
+        r"\b(?:teach me|teach us|learn about|explain|define|help me understand)\b.+",
+        r"\bwhat (?:is|are)\b.+",
+        r"\bwhat does\b.+\bmean\b",
+        r"\b(?:meaning|definition) of\b.+",
+        r"\b(?:difference between|how does|how do)\b.+",
+    )
+    return any(re.search(pattern, q) for pattern in patterns)
+
+
 STATUS_WORDS = [
     ("under review", "Under Review"), ("in progress", "In Progress"),
     ("pending", "Pending"), ("resolved", "Resolved"), ("rejected", "Rejected"),
@@ -532,10 +545,7 @@ def detect(db, question, role):
 
     study_help = (has(q, "exam", "exams", "test", "tests", "quiz")
                   and has(q, "pass", "study", "prepare", "review", "help", "how to"))
-    academic_subject = has(q, "subject", "subjects", "automata", "automaton", "dfa", "nfa",
-                           "finite automaton", "pushdown automaton", "turing machine", "discrete",
-                           "discreet", "calculus", "programming", "python", "data type",
-                           "data types", "foreign language")
+    academic_subject = has(q, "subject", "subjects")
     if study_help or academic_subject:
         return {"intent": "general_tutor"}
 
