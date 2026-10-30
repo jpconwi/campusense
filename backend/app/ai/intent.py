@@ -476,16 +476,6 @@ def detect(db, question, role):
                     "relationship", "dating", "breakup")):
         return {"intent": "personal_relationship_concern"}
 
-    study_help = (has(q, "exam", "exams", "test", "tests", "quiz")
-                  and has(q, "pass", "study", "prepare", "review", "help", "how to"))
-    automata_topic = has(q, "automata", "automaton", "dfa", "nfa", "finite automaton",
-                         "pushdown automaton", "turing machine")
-    concept_help = (automata_topic
-                    and has(q, "what is", "what are", "explain", "teach", "learn", "difference",
-                            "how does", "how do"))
-    if study_help or concept_help:
-        return {"intent": "general_tutor"}
-
     if re.fullmatch(r"(?:(?:can|could|will|would) you )?teach me(?: something)?(?: please)?", q):
         return {"intent": "learn_ask"}
 
@@ -526,18 +516,28 @@ def detect(db, question, role):
             or asks_bisaya_program_availability):
         return {"intent": "program_availability"}
 
+    named_program = any(
+        row.get("topic", "").lower().startswith(("bachelor", "batsilyer", "master", "doctor", "diploma"))
+        and any(alias and f" {normalize(alias)} " in f" {q} "
+                for alias in [row.get("topic", "")] + (row.get("keywords") or "").split(";"))
+        for row in campus_service.list_info(db)
+    )
     curriculum_question = (
         has(q, "curriculum", "prospectus")
-        or (has(q, "semester", "sem") and has(q, "subject", "subjects", "course", "courses",
-                                                "program", "in", "for", "of"))
-        or (has(q, "subjects", "courses")
-            and has(q, "in", "for", "of", "teach", "study", "studies", "program",
-                    "what", "which", "list", "offer", "offered"))
-        or (has(q, "subject", "course")
-            and has(q, "what", "which", "list", "teach", "offer", "offered")
-            and has(q, "in", "for", "of", "by", "from")))
+        or (has(q, "semester", "sem") and has(q, "subject", "subjects", "course", "courses"))
+        or (named_program and has(q, "subjects", "courses")
+            and has(q, "what", "which", "list", "teach", "offer", "offered")))
     if curriculum_question:
         return {"intent": "program_curriculum"}
+
+    study_help = (has(q, "exam", "exams", "test", "tests", "quiz")
+                  and has(q, "pass", "study", "prepare", "review", "help", "how to"))
+    academic_subject = has(q, "subject", "subjects", "automata", "automaton", "dfa", "nfa",
+                           "finite automaton", "pushdown automaton", "turing machine", "discrete",
+                           "discreet", "calculus", "programming", "python", "data type",
+                           "data types", "foreign language")
+    if study_help or academic_subject:
+        return {"intent": "general_tutor"}
 
     learn_request = re.search(
         r"\b(?:teach me about|teach me|learn about|learn|tell me about|explain)\s+(.+)", q)

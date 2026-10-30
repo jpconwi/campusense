@@ -231,6 +231,10 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     role = user.role if user else "student"
     found = intents.detect(db, question, role)
     name = found["intent"]
+    if (name == "general" and len(normalize(question).split()) <= 2
+            and not _is_campus_related(question)):
+        # A short subject name such as "calculus?" is a valid question, not a bad campus query.
+        return _general_reply(question, conversation)
 
     if name == "greeting":
         return _greeting(role)
