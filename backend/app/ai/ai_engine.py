@@ -240,6 +240,42 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         if _is_explanation_followup(normalized):
             return _explain_previous_answer(db, question, user, conversation, lang)
 
+    # "Give me the source/link" refers to the answer immediately above. Resolve it
+    # from that answer's citations instead of launching an unrelated campus search.
+    if re.search(r"\b(?:give|show|send|share|provide|where(?:'s| is| did you get))\b.*\b(?:source|sources|link|links|reference|citation)\b",
+                 normalized):
+        previous = next((m.get("text", "") for m in reversed(conversation or [])
+                         if m.get("role") == "ai"), "")
+        previous_question = next((m.get("text", "") for m in reversed(conversation or [])
+                                  if m.get("role") == "user"), "")
+        # A student may paste a whole page and then ask about one line at the end.
+        source_query = previous_question[-600:]
+        directory_person = knowledge_service.directory_lookup(db, source_query) if source_query else None
+        if directory_person:
+            return response.message(
+                "The relevant source is the NEMSU University Directory: "
+                f"[Open the Directory]({directory_person['source_url']})")
+        relevant_docs = knowledge_service.search(db, source_query, limit=3) if source_query else []
+        cited_urls = set(re.findall(r"https?://[^\s)\]>]+", previous))
+        relevant_citations = [doc for doc in relevant_docs
+                              if any(doc.get("source_url", "").rstrip(".,;") in url
+                                     or url in doc.get("source_url", "")
+                                     for url in cited_urls)]
+        if relevant_citations:
+            return response.message("Here is the source most relevant to your previous question:\n\n"
+                                    + knowledge_service.sources_text(relevant_citations[:2]))
+        links = re.findall(r"\[([^\]]+)\]\((https?://[^\s)]+)\)", previous)
+        if not links:
+            links = [(url, url.rstrip(".,;")) for url in
+                     re.findall(r"https?://[^\s<>]+", previous)]
+        unique_links = list(dict.fromkeys((label.strip("* "), url.rstrip(".,;"))
+                                          for label, url in links))
+        if unique_links:
+            sources = "\n".join(f"- [{label or 'Official source'}]({url})"
+                                 for label, url in unique_links[:5])
+            return response.message("Here are the sources cited in my previous answer:\n\n" + sources)
+        return response.message("I don't see a source link in my previous answer. Tell me which claim you want sourced, and I'll look it up.")
+
     role = user.role if user else "student"
     found = intents.detect(db, question, role)
     name = found["intent"]
@@ -430,6 +466,15 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         hint = texts.say("hours", lang)            # joined with contact info, so translated here
         contact = campus_service.lookup(db, "nemsu contact numbers")
         return response.message(f"{hint}\n\n{contact}" if contact and "http" not in contact else hint)
+
+    directory_person = knowledge_service.directory_lookup(db, question)
+    if directory_person:
+        answer = (f"{directory_person['name']} is listed as {directory_person['designation']} "
+                  "in the NEMSU University Directory.")
+        if directory_person.get("email"):
+            answer += f"\nEmail: {directory_person['email']}"
+        answer += f"\n\nSource: [NEMSU University Directory]({directory_person['source_url']})"
+        return _data(answer)
 
     if intents.is_learning_request(question):
         return _general_reply(question, conversation)

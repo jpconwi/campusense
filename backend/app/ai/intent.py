@@ -476,6 +476,7 @@ def detect(db, question, role):
         return {"intent": "empty"}
 
     if (has(q, "president", "suc president")
+            and not has(q, "vice president", "vice-president", "vicepresident")
             and has(q, "nemsu", "university", "who", "name", "know", "current",
                     "did you know", "who is", "who was")):
         return {"intent": "nemsu_president"}

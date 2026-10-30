@@ -364,6 +364,61 @@ def search(db: Session, question, limit=MAX_DOCS):
     return rank(_rows(db), question, limit)
 
 
+def directory_lookup(db: Session, question):
+    """Find an explicitly listed person from the official Directory table."""
+    query_terms = set(keywords(question))
+    if not query_terms:
+        return None
+    candidates = []
+    for row in _rows(db, official=True):
+        if row.get("source_type") != OFFICIAL or urlsplit(row.get("source_url", "")).path.rstrip("/") != "/directory":
+            continue
+        lines = [line.strip() for line in tidy(row.get("content", "")).splitlines() if line.strip()]
+        records = []
+        for line in lines:
+            columns = [part.strip() for part in line.split("|")]
+            if len(columns) >= 2:
+                records.append(columns)
+        # Older syncs stored table cells on separate lines. Read the four-column
+        # directory rows in order as a fallback until the page is synced again.
+        if not records:
+            for index, line in enumerate(lines):
+                if normalize(line) != "name" or index + 4 >= len(lines):
+                    continue
+                header = [normalize(value) for value in lines[index:index + 4]]
+                if header != ["name", "office designation", "contact number", "email address"]:
+                    continue
+                cursor = index + 4
+                while cursor + 3 < len(lines):
+                    values = lines[cursor:cursor + 4]
+                    if normalize(values[0]) in {"other university wide designations", "latest news", "name"}:
+                        break
+                    records.append(values)
+                    cursor += 4
+        for columns in records:
+            if len(columns) < 2 or normalize(columns[0]) in {"name", "directory listings"}:
+                continue
+            name, designation = columns[0], columns[1]
+            if len(name.split()) < 2 or len(designation.split()) < 2:
+                continue
+            role_hits = query_terms & set(keywords(designation))
+            name_hits = query_terms & set(keywords(name))
+            # Require a clear match to the role or to a multiword name. This keeps
+            # generic questions like "who is the president?" out of this lookup.
+            if len(role_hits) >= 2 or len(name_hits) >= 2:
+                candidates.append((len(role_hits) * 2 + len(name_hits), len(role_hits),
+                                   name, designation, columns, row))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    best = candidates[0]
+    if len(candidates) > 1 and candidates[1][:2] == best[:2]:
+        return None
+    email = next((part for part in best[4][2:] if "@" in part), None)
+    return {"name": best[2], "designation": best[3], "email": email,
+            "source_url": best[5]["source_url"]}
+
+
 def latest(db: Session, limit=3):
     return _rows(db, limit, official=False)               # "latest news" never lists pages
 

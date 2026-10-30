@@ -756,8 +756,18 @@ def parse_official_page(html, url):
         tag.decompose()
     box = soup.find("main") or soup.find("article") or soup.body or soup
     html_lines = [ln for ln in clean_text(box.get_text("\n")).split("\n")]
+    # Keep table records intact. Splitting each cell onto its own line can detach a
+    # staff member's name from their designation during retrieval.
+    table_lines = []
+    for table in box.find_all("table"):
+        for tr in table.find_all("tr"):
+            cells = [clean_text(cell.get_text(" ", strip=True))
+                     for cell in tr.find_all(["th", "td"])]
+            cells = [cell for cell in cells if cell]
+            if len(cells) > 1:
+                table_lines.append(" | ".join(cells))
     lines, seen = [], set()
-    for line in [description, *html_lines, *json_lines]:
+    for line in [description, *html_lines, *table_lines, *json_lines]:
         key = line.lower().strip()
         if not key:
             if lines and lines[-1]:
