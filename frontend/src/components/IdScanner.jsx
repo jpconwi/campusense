@@ -4,9 +4,10 @@
  *
  * - "Scan" opens a full-screen camera with a frame, corner brackets and a red scan line (rear camera on phones).
  * - The photo is cropped to the frame, so only the document is saved (JPEG, well under the server's 5 MB limit).
- * - If the browser has no camera access (plain http on a phone, or permission denied) the same buttons fall back
- *   to the phone's own camera app / gallery through a file input.
- * - Camera access in browsers needs HTTPS (or localhost). On http the fallback is used automatically.
+ * - Desktop: upload only (no camera button).
+ * - Phone with camera access: the in-page scanner. The phone's own camera app is never opened.
+ * - Phone without camera access (plain http, Messenger/Facebook in-app browser, permission blocked): upload only,
+ *   with a short note. Camera access in browsers needs HTTPS (or localhost).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./scanner.css";
@@ -16,6 +17,19 @@ export const KINDS = {
   "id-back": { title: "School ID - back", short: "ID SCAN", ratio: 1.586, hint: "Fit the back of your ID inside the frame", file: "school-id-back.jpg" },
   cor: { title: "Certificate of Registration (COR)", short: "COR SCAN", ratio: 0.72, hint: "Fit the whole COR page inside the frame", file: "cor.jpg" },
 };
+/** Phones/tablets (touch first). Desktop browsers get upload only. */
+function isMobileDevice() {
+  if (typeof window === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  return coarse || /Android|iPhone|iPad|iPod|Mobi/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+}
+/** Can this page open an in-page camera right now? */
+function cameraApiReady() {
+  return !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+}
+const IN_APP = /FBAN|FBAV|FB_IAB|Messenger|Instagram|Line\/|MicroMessenger/i;
+
 const MAX_BYTES = 5 * 1024 * 1024;
 const OK_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
@@ -61,10 +75,12 @@ export default function IdScanner({ kind = "id-front", file, onChange, required 
   const [error, setError] = useState("");
   const [warns, setWarns] = useState([]);
   const [url, setUrl] = useState("");
+  const [mobile] = useState(isMobileDevice);
+  const [camOk] = useState(cameraApiReady);
+  const [blocked, setBlocked] = useState(false);          // camera permission was refused
   const videoRef = useRef(null);
   const frameRef = useRef(null);
   const uploadRef = useRef(null);
-  const nativeRef = useRef(null);
   const openerRef = useRef(null);
 
   // preview URL for the chosen file
@@ -86,10 +102,10 @@ export default function IdScanner({ kind = "id-front", file, onChange, required 
         const v = videoRef.current; v.srcObject = stream; await v.play(); setReady(true);
       } catch (e) {
         if (stopped) return;
-        setOpen(false);
+        setOpen(false); setBlocked(true);
         setError(e && e.name === "NotAllowedError"
-          ? "Camera permission was blocked. Allow the camera in your browser, or use Upload / Take photo."
-          : "The camera could not start. Use Upload / Take photo instead.");
+          ? "Camera permission was blocked. Allow the camera in your browser settings, or upload a photo."
+          : "The camera could not start. Upload a photo instead.");
       }
     })();
     const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
@@ -120,9 +136,8 @@ export default function IdScanner({ kind = "id-front", file, onChange, required 
   }, [onChange]);
 
   function start(e) {
-    openerRef.current = e.currentTarget; setError("");
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext) setOpen(true);
-    else nativeRef.current.click();                 // no camera API here: use the phone's camera app
+    openerRef.current = e.currentTarget; setError(""); setBlocked(false);
+    setOpen(true);
   }
 
   function shoot() {
@@ -149,6 +164,12 @@ export default function IdScanner({ kind = "id-front", file, onChange, required 
   }
 
   const portrait = K.ratio < 1;
+  const canScan = mobile && camOk && !blocked;            // phone + camera available: show the scanner button
+  const inApp = IN_APP.test(navigator.userAgent || "");
+  const note = mobile && !canScan
+    ? (inApp ? "This in-app browser blocks the camera. Open the page in Safari or Chrome to scan, or upload a photo."
+             : !camOk ? "Camera scanning needs a secure (https) page. You can upload a photo instead." : "")
+    : "";
   return (
     <div className="ids ids-card" style={{ "--r": K.ratio }}>
       <div className="ids-card-head">
@@ -177,14 +198,17 @@ export default function IdScanner({ kind = "id-front", file, onChange, required 
       </div>
 
       {error && <p className="ids-err" role="alert">{error}</p>}
+      {!error && note && !file && <p className="ids-warn">{note}</p>}
       {!error && warns.length > 0 && file && warns.map((w) => <p className="ids-warn" key={w}>{w}</p>)}
 
       <div className="ids-actions">
-        <button type="button" className="ids-btn primary" onClick={start} disabled={disabled}>
-          <Ico d={file ? I.redo : I.cam} />{file ? "Retake" : "Scan with camera"}
-        </button>
-        <button type="button" className="ids-btn ghost" onClick={() => uploadRef.current.click()} disabled={disabled}>
-          <Ico d={I.up} />Upload
+        {canScan && (
+          <button type="button" className="ids-btn primary" onClick={start} disabled={disabled}>
+            <Ico d={file ? I.redo : I.cam} />{file ? "Retake" : "Scan with camera"}
+          </button>
+        )}
+        <button type="button" className={"ids-btn " + (canScan ? "ghost" : "primary")} onClick={() => uploadRef.current.click()} disabled={disabled}>
+          <Ico d={I.up} />{file && !canScan ? "Choose another" : "Upload"}
         </button>
         {file && (
           <button type="button" className="ids-btn danger" onClick={() => { onChange(null); setWarns([]); setError(""); }} disabled={disabled}>
@@ -194,8 +218,6 @@ export default function IdScanner({ kind = "id-front", file, onChange, required 
       </div>
 
       <input ref={uploadRef} type="file" accept="image/jpeg,image/png,image/webp" hidden
-             onChange={(e) => { accept(e.target.files[0]); e.target.value = ""; }} />
-      <input ref={nativeRef} type="file" accept="image/*" capture="environment" hidden
              onChange={(e) => { accept(e.target.files[0]); e.target.value = ""; }} />
 
       {open && (

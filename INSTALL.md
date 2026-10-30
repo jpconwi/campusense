@@ -25,8 +25,12 @@ appendScans(fd, docs);
 // disable the Submit button until canSubmit(docs) is true (server needs the ID front OR the COR)
 ```
 
-Camera access in browsers only works on HTTPS (or localhost). On plain http, or if permission is blocked,
-the same buttons open the phone's camera app / gallery instead, so registration never gets stuck.
+How it behaves:
+
+- Desktop: Upload only (no camera button).
+- Phone with camera access: "Scan with camera" opens the in-page scanner. The phone's own camera app is never opened.
+- Phone without camera access (plain http, Messenger/Facebook in-app browser, permission blocked): Upload only, with a short note.
+  Browsers only allow the in-page camera on HTTPS (or localhost).
 
 ## Remove the microphone buttons
 
