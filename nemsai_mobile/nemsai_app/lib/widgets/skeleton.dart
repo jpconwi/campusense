@@ -76,12 +76,11 @@ class Sk extends StatelessWidget {
 }
 
 class _SkCard extends StatelessWidget {
-  const _SkCard({required this.child, this.pad = 16});
+  const _SkCard({required this.child});
   final Widget child;
-  final double pad;
   @override
   Widget build(BuildContext context) => Container(
-        padding: EdgeInsets.all(pad),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
