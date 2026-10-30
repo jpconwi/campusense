@@ -11,6 +11,7 @@ Order of work for every question:
 
 import difflib
 import re
+from datetime import datetime, timedelta, timezone
 
 from app.ai import intent as intents
 from app.ai import language, response, style, texts, understand
@@ -279,6 +280,59 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     role = user.role if user else "student"
     found = intents.detect(db, question, role)
     name = found["intent"]
+    if name == "current_day":
+        philippine_time = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
+        date_text = philippine_time.strftime("%A, %B %d, %Y").replace(" 0", " ")
+        return response.message(f"Today in the Philippines is {date_text}.")
+
+    if name == "college_day":
+        colleges = found.get("colleges", [])
+        query = " ".join([*colleges, "college day", "college event", "date schedule"])
+        docs = knowledge_service.search(db, query, limit=10)
+        docs = [doc for doc in docs
+                if any(phrase in normalize(doc.get("title", "") + " " + doc.get("passage", ""))
+                       for phrase in ("college day", "college days", "college week"))
+                and (not colleges or any(normalize(college) in normalize(
+                    doc.get("title", "") + " " + doc.get("passage", ""))
+                                         for college in colleges))]
+        if not docs:
+            if colleges:
+                scope = ", ".join(colleges)
+                return response.message(
+                    f"I couldn't verify the {scope} Day date in the official NEMSU information "
+                    "currently indexed. Please tell me the campus and school year, or check with "
+                    "the college's official announcements; I don't want to guess a date.")
+            return response.message(
+                "I couldn't verify the college-day dates in the official NEMSU information "
+                "currently indexed. Which campus and school year are you asking about?")
+        context = build_user_context(user)
+        prompt = build_system_prompt(db, context["role"], news=knowledge_service.for_prompt(docs))
+        prompt += ("\n\nCOLLEGE DAY ANSWER RULE: Give a date only if one of these sources explicitly "
+                   "states it. Keep college, campus, and school year distinct. If a requested date "
+                   "is absent, say it is not listed. Never infer a schedule.")
+        answer = ask_model(prompt, question)
+        if not answer or response.NO_INFO.lower() in answer.lower():
+            answer = "The indexed official NEMSU sources don't give a confirmed date for that college day."
+        return response.message(answer + "\n\n" + knowledge_service.sources_text(docs))
+
+    directory_person = knowledge_service.directory_lookup(db, question)
+    if directory_person:
+        if directory_person.get("matches"):
+            answer = "The NEMSU University Directory lists these vice-presidential officials:\n"
+            for person in directory_person["matches"]:
+                answer += f"\n- **{person['name']}** — {person['designation']}"
+                if person.get("email"):
+                    answer += f"; {person['email']}"
+            source_url = directory_person["source_url"]
+        else:
+            answer = (f"{directory_person['name']} is listed as {directory_person['designation']} "
+                      "in the NEMSU University Directory.")
+            if directory_person.get("email"):
+                answer += f"\nEmail: {directory_person['email']}"
+            source_url = directory_person["source_url"]
+        answer += f"\n\nSource: [NEMSU University Directory]({source_url})"
+        return _data(answer)
+
     if (name == "general" and len(normalize(question).split()) <= 2
             and not _is_campus_related(question)):
         # A short subject name such as "calculus?" is a valid question, not a bad campus query.
@@ -466,15 +520,6 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         hint = texts.say("hours", lang)            # joined with contact info, so translated here
         contact = campus_service.lookup(db, "nemsu contact numbers")
         return response.message(f"{hint}\n\n{contact}" if contact and "http" not in contact else hint)
-
-    directory_person = knowledge_service.directory_lookup(db, question)
-    if directory_person:
-        answer = (f"{directory_person['name']} is listed as {directory_person['designation']} "
-                  "in the NEMSU University Directory.")
-        if directory_person.get("email"):
-            answer += f"\nEmail: {directory_person['email']}"
-        answer += f"\n\nSource: [NEMSU University Directory]({directory_person['source_url']})"
-        return _data(answer)
 
     if intents.is_learning_request(question):
         return _general_reply(question, conversation)

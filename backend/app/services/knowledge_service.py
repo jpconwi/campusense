@@ -367,6 +367,7 @@ def search(db: Session, question, limit=MAX_DOCS):
 def directory_lookup(db: Session, question):
     """Find an explicitly listed person from the official Directory table."""
     query_terms = set(keywords(question))
+    query_terms.discard("mean")  # conversational correction: "I mean, who is..."
     if not query_terms:
         return None
     candidates = []
@@ -410,6 +411,15 @@ def directory_lookup(db: Session, question):
                                    name, designation, columns, row))
     if not candidates:
         return None
+    if query_terms == {"vice", "president"}:
+        vice_presidents = [item for item in candidates
+                           if {"vice", "president"} <= set(keywords(item[3]))]
+        unique = {}
+        for item in vice_presidents:
+            unique[item[2]] = {"name": item[2], "designation": item[3],
+                               "email": next((part for part in item[4][2:] if "@" in part), None)}
+        if unique:
+            return {"matches": list(unique.values()), "source_url": vice_presidents[0][5]["source_url"]}
     candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
     best = candidates[0]
     if len(candidates) > 1 and candidates[1][:2] == best[:2]:

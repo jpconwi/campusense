@@ -286,6 +286,10 @@ def place_request(q):
     asks_where = (has(q, *LOCATION_ASK, "maps", "google map", "google maps")
                   or has(q, "i mean", "i meant", "not the main", "not nemsu main", "not the department",
                          "not department", "wrong map", "main campus not"))
+    # The president place alias must not turn leadership questions into map requests.
+    explicit_location = has(q, *LOCATION_ASK, "maps", "google map", "google maps")
+    if has(q, "vice president", "vice-president", "vicepresident") and not explicit_location:
+        return None
     if not asks_where and has(q, "available", "availability", "open", "closed", "hours",
                               "schedule", "time", "reserve"):
         return None                      # "is the library available?" is not a map question
@@ -309,6 +313,37 @@ def is_campus_location(q):
     if not has(q, *CAMPUS_ANCHORS):
         return False
     return has(q, *LOCATION_ASK)
+
+
+_COLLEGE_DAY_ALIASES = {
+    "CBM": ("cbm", "business and management"),
+    "CITE": ("cite", "information technology education", "ict education"),
+    "CAS": ("cas", "arts and sciences"),
+    "CTE": ("cte", "educ", "teacher education"),
+    "CET": ("cet", "engineering and technology", "engineering"),
+    "CAF": ("caf", "agriculture and forestry"),
+    "CFAS": ("cfas", "fisheries and aquatic sciences"),
+    "CCJE": ("ccje", "criminal justice education"),
+    "COA": ("coa", "accountancy"),
+    "COL": ("col", "college of law", "law college"),
+    "COM": ("com", "college of medicine", "medicine college"),
+}
+
+
+def college_day_request(q):
+    if not has(q, "day", "days", "college day", "college days"):
+        return None
+    colleges = [college for college, aliases in _COLLEGE_DAY_ALIASES.items()
+                if has(q, *aliases)]
+    if colleges or has(q, "college day", "college days"):
+        return colleges
+    return None
+
+
+def current_day_request(q):
+    return bool(re.search(
+        r"\b(?:what day (?:is it|is today|now)|what is todays date|what date is it|current date|todays date)\b",
+        q))
 
 
 # --------------------------------------------------------- extraction
@@ -474,6 +509,12 @@ def detect(db, question, role):
 
     if not q:
         return {"intent": "empty"}
+
+    if current_day_request(q):
+        return {"intent": "current_day"}
+    colleges = college_day_request(q)
+    if colleges is not None:
+        return {"intent": "college_day", "colleges": colleges}
 
     if (has(q, "president", "suc president")
             and not has(q, "vice president", "vice-president", "vicepresident")
