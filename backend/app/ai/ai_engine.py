@@ -299,6 +299,14 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
             return response.message(texts.en("my_name", value=user.name))
         return response.message(texts.en("my_role", value=role))
 
+    if name == "nemsu_president":
+        info = campus_service.lookup(db, "who is the president of nemsu")
+        if info:
+            return _data(info)
+        return response.message(
+            "I couldn't verify the current NEMSU president in my indexed official information. "
+            "The official University Directory is here: https://nemsu.edu.ph/directory")
+
     if name == "campus_location":               # fixed answer + map, never the LLM
         return response.map_card(texts.en("campus_location"), CAMPUS_MAP_URL, CAMPUS_EMBED_URL)
 

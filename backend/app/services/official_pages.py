@@ -9,6 +9,7 @@ OFFICIAL_PAGES = [
     # about / leadership
     "https://nemsu.edu.ph/about/board-of-regents",
     "https://nemsu.edu.ph/about/office-of-the-president",
+    "https://nemsu.edu.ph/directory",
     # administration
     "https://nemsu.edu.ph/administration/vpaf",
     "https://nemsu.edu.ph/administration/good-governance",

@@ -42,6 +42,17 @@ STOP = {
     "naa", "nga", "ni", "si", "ug", "og", "para", "ito", "yung", "yang", "mag", "kung",
 }
 
+# Common ways students refer to the same kinds of official NEMSU information.
+# Expand only when a query contains one of these terms so ordinary searches stay precise.
+_QUERY_SYNONYMS = {
+    "achievement": {"accomplishment", "award", "recognition", "honor", "honour", "distinction"},
+    "accomplishment": {"achievement", "award", "recognition", "honor", "honour", "distinction"},
+    "award": {"achievement", "accomplishment", "recognition", "honor", "honour", "distinction"},
+    "recognition": {"achievement", "accomplishment", "award", "honor", "honour", "distinction"},
+    "profile": {"biography", "bio", "background", "career", "education"},
+    "biography": {"profile", "bio", "background", "career", "education"},
+}
+
 
 # Older syncs saved typographic marks as 'â€' + letters (and NFKC turned the trade-mark sign
 # into the letters 'TM'). These are the usual ones; tidy() puts the real characters back.
@@ -90,6 +101,11 @@ def keywords(question):
     return list(dict.fromkeys(_stem(w) for w in words))
 
 
+def _matches(query_word, text_words):
+    variants = {query_word, *_QUERY_SYNONYMS.get(query_word, ())}
+    return variants & text_words
+
+
 def _words(text):
     return {_stem(w) for w in normalize(text).split()}
 
@@ -97,9 +113,10 @@ def _words(text):
 def score(words, title, content, official=False):
     """(score, matched) for one document."""
     t, c = _words(title), _words(content)
-    matched = [w for w in words if w in t or w in c]
+    matched = [w for w in words if _matches(w, t | c)]
     # a word in the title is worth 3, and 1 more if the body also has it; body only = 1
-    points = sum((3 + (1 if w in c else 0)) if w in t else 1 for w in matched)
+    points = sum((3 + (1 if _matches(w, c) else 0)) if _matches(w, t) else 1
+                 for w in matched)
     ok = len(matched) >= 2 and points >= MIN_SCORE
     if official and ((matched and points >= PAGE_MIN_SCORE)      # "who is the president"
                      or len(matched) >= 2):                      # "who is the dean of cite"
@@ -108,25 +125,35 @@ def score(words, title, content, official=False):
 
 
 def best_passage(content, words, limit=MAX_CHARS_PER_DOC):
-    """The paragraphs of an article that mention most of the question's words."""
+    """Select matching lines with nearby context, preserving names, roles, and headings."""
     parts = [p.strip() for p in tidy(content).split("\n") if p.strip()]
     if not parts:
         return ""
     if sum(len(p) for p in parts) <= limit:
         return "\n".join(parts)
-    ranked = sorted(range(len(parts)),
-                    key=lambda i: (-sum(1 for w in words if w in _words(parts[i])), i))
-    chosen, used = [], 0
+    scores = [sum(1 for w in words if _matches(w, _words(part))) for part in parts]
+    # A matching line often contains only a person's name or a label; the fact itself
+    # (position, award, or explanation) is on the next line. Grow a small window around
+    # each match so the model receives that evidence together.
+    ranked = sorted((i for i, value in enumerate(scores) if value),
+                    key=lambda i: (-scores[i], i))
+    selected = set()
     for i in ranked:
-        piece = len(parts[i]) + 1
-        if used + piece > limit:
-            if not chosen:                      # one huge paragraph: cut it
-                parts[i] = parts[i][:limit - 1]
-                chosen.append(i)
+        window = range(max(0, i - 1), min(len(parts), i + 3))
+        added = [j for j in window if j not in selected]
+        if not added:
             continue
-        chosen.append(i)
-        used += piece
-    return "\n".join(parts[i] for i in sorted(chosen))
+        size = sum(len(parts[j]) + 1 for j in added)
+        current = sum(len(parts[j]) + 1 for j in selected)
+        if current + size <= limit:
+            selected.update(added)
+        elif not selected:
+            parts[i] = parts[i][:max(1, limit - 1)]
+            selected.add(i)
+            break
+    if not selected:
+        return ""
+    return "\n".join(parts[i] for i in sorted(selected))
 
 
 def rank(rows, question, limit=MAX_DOCS):

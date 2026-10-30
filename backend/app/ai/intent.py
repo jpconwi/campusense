@@ -475,6 +475,11 @@ def detect(db, question, role):
     if not q:
         return {"intent": "empty"}
 
+    if (has(q, "president", "suc president")
+            and has(q, "nemsu", "university", "who", "name", "know", "current",
+                    "did you know", "who is", "who was")):
+        return {"intent": "nemsu_president"}
+
     if denied_record_request(q):
         return {"intent": "record_privacy_complaint"}
     if has(q, "0 10", "0 out of 10", "rating the system", "rate the system",
