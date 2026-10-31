@@ -73,9 +73,13 @@ class Message extends StatelessWidget {
       decoration: BoxDecoration(
         color: isOk ? C.okBg : Colors.white,
         borderRadius: BorderRadius.circular(8),
-        border: Border(left: BorderSide(color: color, width: 4), top: const BorderSide(color: C.line), right: const BorderSide(color: C.line), bottom: const BorderSide(color: C.line)),
+        border: Border.all(color: C.line),
       ),
-      child: Text(text, style: TextStyle(color: isError ? C.error : C.ink)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(width: 4, height: 20, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text, style: TextStyle(color: isError ? C.error : C.ink))),
+      ]),
     );
   }
 }
