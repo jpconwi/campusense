@@ -27,7 +27,23 @@ export function AuthProvider({ children }) {
     setUnauthorizedHandler(() => setState((s) => ({ ...s, user: null, nav: [] })));
   }, [refresh]);
 
+  // Count time only while the signed-in site is open in a foreground tab.
+  useEffect(() => {
+    if (!state.user) return undefined;
+    const send = () => {
+      if (document.visibilityState === "visible") api("/api/activity/heartbeat", { method: "POST" }).catch(() => {});
+    };
+    send();
+    const timer = window.setInterval(send, 60_000);
+    document.addEventListener("visibilitychange", send);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", send);
+    };
+  }, [state.user]);
+
   const logout = useCallback(async () => {
+    try { await api("/api/activity/offline", { method: "POST" }); } catch { /* presence expires automatically */ }
     try { await api("/api/auth/logout", { method: "POST" }); } catch { /* already signed out */ }
     await refresh();
     setFlash({ text: "You have been signed out.", kind: "info" });

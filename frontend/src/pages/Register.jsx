@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
@@ -17,6 +17,9 @@ export default function Register() {
   const [idBackFile, setIdBackFile] = useState(null);
   const [corFile, setCorFile] = useState(null);
   const [aiConsent, setAiConsent] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractionMessage, setExtractionMessage] = useState("");
+  const extractionRequest = useRef(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -32,6 +35,29 @@ export default function Register() {
 
   if (!loading && user) return <Navigate to="/" replace />;
 
+  async function extractStudentInfo(file, consentGranted = aiConsent, type = registrationType) {
+    if (!file || !consentGranted || type !== "student") return;
+    const requestId = ++extractionRequest.current;
+    setExtracting(true);
+    setFullName("");
+    setStudentId("");
+    setExtractionMessage("Reading the name and student ID from your document...");
+    const form = new FormData();
+    form.append("scan_document", file);
+    form.append("consent", "true");
+    try {
+      const result = await api("/api/auth/student-registration/extract", { method: "POST", form });
+      if (requestId !== extractionRequest.current) return;
+      if (result.full_name) setFullName(result.full_name);
+      if (result.student_id) setStudentId(result.student_id);
+      setExtractionMessage(result.message || "Check the detected values before submitting.");
+    } catch (err) {
+      if (requestId === extractionRequest.current) setExtractionMessage(err.message || "Could not read this document. Enter the values manually.");
+    } finally {
+      if (requestId === extractionRequest.current) setExtracting(false);
+    }
+  }
+
   async function submit(event) {
     event.preventDefault();
     setError("");
@@ -43,6 +69,8 @@ export default function Register() {
       form.append("instructor_id", studentId);
       form.append("department", department);
     } else {
+      if (fullName.trim().length < 3) return setError("Check the full name detected from your document.");
+      if (studentId.trim().length < 3) return setError("Check the student ID detected from your document.");
       if (studentDocumentType === "school_id" && !idFile) return setError("Capture or choose a photo of your school ID.");
       if (studentDocumentType === "cor" && !corFile) return setError("Capture or choose a photo of your Certificate of Registration.");
       const selectedFiles = studentDocumentType === "school_id" ? [idFile, idBackFile] : [corFile];
@@ -97,17 +125,24 @@ export default function Register() {
                 <form className="registration-form" onSubmit={submit}>
                   <label>
                     Register as
-                    <select value={registrationType} onChange={(e) => setRegistrationType(e.target.value)}>
+                    <select value={registrationType} onChange={(e) => {
+                      const next = e.target.value;
+                      setRegistrationType(next);
+                      setStudentId("");
+                      extractionRequest.current += 1;
+                      setExtracting(false);
+                      if (next === "student") extractStudentInfo(studentDocumentType === "school_id" ? idFile : corFile, aiConsent, next);
+                    }}>
                       <option value="student">Student</option>
                       <option value="instructor">Instructor</option>
                     </select>
                   </label>
-                  <label>
-                    Full name
-                    <input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={120} required />
-                  </label>
                   {registrationType === "instructor" ? (
                     <>
+                      <label>
+                        Full name
+                        <input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={120} required />
+                      </label>
                       <label>
                         Instructor ID number
                         <input value={studentId} onChange={(e) => setStudentId(e.target.value)} maxLength={50} required />
@@ -121,26 +156,25 @@ export default function Register() {
                   ) : (
                     <>
                       <label>
-                        NEMSU school ID number
-                        <input value={studentId} onChange={(e) => setStudentId(e.target.value)} maxLength={50} required />
-                      </label>
-                      <label>
                         Document to scan
                         <select value={studentDocumentType} onChange={(e) => {
                           setStudentDocumentType(e.target.value);
                           setIdFile(null); setIdBackFile(null); setCorFile(null);
+                          setStudentId(""); setFullName(""); setExtractionMessage(""); setExtracting(false);
+                          extractionRequest.current += 1;
                         }}>
                           <option value="school_id">NEMSU School ID</option>
                           <option value="cor">Certificate of Registration (COR)</option>
                         </select>
                       </label>
+                      <p className="registration-scan-help">To autofill your name and student ID, choose a document and agree to AI reading below. The fields remain editable if the result needs correction.</p>
                       <p className="registration-scan-help">Choose either your school ID or your COR, then capture it with your camera or select an image. School ID automatic screening requires front and back; a COR can be screened by itself.</p>
                       {studentDocumentType === "school_id" ? (
                         <>
                           <label>
                             School ID front
                             <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" required
-                              onChange={(e) => setIdFile(e.target.files?.[0] || null)} />
+                              onChange={(e) => { const file = e.target.files?.[0] || null; setIdFile(file); extractionRequest.current += 1; setExtracting(false); if (file) extractStudentInfo(file); }} />
                             <small>{idFile ? `Selected: ${idFile.name}` : "JPG, PNG, or WEBP; maximum 5 MB."}</small>
                           </label>
                           <label>
@@ -154,18 +188,35 @@ export default function Register() {
                         <label>
                           Certificate of Registration (COR)
                           <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" required
-                            onChange={(e) => setCorFile(e.target.files?.[0] || null)} />
+                            onChange={(e) => { const file = e.target.files?.[0] || null; setCorFile(file); extractionRequest.current += 1; setExtracting(false); if (file) extractStudentInfo(file); }} />
                           <small>{corFile ? `Selected: ${corFile.name}` : "JPG, PNG, or WEBP; maximum 5 MB."}</small>
                         </label>
                       )}
                       <label className="registration-consent">
-                        <input type="checkbox" checked={aiConsent} onChange={(e) => setAiConsent(e.target.checked)} />
-                        <span>I agree to send my scan images to the configured AI provider for visual screening of the NEMSU logo, colors, Tandag campus name, and university president/campus director signature areas. AI ignores names, ID numbers, faces, courses, QR codes, and other personal fields. It does not verify signatures or prove authenticity, so a false match is possible. If all required visual checks pass, my account may be activated automatically; otherwise it stays pending for admin review. Image metadata is removed first, and administrators can view the stored scans.</span>
+                        <input type="checkbox" checked={aiConsent} onChange={(e) => {
+                          const consent = e.target.checked;
+                          setAiConsent(consent);
+                          if (consent) extractStudentInfo(studentDocumentType === "school_id" ? idFile : corFile, true, "student");
+                          else { extractionRequest.current += 1; setExtracting(false); setExtractionMessage("AI autofill is off. You can enter your name and student ID manually."); }
+                        }} />
+                        <span>I agree to send my ID/COR scan to the configured AI provider to extract only my printed full name and student ID for form autofill, and to visually screen the document. I will check and correct the detected values before submitting. The provider may process these fields; other personal fields, faces, and QR codes are not requested. The visual screening does not prove authenticity or verify signatures. Image metadata is removed first, and administrators can view the submitted scans.</span>
+                      </label>
+                      {extracting && <p className="registration-scan-help" role="status">Reading your document...</p>}
+                      {extractionMessage && <p className="registration-scan-help" role="status">{extractionMessage}</p>}
+                      <h3 className="registration-scan-result-title">Scan result</h3>
+                      <p className="registration-scan-help">Check the detected values and correct them if needed.</p>
+                      <label>
+                        Full name
+                        <input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={120} required />
+                      </label>
+                      <label>
+                        Student ID number
+                        <input value={studentId} onChange={(e) => setStudentId(e.target.value)} maxLength={50} required />
                       </label>
                     </>
                   )}
-                  <button className="btn" type="submit" disabled={busy}>
-                    {busy ? "Submitting..." : "Submit registration"}
+                  <button className="btn" type="submit" disabled={busy || extracting}>
+                    {busy ? "Submitting..." : extracting ? "Reading document..." : "Submit registration"}
                   </button>
                 </form>
               )}

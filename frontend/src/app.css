@@ -42,6 +42,14 @@ header p { font-size: .9rem; color: #d7d9ff; }
 h2.page-title { font-family: var(--serif); color: var(--blue-deep); font-size: 1.7rem; margin-bottom: 4px; }
 .page-intro { color: var(--muted); margin-bottom: 18px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 20px; }
+.user-activity-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.user-activity-heading h3 { margin-top: 0; }
+.user-activity-heading > strong { flex: none; color: #147a4b; }
+.user-presence { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.user-presence i { width: 9px; height: 9px; border-radius: 50%; background: #9aa0b5; }
+.user-presence.is-online i { background: #1a9b60; box-shadow: 0 0 0 3px rgba(26,155,96,.13); }
+.user-activity-card > .muted:last-child { display: block; margin-top: 10px; }
+.registration-scan-result-title { margin: 16px 0 4px; color: var(--blue-deep); font-family: var(--serif); }
 .card h3 { font-family: var(--serif); color: var(--blue-deep); font-size: 1.2rem; margin-bottom: 10px; }
 .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); margin-bottom: 20px; }
 .tile { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; text-decoration: none; color: var(--ink); }

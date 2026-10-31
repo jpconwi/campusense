@@ -30,6 +30,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _docType = 'school_id'; // school_id | cor
   File? _idFront, _idBack, _cor;
   bool _consent = false;
+  bool _extracting = false;
+  String _extractionMessage = '';
+  int _extractionRequest = 0;
   bool _busy = false;
   String _error = '';
   bool _submitted = false;
@@ -50,6 +53,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _submit() async {
+    if (_extracting) return setState(() => _error = 'Wait for document reading to finish, or enter the values manually.');
     final auth = context.read<AuthState>();
     setState(() => _error = '');
     final name = _fullName.text.trim();
@@ -105,6 +109,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
           : e.message);
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _extractStudentInfo(File? file) async {
+    if (file == null || !_consent || _type != 'student') return;
+    final request = ++_extractionRequest;
+    setState(() {
+      _extracting = true;
+      _extractionMessage = 'Reading the name and student ID from your document…';
+    });
+    try {
+      final idToken = await context.read<AuthState>().freshIdToken();
+      if (idToken == null) throw ApiError(401, 'Your Google sign-in expired. Go back and sign in again.');
+      final form = await api.buildForm(
+        {'id_token': idToken, 'consent': 'true'},
+        files: {'scan_document': toUpload(file, 'student-document')},
+      );
+      final result = await api.postForm('/api/auth/mobile/register/extract-student-info', form);
+      if (!mounted || request != _extractionRequest) return;
+      final name = (result['full_name'] ?? '').toString();
+      final id = (result['student_id'] ?? '').toString();
+      if (name.isNotEmpty) _fullName.text = name;
+      if (id.isNotEmpty) _idNumber.text = id;
+      setState(() => _extractionMessage = (result['message'] ?? 'Check the detected values before submitting.') as String);
+    } on ApiError catch (e) {
+      if (mounted && request == _extractionRequest) {
+        setState(() => _extractionMessage = e.message);
+      }
+    } catch (_) {
+      if (mounted && request == _extractionRequest) {
+        setState(() => _extractionMessage = 'Could not read this document. Enter the values manually.');
+      }
+    } finally {
+      if (mounted && request == _extractionRequest) setState(() => _extracting = false);
     }
   }
 
@@ -167,23 +205,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
           DropdownMenuItem(value: 'student', child: Text('Student')),
           DropdownMenuItem(value: 'instructor', child: Text('Instructor')),
         ],
-        onChanged: _busy ? null : (v) => setState(() => _type = v ?? 'student'),
-      ),
-      const SizedBox(height: 12),
-      TextField(
-        controller: _fullName,
-        maxLength: 120,
-        textCapitalization: TextCapitalization.words,
-        decoration: const InputDecoration(labelText: 'Full name', counterText: ''),
-      ),
-      const SizedBox(height: 12),
-      TextField(
-        controller: _idNumber,
-        maxLength: 50,
-        decoration: InputDecoration(labelText: student ? 'NEMSU school ID number' : 'Instructor ID number', counterText: ''),
+          onChanged: _busy ? null : (v) => setState(() {
+            _type = v ?? 'student';
+            _idNumber.clear();
+            _extractionRequest++;
+            _extracting = false;
+            _extractionMessage = '';
+          }),
       ),
       const SizedBox(height: 12),
       if (!student) ...[
+        TextField(
+          controller: _fullName,
+          maxLength: 120,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Full name', counterText: ''),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _idNumber,
+          maxLength: 50,
+          decoration: const InputDecoration(labelText: 'Instructor ID number', counterText: ''),
+        ),
+        const SizedBox(height: 12),
         TextField(
           controller: _department,
           maxLength: 120,
@@ -207,9 +251,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     _idFront = null;
                     _idBack = null;
                     _cor = null;
+                    _fullName.clear();
+                    _idNumber.clear();
+                    _extractionRequest++;
+                    _extracting = false;
+                    _extractionMessage = '';
                   }),
         ),
         const SizedBox(height: 10),
+        const Text(
+          'To autofill your name and student ID, choose a document and agree to AI reading below. The fields remain editable if the result needs correction.',
+          style: TextStyle(color: C.muted, fontSize: 13, height: 1.4),
+        ),
+        const SizedBox(height: 8),
         const Text(
           'Choose either your school ID or your COR, then scan it with the camera or upload an image. '
           'School ID automatic screening requires front and back; a COR can be screened by itself.',
@@ -222,7 +276,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
             file: _idFront,
             required: true,
             disabled: _busy,
-            onChanged: (f) => setState(() => _idFront = f),
+            onChanged: (f) {
+              setState(() {
+                _idFront = f;
+                if (f != null) {
+                  _fullName.clear();
+                  _idNumber.clear();
+                  _extractionMessage = '';
+                }
+              });
+              _extractStudentInfo(f);
+            },
           ),
           const SizedBox(height: 12),
           IdScannerSlot(
@@ -243,31 +307,75 @@ class _RegisterScreenState extends State<RegisterScreen> {
             file: _cor,
             required: true,
             disabled: _busy,
-            onChanged: (f) => setState(() => _cor = f),
+            onChanged: (f) {
+              setState(() {
+                _cor = f;
+                if (f != null) {
+                  _fullName.clear();
+                  _idNumber.clear();
+                  _extractionMessage = '';
+                }
+              });
+              _extractStudentInfo(f);
+            },
           ),
         const SizedBox(height: 12),
         CheckboxListTile(
           contentPadding: EdgeInsets.zero,
           controlAffinity: ListTileControlAffinity.leading,
           value: _consent,
-          onChanged: _busy ? null : (v) => setState(() => _consent = v ?? false),
+          onChanged: _busy ? null : (v) {
+            final consent = v ?? false;
+            setState(() {
+              _consent = consent;
+              if (!consent) {
+                _extractionRequest++;
+                _extracting = false;
+                _extractionMessage = 'AI autofill is off. You can enter your name and student ID manually.';
+              }
+            });
+            if (consent) _extractStudentInfo(_docType == 'school_id' ? _idFront : _cor);
+          },
           title: const Text(
-            'I agree to send my scan images to the configured AI provider for visual screening of the NEMSU logo, '
-            'colors, Tandag campus name, and university president/campus director signature areas. AI ignores names, '
-            'ID numbers, faces, courses, QR codes, and other personal fields. It does not verify signatures or prove '
-            'authenticity, so a false match is possible. If all required visual checks pass, my account may be '
-            'activated automatically; otherwise it stays pending for admin review. Image metadata is removed first, '
-            'and administrators can view the stored scans.',
+            'I agree to send my ID/COR scan to the configured AI provider to extract only my printed full name and '
+            'student ID for form autofill, and to visually screen the document. I will check and correct the detected '
+            'values before submitting. The provider may process these fields; other personal fields, faces, and QR '
+            'codes are not requested. Visual screening does not prove authenticity or verify signatures. Image metadata '
+            'is removed first, and administrators can view the submitted scans.',
             style: TextStyle(fontSize: 12.5, height: 1.4, color: C.muted),
           ),
+        ),
+        if (_extracting || _extractionMessage.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(_extracting ? 'Reading your document…' : _extractionMessage,
+                style: const TextStyle(color: C.muted, fontSize: 12.5)),
+          ),
+        const SizedBox(height: 14),
+        const Text('Scan result', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: C.blueDeep)),
+        const SizedBox(height: 4),
+        const Text('Check the detected values and correct them if needed.',
+            style: TextStyle(color: C.muted, fontSize: 12.5)),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _fullName,
+          maxLength: 120,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Full name', counterText: ''),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _idNumber,
+          maxLength: 50,
+          decoration: const InputDecoration(labelText: 'Student ID number', counterText: ''),
         ),
       ],
       const SizedBox(height: 14),
       SizedBox(
         width: double.infinity,
         child: FilledButton(
-          onPressed: _busy ? null : _submit,
-          child: Text(_busy ? 'Submitting...' : 'Submit registration'),
+          onPressed: _busy || _extracting ? null : _submit,
+          child: Text(_busy ? 'Submitting...' : _extracting ? 'Reading document...' : 'Submit registration'),
         ),
       ),
       const SizedBox(height: 6),

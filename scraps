@@ -1,0 +1,28 @@
+keystorepassword = @Nemsai2026
+
+(.venv) PS C:\Users\Win11\OneDrive\Documents\AppDev\CampuSenseAi-fastapi-react\campusense\nemsai_mobile\nemsai_app> Remove-Item C:\Users\Win11\keystores\nemsai-release.jks
+>> keytool -genkey -v -keystore C:\Users\Win11\keystores\nemsai-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias nemsai
+Enter keystore password:  
+
+Re-enter new password: 
+
+Enter the distinguished name. Provide a single dot (.) to leave a sub-componentempty or press ENTER to use the default value in braces.
+What is your first and last name?
+  [Unknown]:  john patrick conwi
+What is the name of your organizational unit?
+  [Unknown]:  conwitech
+What is the name of your organization?
+  [Unknown]:  conwitech
+What is the name of your City or Locality?
+  [Unknown]:  tago
+What is the name of your State or Province?
+  [Unknown]:  surigao del sur
+What is the two-letter country code for this unit?
+  [Unknown]:  ph
+Is CN=john patrick conwi, OU=conwitech, O=conwitech, L=tago, ST=surigao del sur, C=ph correct?
+  [no]:  yes
+
+Generating 2048-bit RSA key pair and self-signed certificate (SHA384withRSA) with a validity of 10,000 days
+        for: CN=john patrick conwi, OU=conwitech, O=conwitech, L=tago, ST=surigao del sur, C=ph
+[Storing C:\Users\Win11\keystores\nemsai-release.jks]
+(.venv) PS C:\Users\Win11\OneDrive\Documents\AppDev\CampuSenseAi-fastapi-react\campusense\nemsai_mobile\nemsai_app> 

@@ -2,6 +2,7 @@
 
 import re
 import time
+from datetime import date, datetime, timedelta, timezone
 from collections import defaultdict, deque
 from typing import Optional
 
@@ -14,12 +15,61 @@ from sqlalchemy.orm import Session
 from app import config
 from app.ai.ai_engine import ask_ai
 from app.database import get_db
+from app.models import UserDailyActivity, UserPresence
 from app.security import CurrentUser, csrf_protect, login_required, role_required
 from app.services import (announcement_service, chat_history_service, common, concern_service, faculty_service, feedback_service,
                           pdf_service, photo_report_service, report_service, reservation_service)
 from app.services import upload_service
 
 router = APIRouter(prefix="/api", tags=["api"], dependencies=[Depends(csrf_protect)])
+ACTIVITY_TIMEZONE = timezone(timedelta(hours=8), "Asia/Manila")
+
+
+@router.post("/activity/heartbeat")
+def activity_heartbeat(user: CurrentUser = Depends(login_required), db: Session = Depends(get_db)):
+    """Record foreground use, counting only short gaps between heartbeats as active time."""
+    now_aware = datetime.now(timezone.utc).replace(microsecond=0)
+    now = now_aware.replace(tzinfo=None)  # persisted timestamps are UTC without a tzinfo
+    presence = db.get(UserPresence, user.id)
+    if presence is None:
+        presence = UserPresence(user_id=user.id, last_seen_at=now)
+        db.add(presence)
+    else:
+        previous = presence.last_seen_at
+        gap = int((now - previous).total_seconds())
+        # Heartbeats run once a minute. A longer gap means the app was backgrounded/offline.
+        if 0 < gap <= 120:
+            start = previous.replace(tzinfo=timezone.utc).astimezone(ACTIVITY_TIMEZONE)
+            end = now_aware.astimezone(ACTIVITY_TIMEZONE)
+            while start.date() < end.date():
+                midnight = datetime.combine(start.date() + timedelta(days=1), datetime.min.time(), ACTIVITY_TIMEZONE)
+                seconds = int((midnight - start).total_seconds())
+                _add_activity_seconds(db, user.id, start.date(), seconds)
+                start = midnight
+            _add_activity_seconds(db, user.id, start.date(), int((end - start).total_seconds()))
+        presence.last_seen_at = now
+    db.commit()
+    return {"success": True, "last_seen_at": now.isoformat()}
+
+
+@router.post("/activity/offline")
+def activity_offline(user: CurrentUser = Depends(login_required), db: Session = Depends(get_db)):
+    """Clear online presence immediately when a user signs out."""
+    presence = db.get(UserPresence, user.id)
+    if presence is not None:
+        db.delete(presence)
+        db.commit()
+    return {"success": True}
+
+
+def _add_activity_seconds(db: Session, user_id: int, day: date, seconds: int):
+    if seconds <= 0:
+        return
+    row = db.get(UserDailyActivity, (user_id, day))
+    if row is None:
+        db.add(UserDailyActivity(user_id=user_id, activity_date=day, active_seconds=seconds))
+    else:
+        row.active_seconds += seconds
 
 USER_KINDS = {
     "concerns": {"title": "My Concerns", "form": "concern", "image": True,

@@ -119,6 +119,21 @@ async def _read_scan(upload, label):
     return {"data": data, "content_type": content_type, "filename": filename}
 
 
+@router.post("/register/extract-student-info")
+async def extract_mobile_student_info(id_token: str = Form(...), consent: str = Form(...),
+                                      scan_document: UploadFile = File(...)):
+    await _personal_gmail_identity(id_token)
+    if consent.lower() != "true":
+        raise HTTPException(400, "Consent is required before AI can read document fields.")
+    scan = await _read_scan(scan_document, "student ID or COR")
+    result = await run_in_threadpool(
+        registration_verification_service.extract_student_identity,
+        (scan["data"], scan["content_type"]))
+    return {"success": True, **result,
+            "message": "Check the detected values before submitting." if result["full_name"] or result["student_id"]
+            else "Could not read the name or student ID clearly. You can enter them manually."}
+
+
 @router.post("/register/student")
 async def mobile_student_registration(
         id_token: str = Form(...), full_name: str = Form(...), student_id: str = Form(...),

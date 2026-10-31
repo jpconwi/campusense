@@ -18,3 +18,6 @@ backend/reports/*/*
 # node
 frontend/node_modules/
 frontend/dist/
+
+# local packaged Flutter build/source archive (too large for GitHub)
+nemsai_mobile/nemsai_app.zip

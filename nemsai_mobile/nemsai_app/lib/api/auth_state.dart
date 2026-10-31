@@ -1,6 +1,8 @@
 /// auth_state.dart - who is signed in (loaded from GET /api/auth/me), Google sign-in, flash messages.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -54,9 +56,10 @@ class Flash {
   final bool isError;
 }
 
-class AuthState extends ChangeNotifier {
+class AuthState extends ChangeNotifier with WidgetsBindingObserver {
   AuthState() {
     api.onUnauthorized = _sessionEnded;
+    WidgetsBinding.instance.addObserver(this);
   }
 
   static const _tokenKey = 'nemsai_token';
@@ -71,6 +74,32 @@ class AuthState extends ChangeNotifier {
   List<String> facilities = const [];
   PendingRegistration? pending;
   Flash? flash;
+  Timer? _activityTimer;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startActivityHeartbeats();
+    } else {
+      _activityTimer?.cancel();
+      _activityTimer = null;
+    }
+  }
+
+  void _startActivityHeartbeats() {
+    _activityTimer?.cancel();
+    if (user == null) return;
+    void send() { api.post('/api/activity/heartbeat').catchError((_) => <String, dynamic>{}); }
+    send();
+    _activityTimer = Timer.periodic(const Duration(minutes: 1), (_) => send());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _activityTimer?.cancel();
+    super.dispose();
+  }
 
   void setFlash(String text, {bool isError = false}) {
     flash = Flash(text, isError: isError);
@@ -104,6 +133,7 @@ class AuthState extends ChangeNotifier {
       final d = await api.get('/api/auth/me');
       final u = d['user'];
       user = u is Map ? AppUser.fromJson(Map<String, dynamic>.from(u)) : null;
+      _startActivityHeartbeats();
       facilities = ((d['facilities'] as List?) ?? const []).map((e) => e.toString()).toList();
       if (user == null) await _forgetToken();
     } on ApiError catch (e) {
@@ -111,9 +141,13 @@ class AuthState extends ChangeNotifier {
       // but show the sign-in page with a message so the person can retry.
       if (e.status == null) {
         user = null;
+        _activityTimer?.cancel();
+        _activityTimer = null;
         flash = Flash(e.message, isError: true);
       } else {
         user = null;
+        _activityTimer?.cancel();
+        _activityTimer = null;
         await _forgetToken();
       }
     }
@@ -132,6 +166,8 @@ class AuthState extends ChangeNotifier {
   void _sessionEnded() {
     if (user == null) return;
     user = null;
+    _activityTimer?.cancel();
+    _activityTimer = null;
     _forgetToken();
     flash = Flash('Your session ended. Please sign in again.', isError: true);
     navigatorKey.currentState?.popUntil((r) => r.isFirst);
@@ -185,6 +221,7 @@ class AuthState extends ChangeNotifier {
   }
 
   String _googleErrorText(PlatformException e) {
+    debugPrint('GOOGLE SIGN-IN ERROR: code=${e.code} message=${e.message}');
     final c = '${e.code} ${e.message}';
     if (c.contains('sign_in_canceled') || c.contains('12501')) {
       return 'Google sign-in was cancelled. Please try again.';
@@ -226,6 +263,7 @@ class AuthState extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    try { await api.post('/api/activity/offline'); } catch (_) {}
     try {
       await api.post('/api/auth/logout');
     } catch (_) {}

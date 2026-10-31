@@ -53,6 +53,24 @@ class User(Base):
     purge_after: Mapped[Optional[datetime]] = mapped_column(DateTime, index=True)
 
 
+class UserPresence(Base):
+    """Most recent foreground heartbeat for showing a short-lived online state."""
+    __tablename__ = "user_presence"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+
+
+class UserDailyActivity(Base):
+    """Foreground usage seconds, accumulated per user and UTC calendar day."""
+    __tablename__ = "user_daily_activity"
+    __table_args__ = (Index("idx_user_daily_activity_date", "activity_date"),)
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    activity_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    active_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
 class RegistrationHelpMessage(Base):
     """Pre-account help requests from students and instructors having signup trouble."""
     __tablename__ = "registration_help_messages"

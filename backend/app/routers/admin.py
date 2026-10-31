@@ -8,12 +8,15 @@ All numbers on the dashboard are real counts from the database.
 """
 
 from typing import Optional
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from app.database import get_db
+from app.models import User, UserDailyActivity, UserPresence
 from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_email)
 from app.services import (announcement_service, campus_service, chart_service, common, faculty_service,
                           photo_report_service, registration_help_service, reservation_service,
@@ -76,6 +79,44 @@ def dashboard(db: Session = Depends(get_db)):
         "urgent_reports": _urgent_open(db)[:5],
         "negative_feedback": common.list_rows(db, "feedback", status="Pending", sentiment="Negative", limit=5),
     }
+
+
+@router.get("/user-activity")
+def user_activity(db: Session = Depends(get_db)):
+    """Recent foreground activity for active student and instructor accounts."""
+    now = datetime.utcnow().replace(microsecond=0)
+    today = now.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=8))).date()
+    cutoffs = {"1d": today, "7d": today - timedelta(days=6),
+               "30d": today - timedelta(days=29)}
+    users = db.scalars(select(User).where(
+        User.role.in_(("student", "instructor")), User.is_active.is_(True),
+        User.approval_status == "Approved", User.deleted_at.is_(None)
+    ).order_by(User.name)).all()
+    presence = {row.user_id: row.last_seen_at for row in db.scalars(select(UserPresence)).all()}
+    activity = db.scalars(select(UserDailyActivity).where(
+        UserDailyActivity.activity_date >= (now - timedelta(days=30)).date()
+    )).all()
+    totals = {}
+    for row in activity:
+        values = totals.setdefault(row.user_id, {"1d": 0, "7d": 0, "30d": 0})
+        for key, cutoff in cutoffs.items():
+            if row.activity_date >= cutoff:
+                values[key] += row.active_seconds
+    rows = []
+    online_cutoff = now - timedelta(seconds=120)
+    for person in users:
+        seen = presence.get(person.id)
+        seconds = totals.get(person.id, {})
+        rows.append({
+            "id": person.id, "name": person.name, "email": person.email, "role": person.role,
+            "online": bool(seen and seen >= online_cutoff),
+            "last_seen_at": seen.isoformat() if seen else None,
+            "minutes_1d": seconds.get("1d", 0) // 60,
+            "minutes_7d": seconds.get("7d", 0) // 60,
+            "minutes_30d": seconds.get("30d", 0) // 60,
+        })
+    rows.sort(key=lambda row: (not row["online"], row["name"].lower()))
+    return {"rows": rows, "online_count": sum(row["online"] for row in rows), "as_of": now.isoformat()}
 
 
 # -------------------------------------------------------- record lists

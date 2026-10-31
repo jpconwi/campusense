@@ -39,6 +39,22 @@ oauth.register(
 )
 
 
+async def _read_registration_scan(upload: UploadFile, label: str):
+    if upload is None or not upload.filename:
+        return None
+    data = await upload.read(5 * 1024 * 1024 + 1)
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(413, f"The {label} image must be 5 MB or smaller.")
+    signatures = (("image/jpeg", data.startswith(b"\xff\xd8\xff")),
+                  ("image/png", data.startswith(b"\x89PNG\r\n\x1a\n")),
+                  ("image/webp", len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP"))
+    content_type = next((kind for kind, valid in signatures if valid), None)
+    if not content_type:
+        raise ValidationError(f"Choose or capture a valid JPG, PNG, or WEBP {label} image.")
+    filename = re.sub(r"[^A-Za-z0-9._-]", "_", upload.filename.replace("\\", "/").rsplit("/", 1)[-1])[:200]
+    return {"data": data, "content_type": content_type, "filename": filename}
+
+
 def _to_login(request: Request, code):
     """Back to the React login page. `code` is a fixed word the page turns into a message."""
     request.session.clear()
@@ -179,24 +195,9 @@ async def student_registration(request: Request, full_name: str = Form(...),
         raise ValidationError("Enter your full name as shown on your school ID or COR.")
     if len(school_id) < 3:
         raise ValidationError("Enter a valid NEMSU school ID number.")
-    async def read_scan(upload, label):
-        if upload is None or not upload.filename:
-            return None
-        data = await upload.read(5 * 1024 * 1024 + 1)
-        if len(data) > 5 * 1024 * 1024:
-            raise HTTPException(413, f"The {label} image must be 5 MB or smaller.")
-        signatures = (("image/jpeg", data.startswith(b"\xff\xd8\xff")),
-                      ("image/png", data.startswith(b"\x89PNG\r\n\x1a\n")),
-                      ("image/webp", len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP"))
-        content_type = next((kind for kind, valid in signatures if valid), None)
-        if not content_type:
-            raise ValidationError(f"Choose or capture a valid JPG, PNG, or WEBP {label} image.")
-        filename = re.sub(r"[^A-Za-z0-9._-]", "_", upload.filename.replace("\\", "/").rsplit("/", 1)[-1])[:200]
-        return {"data": data, "content_type": content_type, "filename": filename}
-
-    id_scan = await read_scan(school_id_document, "school ID")
-    id_back_scan = await read_scan(school_id_back_document, "school ID back")
-    cor_scan = await read_scan(cor_document, "COR")
+    id_scan = await _read_registration_scan(school_id_document, "school ID")
+    id_back_scan = await _read_registration_scan(school_id_back_document, "school ID back")
+    cor_scan = await _read_registration_scan(cor_document, "COR")
     if not id_scan and not cor_scan:
         raise ValidationError("Capture or choose an image of the ID front or COR. The ID back alone is not enough.")
 
@@ -229,6 +230,26 @@ async def student_registration(request: Request, full_name: str = Form(...),
                 "message": "Your document passed the visual screening and your student account is active. Sign in to continue."}
     return {"success": True, "approval_status": "Pending",
             "message": "Your documents need manual admin review. Your account will remain pending until it is approved."}
+
+
+@router.post("/student-registration/extract")
+async def extract_student_registration_fields(request: Request, consent: str = Form(...),
+                                              scan_document: UploadFile = File(...)):
+    identity = request.session.get("student_registration")
+    started = request.session.get("student_registration_started_at", 0)
+    if not identity or time.time() - int(started) > 15 * 60:
+        raise HTTPException(401, "Your registration session expired. Start again with personal Gmail.")
+    if identity.get("email", "").rsplit("@", 1)[-1].lower() != "gmail.com":
+        raise HTTPException(400, "Student registration requires a verified personal Gmail account.")
+    if consent.lower() != "true":
+        raise HTTPException(400, "Consent is required before AI can read document fields.")
+    scan = await _read_registration_scan(scan_document, "student ID or COR")
+    result = await run_in_threadpool(
+        registration_verification_service.extract_student_identity,
+        (scan["data"], scan["content_type"]))
+    return {"success": True, **result,
+            "message": "Check the detected values before submitting." if result["full_name"] or result["student_id"]
+            else "Could not read the name or student ID clearly. You can enter them manually."}
 
 
 @router.post("/instructor-registration")
