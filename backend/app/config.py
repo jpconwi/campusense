@@ -23,6 +23,17 @@ SEED_DIR = BACKEND_DIR / "seed"
 CAMPUS_SEED_CSV = SEED_DIR / "campus_info.csv"
 REPORTS_DIR = BACKEND_DIR / "reports"        # generated PDF files
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", str(BACKEND_DIR / "uploads"))).expanduser()
+# Optional sanitized document-template images used only as visual references during
+# registration screening. These are server-side settings and do not affect API clients.
+REGISTRATION_ID_FRONT_REFERENCE = Path(os.getenv(
+    "REGISTRATION_ID_FRONT_REFERENCE", str(BACKEND_DIR / "seed" / "registration_id_front_reference.jpg")
+)).expanduser()
+REGISTRATION_ID_BACK_REFERENCE = Path(os.getenv(
+    "REGISTRATION_ID_BACK_REFERENCE", str(BACKEND_DIR / "seed" / "registration_id_back_reference.jpg")
+)).expanduser()
+REGISTRATION_COR_REFERENCE = Path(os.getenv(
+    "REGISTRATION_COR_REFERENCE", str(BACKEND_DIR / "seed" / "registration_cor_reference.jpg")
+)).expanduser()
 # Optional durable object storage for uploaded report photos (Cloudinary).
 CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "").strip()
 CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "").strip()

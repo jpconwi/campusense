@@ -6,6 +6,7 @@ import json
 import re
 
 from app.model import systemAi
+from app import config
 
 
 _FIELDS = (
@@ -102,6 +103,23 @@ def _label(value):
 def review_documents(id_front, id_back, cor):
     """Return a visual review note and conservative auto-approval eligibility."""
     images, labels = [], []
+    references = (
+        ("ID front reference template", config.REGISTRATION_ID_FRONT_REFERENCE),
+        ("ID back reference template", config.REGISTRATION_ID_BACK_REFERENCE),
+        ("COR reference template", config.REGISTRATION_COR_REFERENCE),
+    )
+    # Reference files are optional, preserving existing web/mobile registration
+    # behavior until an operator installs sanitized templates on the server.
+    for label, path in references:
+        try:
+            if path.is_file():
+                images.append(_image_for_ai(path.read_bytes()))
+                labels.append(label)
+        except Exception as exc:
+            print("REGISTRATION REFERENCE IMAGE ERROR:", repr(exc)[:160])
+            return "AI visual review unavailable; administrator must inspect the documents manually.", False
+
+    applicant_start = len(images)
     for label, image in (("ID front", id_front), ("ID back", id_back), ("COR", cor)):
         if image:
             data, _mime = image
@@ -114,7 +132,11 @@ def review_documents(id_front, id_back, cor):
     if not images:
         return "AI visual review unavailable; administrator must inspect the documents manually.", False
 
-    prompt = ("Images in order: " + ", ".join(labels) + ". Report only the yes/no/unclear visual "
+    prompt = ("Images in order: " + ", ".join(labels) + ". Reference templates, if present, "
+              "are sanitized examples and appear before applicant scans. Compare only the document "
+              "layout, logo placement, broad colors, and printed campus label against the matching "
+              "template. Applicant scans begin at image " + str(applicant_start + 1) + ". "
+              "Report only the yes/no/unclear visual "
               "checks requested in the JSON keys. For missing image types, use unclear. Do not read "
               "personal fields, inspect QR codes, judge signature handwriting, or make an "
               "authenticity/approval decision.")
