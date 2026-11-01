@@ -9,6 +9,7 @@ from datetime import date, datetime, time
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app import config
 from app.models import Concern, Feedback, Report, Reservation, User
 
 # ------------------------------------------------------------ statuses
@@ -45,7 +46,7 @@ COLUMNS = {
         ("Type", "report_type", False), ("Location", "location", False),
         ("Area", "area", False), ("Room", "room", False),
         ("Description", "description", False), ("Sentiment", "sentiment", True),
-        ("Status", "status", False),
+        ("Status", "status", False), ("Assigned administrator", "assigned_admin_email", True),
     ],
     "feedback": [
         ("ID", "id", False), ("Submitted", "created_at", False),
@@ -73,6 +74,14 @@ class ValidationError(Exception):
 # ---------------------------------------------------------- validation
 def now():
     return datetime.now().replace(microsecond=0)
+
+
+def assigned_report_admin(report_type):
+    """Route a report by category, falling back to the first configured admin."""
+    admins = sorted(config.admin_emails())
+    routes = config.report_admin_routing()
+    email = routes.get((report_type or "").strip().lower()) or routes.get("default")
+    return email if email in config.admin_emails() else (admins[0] if admins else None)
 
 
 def now_str():

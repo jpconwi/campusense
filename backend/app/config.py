@@ -143,6 +143,17 @@ def admin_emails():
     return {email.strip().lower() for email in raw.split(",") if email.strip()}
 
 
+def report_admin_routing():
+    """Category-to-admin map from REPORT_ADMIN_ROUTING (e.g. Safety=staff@example.edu,Maintenance=...)."""
+    raw = os.getenv("REPORT_ADMIN_ROUTING", "")
+    routes = {}
+    for item in re.split(r"[,;]", raw):
+        category, separator, email = item.partition("=")
+        if separator and category.strip() and email.strip():
+            routes[category.strip().lower()] = email.strip().lower()
+    return routes
+
+
 def ensure_folders():
     for folder in (UPLOAD_DIR, REPORTS_DIR / "faculty", REPORTS_DIR / "concerns",
                    REPORTS_DIR / "reports", REPORTS_DIR / "feedback"):

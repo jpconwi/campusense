@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
+from app import config
 from app.database import get_db
 from app.models import User, UserDailyActivity, UserPresence
 from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_email)
@@ -144,6 +145,7 @@ def records(kind: str, status: Optional[str] = None, sentiment: Optional[str] = 
         "statuses": common.TABLE_STATUSES[kind],
         "columns": [[h, k] for h, k, _ in common.COLUMNS[kind]],
         "rows": rows,
+        "assignees": sorted(config.admin_emails()) if kind == "reports" else [],
     }
 
 
@@ -165,6 +167,26 @@ def change_status(kind: str, row_id: int, body: StatusBody, db: Session = Depend
 class VerifyBody(BaseModel):
     verification: str = ""
     note: str = ""
+
+
+class ReportAssignmentBody(BaseModel):
+    assigned_admin_email: Optional[str] = None
+
+
+@router.post("/reports/{report_id}/assign")
+def assign_report(report_id: int, body: ReportAssignmentBody, db: Session = Depends(get_db)):
+    """Assign a report to one of the server-configured administrators."""
+    from app.models import Report
+    row = db.get(Report, report_id)
+    if row is None:
+        raise ValidationError("Report not found.")
+    email = (body.assigned_admin_email or "").strip().lower() or None
+    if email is not None and email not in config.admin_emails():
+        raise ValidationError("Choose an administrator from the list.")
+    row.assigned_admin_email = email
+    row.updated_at = common.now()
+    db.commit()
+    return {"success": True, "message": "Report assignment updated."}
 
 
 @router.post("/reports/{report_id}/verify")

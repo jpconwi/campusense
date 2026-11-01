@@ -36,6 +36,7 @@ def init_db():
     _widen_campus_info_columns()
     _add_sentiment_columns()
     _add_photo_report_columns()
+    _add_report_assignment_column()
     from app.services import campus_service, sentiment_service
     with SessionLocal() as db:
         campus_service.seed_if_empty(db)
@@ -130,3 +131,17 @@ def _add_photo_report_columns():
     with engine.begin() as conn:
         for name, kind in columns:
             conn.execute(text(f"ALTER TABLE reports ADD COLUMN IF NOT EXISTS {name} {kind}"))
+
+
+def _add_report_assignment_column():
+    """Add the optional report owner to existing PostgreSQL and SQLite databases."""
+    from sqlalchemy import inspect, text
+    columns = {column["name"] for column in inspect(engine).get_columns("reports")}
+    if "assigned_admin_email" in columns:
+        return
+    with engine.begin() as conn:
+        if engine.dialect.name == "postgresql":
+            conn.execute(text("ALTER TABLE reports ADD COLUMN IF NOT EXISTS assigned_admin_email VARCHAR(255)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_reports_assigned_admin_email ON reports (assigned_admin_email)"))
+        else:
+            conn.execute(text("ALTER TABLE reports ADD COLUMN assigned_admin_email VARCHAR(255)"))

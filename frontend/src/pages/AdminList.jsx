@@ -32,6 +32,33 @@ function StatusForm({ kind, row, statuses, onChanged }) {
   );
 }
 
+function AssignmentForm({ row, assignees, onChanged }) {
+  const { setFlash } = useAuth();
+  const [value, setValue] = useState(row.assigned_admin_email || "");
+  useEffect(() => setValue(row.assigned_admin_email || ""), [row.assigned_admin_email]);
+  async function save(e) {
+    e.preventDefault();
+    try {
+      const r = await api(`/api/admin/reports/${row.id}/assign`, {
+        method: "POST", json: { assigned_admin_email: value || null },
+      });
+      setFlash({ text: r.message, kind: "info" });
+    } catch (err) {
+      setFlash({ text: err.message, kind: "error" });
+    }
+    onChanged();
+  }
+  return (
+    <form className="inline" onSubmit={save} style={{ marginTop: 6 }}>
+      <select aria-label={`Assign report ${row.id} to administrator`} value={value} onChange={(e) => setValue(e.target.value)}>
+        <option value="">Unassigned</option>
+        {assignees.map((email) => <option key={email} value={email}>{email}</option>)}
+      </select>
+      <button className="btn small" type="submit" disabled={value === (row.assigned_admin_email || "")}>Assign</button>
+    </form>
+  );
+}
+
 /** "2026-10-29 11:26:02" -> date on one line, time (smaller) below it. */
 function DateCell({ value }) {
   const [date, ...time] = String(value || "").split(" ");
@@ -134,6 +161,7 @@ export default function AdminList({ kind }) {
 
   if (!data) return <Loading wide={1400} />;
   const { spec, rows: allRows, columns, statuses, current } = data;
+  const assignees = data.assignees || [];
   const rows = allRows.filter((r) => matches(r, q));
   const showImage = !!spec.image && allRows.some((r) => r.image_filename);       // no empty Photo column
   // the status badge sits with the status form; email + "From" are shown small under the name
@@ -141,7 +169,7 @@ export default function AdminList({ kind }) {
   const emailKey = (columns.find(([h]) => h === "Email") || [])[1];
   const fromKey = (columns.find(([h]) => h === "From") || [])[1];
   const mergeWho = !!(nameCol && emailKey);
-  const shownColumns = columns.filter(([h, key]) => key !== "status" && !(mergeWho && (h === "Email" || h === "From")));
+  const shownColumns = columns.filter(([h, key]) => key !== "status" && key !== "assigned_admin_email" && !(mergeWho && (h === "Email" || h === "From")));
   const base = `/admin/${kind}`;
   const withSent = (s) => (sentiment ? `&sentiment=${sentiment}` : "");
 
@@ -177,7 +205,7 @@ export default function AdminList({ kind }) {
         <div className="table-wrap"><table className="data-table">
           <thead><tr>
             {shownColumns.map(([header]) => <th key={header}>{header}</th>)}
-            {showImage && <th>Photo</th>}{spec.pdf && <th>PDF</th>}<th>Status</th>
+            {showImage && <th>Photo</th>}{spec.pdf && <th>PDF</th>}{kind === "reports" && <th>Assigned to</th>}<th>Status</th>
           </tr></thead>
           <tbody>
             {rows.map((r) => (<Fragment key={r.id}>
@@ -194,6 +222,9 @@ export default function AdminList({ kind }) {
                   : <td key={key} data-label={header} className={LONG_TEXT.includes(key) ? "desc" : undefined}>{r[key] || ""}</td>)}
                 {showImage && <td data-label="Photo"><ReportPhoto filename={r.image_filename} /></td>}
                 {spec.pdf && <td data-label="PDF"><a href={`/api/pdf/${kind}/${r.id}`} target="_blank" rel="noopener noreferrer">PDF</a></td>}
+                {kind === "reports" && <td data-label="Assigned to">
+                  <AssignmentForm row={r} assignees={assignees} onChanged={load} />
+                </td>}
                 <td data-label="Status" className="status-cell">
                   <span className={"badge s-" + slug(r.status)}>{r.status}</span>
                   <StatusForm kind={kind} row={r} statuses={statuses} onChanged={load} />
@@ -204,7 +235,7 @@ export default function AdminList({ kind }) {
                 </td>
               </tr>
               {open === r.id && (
-                <tr className="detail-row"><td colSpan={shownColumns.length + (showImage ? 1 : 0) + (spec.pdf ? 1 : 0) + 1}>
+                <tr className="detail-row"><td colSpan={shownColumns.length + (showImage ? 1 : 0) + (spec.pdf ? 1 : 0) + (kind === "reports" ? 1 : 0) + 1}>
                   <PhotoDetail row={r} onChanged={load} />
                 </td></tr>
               )}

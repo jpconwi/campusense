@@ -141,6 +141,7 @@ class Report(Base):
     urgent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)       # possible hazard
     noticed_when: Mapped[Optional[str]] = mapped_column(String(120))
     observed_cause: Mapped[Optional[str]] = mapped_column(String(500))
+    assigned_admin_email: Mapped[Optional[str]] = mapped_column(String(255), index=True)
     verification: Mapped[Optional[str]] = mapped_column(String(20))   # Unverified | Confirmed | Not confirmed
     verification_note: Mapped[Optional[str]] = mapped_column(String(500))
     verified_by: Mapped[Optional[str]] = mapped_column(String(255))
