@@ -82,7 +82,7 @@ export default function AdminDashboard() {
           {activity && <strong>{activity.online_count} online now</strong>}
         </div>
         <p className="muted">See who is online, recent activity, and the top three most active users.</p>
-        <Link className="btn small" to="/admin/online-users">Open online users</Link>
+        <Link className="btn small" to="/admin/users?view=online">Open online users</Link>
       </section>
 
       {d.urgent_reports && d.urgent_reports.length > 0 && (

@@ -19,25 +19,24 @@ function since(value, online) {
   return `Last seen ${years} ${years === 1 ? "year" : "years"} ago`;
 }
 
-export default function AdminOnlineUsers() {
+export default function AdminOnlineUsers({ embedded = false }) {
   const [data, setData] = useState(null);
   useEffect(() => {
-    document.title = "Online Users | NEMSU";
+    if (!embedded) document.title = "Online Users | NEMSU";
     let alive = true;
     const load = () => api("/api/admin/user-activity").then((result) => { if (alive) setData(result); }).catch(() => {});
     load();
     const timer = window.setInterval(load, 30_000);
     return () => { alive = false; window.clearInterval(timer); };
-  }, []);
+  }, [embedded]);
 
   if (!data) return <Loading label="Loading online users..." />;
   const top = [...data.rows].filter((u) => u.minutes_30d > 0)
     .sort((a, b) => b.minutes_30d - a.minutes_30d).slice(0, 3);
-  return (
-    <div className="page">
-      <h2 className="page-title">Online Users</h2>
-      <p className="page-intro">Green means online now; gray means offline. Activity totals show foreground use across web and mobile.</p>
-
+  const content = (
+    <>
+      {!embedded && <><h2 className="page-title">Online Users</h2>
+        <p className="page-intro">Green means online now; gray means offline. Activity totals show foreground use across web and mobile.</p></>}
       <section className="card">
         <div className="user-activity-heading">
           <div><h3>Most active · past 30 days</h3><p className="muted">Ranked by tracked active minutes.</p></div>
@@ -53,7 +52,7 @@ export default function AdminOnlineUsers() {
       </section>
 
       <section className="card user-activity-card">
-        <div className="user-activity-heading"><h3>All students and instructors</h3><Link to="/admin/users">Manage users</Link></div>
+        <div className="user-activity-heading"><h3>All students and instructors</h3>{!embedded && <Link to="/admin/users?view=users">Manage users</Link>}</div>
         {data.rows.length ? <div className="table-wrap"><table>
           <thead><tr><th>Status</th><th>User</th><th>Role</th><th>Last online</th></tr></thead>
           <tbody>{data.rows.map((u) => <tr key={u.id}>
@@ -64,6 +63,7 @@ export default function AdminOnlineUsers() {
         </table></div> : <p className="empty">No active student or instructor accounts.</p>}
         <small className="muted activity-refresh-note">Updates every 30 seconds. Offline status appears after two minutes without a heartbeat.</small>
       </section>
-    </div>
+    </>
   );
+  return embedded ? content : <div className="page">{content}</div>;
 }

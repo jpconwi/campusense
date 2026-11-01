@@ -9,7 +9,6 @@ import AdminHelpMessages from "./pages/AdminHelpMessages.jsx";
 import AdminList from "./pages/AdminList.jsx";
 import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminUsers from "./pages/AdminUsers.jsx";
-import AdminOnlineUsers from "./pages/AdminOnlineUsers.jsx";
 import Chat from "./pages/Chat.jsx";
 import Faculty from "./pages/Faculty.jsx";
 import Home from "./pages/Home.jsx";
@@ -60,7 +59,7 @@ export default function App() {
 
         <Route path="/admin" element={page(<AdminDashboard />, ["admin"])} />
         <Route path="/admin/users" element={page(<AdminUsers />, ["admin"])} />
-        <Route path="/admin/online-users" element={page(<AdminOnlineUsers />, ["admin"])} />
+        <Route path="/admin/online-users" element={<Navigate to="/admin/users?view=online" replace />} />
         <Route path="/admin/help-messages" element={page(<AdminHelpMessages />, ["admin"])} />
         <Route path="/admin/faculty" element={page(<AdminFaculty />, ["admin"])} />
         <Route path="/admin/rooms" element={page(<AdminDataset kind="rooms" />, ["admin"])} />

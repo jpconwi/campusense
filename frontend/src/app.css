@@ -564,6 +564,37 @@ h2.page-title { letter-spacing: -.01em; }
 .report-card-actions form.inline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .report-card-actions form.inline select { min-width: 150px; max-width: 260px; }
 .report-card-detail { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.record-card-list, .admin-user-card-list { display: grid; gap: 14px; }
+.record-card { min-width: 0; padding: 17px 19px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 1px 2px rgba(21,22,58,.04); }
+.record-card-head, .admin-user-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.record-card-head > div:first-child { display: grid; gap: 3px; }
+.record-card-head > div:first-child > strong { color: var(--blue-deep); }
+.record-card-person { display: grid; gap: 2px; padding: 11px 0; overflow-wrap: anywhere; }
+.record-card-person > strong { color: var(--ink); }
+.record-card-person small { color: var(--muted); text-transform: capitalize; }
+.record-card-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; padding: 10px 0 14px; }
+.record-card-fields > div { display: grid; align-content: start; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.record-card-fields b, .record-card-footer > label, .admin-user-card-meta b, .admin-user-card-documents > b { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .035em; }
+.record-card-fields .record-card-long { grid-column: 1 / -1; }
+.record-card-links { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 0 0 12px; }
+.record-card-footer { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
+.record-card-footer .inline { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.record-card-footer .inline select { min-width: 170px; }
+.admin-view-switch { display: flex; width: fit-content; gap: 4px; padding: 4px; margin: 0 0 16px; border: 1px solid var(--line); border-radius: 10px; background: #eaeaff; }
+.admin-view-switch a { padding: 7px 15px; border-radius: 7px; color: var(--blue-deep); font-weight: 700; text-decoration: none; }
+.admin-view-switch a.selected { color: #fff; background: var(--blue); }
+.admin-section-note { margin: -5px 0 12px; color: var(--muted); font-size: .9rem; }
+.admin-user-card-list { display: grid; gap: 14px; }
+.admin-user-card { min-width: 0; padding: 17px 19px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 1px 2px rgba(21,22,58,.04); }
+.admin-user-card-head h3 { color: var(--blue-deep); font-family: var(--serif); font-size: 1.12rem; }
+.admin-user-card-head > div:first-child { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.admin-user-card-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.admin-user-card-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; padding: 12px 0; }
+.admin-user-card-meta span { display: grid; gap: 3px; overflow-wrap: anywhere; }
+.admin-user-card-documents { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); }
+.admin-user-card .admin-user-actions { flex-direction: row; align-items: center; padding-top: 12px; border-top: 1px solid var(--line); }
+.admin-user-card .admin-user-actions form.inline { width: auto; }
+.admin-users-empty { padding: 22px; color: var(--muted); text-align: center; }
 @media (max-width: 680px) {
   .report-card { padding: 14px; }
   .report-card-main { grid-template-columns: 1fr; gap: 12px; }
@@ -571,6 +602,10 @@ h2.page-title { letter-spacing: -.01em; }
   .report-card-badges { justify-content: flex-start; }
   .report-card-actions { align-items: stretch; flex-direction: column; }
   .report-card-actions > div, .report-card-actions form.inline, .report-card-actions form.inline select { width: 100%; max-width: none; }
+  .record-card, .admin-user-card { padding: 14px; }
+  .admin-user-card-head { flex-direction: column; }
+  .admin-user-card-badges { justify-content: flex-start; }
+  .admin-user-card .admin-user-actions { align-items: stretch; flex-direction: column; }
 }
 .table-wrap { border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
 .table-wrap table { border-radius: 12px; }

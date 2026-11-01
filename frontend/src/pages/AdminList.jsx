@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, apiUrl, slug } from "../api.js";
 import { useAuth } from "../auth.jsx";
@@ -63,6 +63,38 @@ function AssignmentForm({ row, assignees, onChanged }) {
 function DateCell({ value }) {
   const [date, ...time] = String(value || "").split(" ");
   return <span>{date}{time.length > 0 && <><br /><small className="muted">{time.join(" ")}</small></>}</span>;
+}
+
+function RecordCard({ row, columns, kind, spec, statuses, onChanged }) {
+  const nameKey = ["reporter_name", "name", "requester_name"].find((key) => row[key] !== undefined);
+  const emailKey = ["reporter_email", "email", "requester_email"].find((key) => row[key] !== undefined);
+  const details = columns.filter(([, key]) => !["id", "created_at", "status", "assigned_admin_email",
+    nameKey, emailKey, "submitter_role"].includes(key) && row[key]);
+  return <article className="record-card">
+    <div className="record-card-head">
+      <div><strong>#{row.id}</strong><DateCell value={row.created_at} /></div>
+      <span className={"badge s-" + slug(row.status)}>{row.status}</span>
+    </div>
+    <div className="record-card-person">
+      <strong>{row[nameKey] || "Unknown sender"}</strong>
+      {row[emailKey] && <a href={`mailto:${row[emailKey]}`}>{row[emailKey]}</a>}
+      {row.submitter_role && <small>{row.submitter_role}</small>}
+    </div>
+    <div className="record-card-fields">
+      {details.map(([label, key]) => <div className={LONG_TEXT.includes(key) ? "record-card-long" : ""} key={key}>
+        <b>{label}</b>
+        {key === "sentiment" ? <span className={"badge sent-" + slug(row[key])}>{row[key]}</span> : <span>{row[key]}</span>}
+      </div>)}
+    </div>
+    <div className="record-card-links">
+      {row.image_filename && <ReportPhoto filename={row.image_filename} />}
+      {spec.pdf && <a href={`/api/pdf/${kind}/${row.id}`} target="_blank" rel="noopener noreferrer">Download PDF</a>}
+    </div>
+    <div className="record-card-footer">
+      <label>Update status</label>
+      <StatusForm kind={kind} row={row} statuses={statuses} onChanged={onChanged} />
+    </div>
+  </article>;
 }
 
 const CONF = { high: "fairly sure", medium: "somewhat sure", low: "not sure" };
@@ -163,13 +195,6 @@ export default function AdminList({ kind }) {
   const { spec, rows: allRows, columns, statuses, current } = data;
   const assignees = data.assignees || [];
   const rows = allRows.filter((r) => matches(r, q));
-  const showImage = !!spec.image && allRows.some((r) => r.image_filename);       // no empty Photo column
-  // the status badge sits with the status form; email + "From" are shown small under the name
-  const nameCol = columns.find(([h]) => h === "Name");
-  const emailKey = (columns.find(([h]) => h === "Email") || [])[1];
-  const fromKey = (columns.find(([h]) => h === "From") || [])[1];
-  const mergeWho = !!(nameCol && emailKey);
-  const shownColumns = columns.filter(([h, key]) => key !== "status" && key !== "assigned_admin_email" && !(mergeWho && (h === "Email" || h === "From")));
   const base = `/admin/${kind}`;
   const withSent = (s) => (sentiment ? `&sentiment=${sentiment}` : "");
 
@@ -238,46 +263,10 @@ export default function AdminList({ kind }) {
           </article>)}
         </section>
       ) : (
-        <div className="table-wrap"><table className="data-table">
-          <thead><tr>
-            {shownColumns.map(([header]) => <th key={header}>{header}</th>)}
-            {showImage && <th>Photo</th>}{spec.pdf && <th>PDF</th>}{kind === "reports" && <th>Assigned to</th>}<th>Status</th>
-          </tr></thead>
-          <tbody>
-            {rows.map((r) => (<Fragment key={r.id}>
-              <tr className={r.urgent ? "row-urgent" : undefined}>
-                {shownColumns.map(([header, key]) => key === "flags"
-                  ? <td key={key} data-label={header}><Flags r={r} /></td>
-                  : key === "sentiment"
-                  ? <td key={key} data-label={header}>{r.sentiment && <span className={"badge sent-" + slug(r.sentiment)} title={`Score ${r.sentiment_score} (-100 to 100)`}>{r.sentiment}</span>}</td>
-                  : mergeWho && header === "Name"
-                  ? <td key={key} data-label={header}><span><strong>{r[key]}</strong><br />
-                      <small className="muted">{[r[emailKey], fromKey && r[fromKey]].filter(Boolean).join(" · ")}</small></span></td>
-                  : key === "created_at"
-                  ? <td key={key} data-label={header} className="when"><DateCell value={r[key]} /></td>
-                  : <td key={key} data-label={header} className={LONG_TEXT.includes(key) ? "desc" : undefined}>{r[key] || ""}</td>)}
-                {showImage && <td data-label="Photo"><ReportPhoto filename={r.image_filename} /></td>}
-                {spec.pdf && <td data-label="PDF"><a href={`/api/pdf/${kind}/${r.id}`} target="_blank" rel="noopener noreferrer">PDF</a></td>}
-                {kind === "reports" && <td data-label="Assigned to">
-                  <AssignmentForm row={r} assignees={assignees} onChanged={load} />
-                </td>}
-                <td data-label="Status" className="status-cell">
-                  <span className={"badge s-" + slug(r.status)}>{r.status}</span>
-                  <StatusForm kind={kind} row={r} statuses={statuses} onChanged={load} />
-                  {r.source === "photo" && (
-                    <button type="button" className="btn small ghost" style={{ marginTop: 6 }} aria-expanded={open === r.id}
-                            onClick={() => setOpen(open === r.id ? null : r.id)}>{open === r.id ? "Hide details" : "AI details"}</button>
-                  )}
-                </td>
-              </tr>
-              {open === r.id && (
-                <tr className="detail-row"><td colSpan={shownColumns.length + (showImage ? 1 : 0) + (spec.pdf ? 1 : 0) + (kind === "reports" ? 1 : 0) + 1}>
-                  <PhotoDetail row={r} onChanged={load} />
-                </td></tr>
-              )}
-            </Fragment>))}
-          </tbody>
-        </table></div>
+        <section className="record-card-list" aria-label={spec.title}>
+          {rows.map((row) => <RecordCard key={row.id} row={row} columns={columns} kind={kind}
+            spec={spec} statuses={statuses} onChanged={load} />)}
+        </section>
       ) : q && allRows.length ? (
         <EmptyState title="No matches">Nothing matches "{q}". Try fewer or different words.</EmptyState>
       ) : (
