@@ -66,6 +66,7 @@ class AuthState extends ChangeNotifier with WidgetsBindingObserver {
   final _storage = const FlutterSecureStorage();
   final _google = GoogleSignIn(
     scopes: const ['email', 'profile'],
+    clientId: AppConfig.googleIosClientId.isEmpty ? null : AppConfig.googleIosClientId,
     serverClientId: AppConfig.googleServerClientId,
   );
 

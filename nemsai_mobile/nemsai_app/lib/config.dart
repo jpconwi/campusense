@@ -14,5 +14,8 @@ class AppConfig {
     defaultValue: '213854451824-a48qrm7v9ar1l1eta6n0r2s7dofn954j.apps.googleusercontent.com',
   );
 
+  /// iOS OAuth client ID from Google Cloud. Android keeps using its native client configuration.
+  static const googleIosClientId = String.fromEnvironment('GOOGLE_IOS_CLIENT_ID');
+
   static const maxImageBytes = 5 * 1024 * 1024;
 }

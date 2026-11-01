@@ -1,0 +1,35 @@
+workflows:
+  ios-free-build:
+    name: NEMSAI iOS build (unsigned)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: 3.27.4
+      xcode: latest
+    scripts:
+      - name: Configure Google Sign-In URL scheme
+        script: |
+          cd nemsai_mobile/nemsai_app
+          if [ -z "$GOOGLE_IOS_CLIENT_ID" ]; then
+            echo "Set GOOGLE_IOS_CLIENT_ID in Codemagic environment variables (Google OAuth iOS client)."
+            exit 1
+          fi
+          REVERSED_CLIENT_ID=$(python3 -c 'import sys; print(".".join(reversed(sys.argv[1].split("."))))' "$GOOGLE_IOS_CLIENT_ID")
+          /usr/libexec/PlistBuddy -c 'Add :CFBundleURLTypes array' ios/Runner/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c 'Add :CFBundleURLTypes:0 dict' ios/Runner/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c 'Add :CFBundleURLTypes:0:CFBundleTypeRole string Editor' ios/Runner/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c 'Add :CFBundleURLTypes:0:CFBundleURLSchemes array' ios/Runner/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string $REVERSED_CLIENT_ID" ios/Runner/Info.plist
+      - name: Resolve Flutter packages
+        script: |
+          cd nemsai_mobile/nemsai_app
+          flutter pub get
+      - name: Build unsigned iOS IPA
+        script: |
+          cd nemsai_mobile/nemsai_app
+          flutter build ipa --release --no-codesign \
+            --build-number="$BUILD_NUMBER" \
+            --dart-define=GOOGLE_IOS_CLIENT_ID="$GOOGLE_IOS_CLIENT_ID"
+    artifacts:
+      - nemsai_mobile/nemsai_app/build/ios/ipa/*.ipa
+      - nemsai_mobile/nemsai_app/build/ios/archive/*.xcarchive
