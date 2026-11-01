@@ -100,6 +100,7 @@ function RecordCard({ row, columns, kind, spec, statuses, onChanged }) {
 const CONF = { high: "fairly sure", medium: "somewhat sure", low: "not sure" };
 const CHECK = { supports: "matches the photo", partly: "partly matches the photo",
                 contradicts: "does not match the photo", cannot_tell: "cannot tell from the photo" };
+const PESO = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 });
 
 function ReportPhoto({ filename }) {
   const [failed, setFailed] = useState(false);
@@ -149,12 +150,28 @@ function PhotoDetail({ row, onChanged }) {
         <p>{row.description}</p>
         <p className="muted">Location: {row.location}{row.noticed_when ? ` · Noticed: ${row.noticed_when}` : ""}{row.observed_cause ? ` · Cause mentioned: ${row.observed_cause}` : ""}</p>
         <h4>AI analysis <span className="badge ai-guess">unverified</span></h4>
-        {ai.status === "unavailable" || !row.ai ? <p>The AI check was not available. Please review the photo by hand.</p> : (
+        {ai.status === "unavailable" || !row.ai ? <p>{ai.unavailable_reason === "no_provider_configured"
+          ? "No vision AI provider key is configured for this backend. Add a supported key to the backend environment to enable photo analysis."
+          : "The configured AI providers could not analyze this photo. Please review it by hand."}</p> : (
           <>
             <p><strong>{ai.issue_title || "No clear problem named"}</strong> · category {row.report_type} · {CONF[ai.confidence] || "not sure"}</p>
             {ai.observations && ai.observations.length > 0 && <ul>{ai.observations.map((o, i) => <li key={i}>{o}</li>)}</ul>}
             {row.description && !row.description.startsWith("(The student did not") &&
               <p className="muted">Description {CHECK[ai.description_check] || "was not compared"}. {ai.check_explanation}</p>}
+            <section className="photo-admin-estimate">
+              <h4>Preliminary severity and repair estimate</h4>
+              <p><strong>Severity:</strong> <span className={`badge severity-${ai.severity || "unclear"}`}>{(ai.severity || "unclear").toUpperCase()}</span>
+                {ai.severity_reason ? ` ${ai.severity_reason}` : " Needs onsite review."}</p>
+              {ai.estimated_budget_php_min != null && ai.estimated_budget_php_max != null ? (
+                <p><strong>Planning range:</strong> {PESO.format(ai.estimated_budget_php_min)} to {PESO.format(ai.estimated_budget_php_max)} |
+                  {ai.estimated_staff ? ` ${ai.estimated_staff} workers |` : ""} {ai.estimated_days_min} to {ai.estimated_days_max} working days
+                  <small> ({ai.estimate_confidence || "low"} confidence)</small></p>
+              ) : <p><strong>Cost, crew and duration:</strong> Not estimable from the available image; inspect onsite.</p>}
+              {ai.repair_approach && <p><strong>Possible repair approach:</strong> {ai.repair_approach}</p>}
+              {ai.repair_steps?.length > 0 && <ul>{ai.repair_steps.map((step, i) => <li key={i}>{step}</li>)}</ul>}
+              {ai.estimate_assumptions && <p className="muted"><strong>Assumptions:</strong> {ai.estimate_assumptions}</p>}
+              <small className="muted">AI screening only, not a diagnosis, quotation, or approved budget. Confirm onsite and price with current local supplier/labor rates.</small>
+            </section>
           </>
         )}
         <form className="verify-form" onSubmit={save}>
@@ -231,7 +248,9 @@ export default function AdminList({ kind }) {
           {rows.map((r) => <article className={`report-card${r.urgent ? " is-urgent" : ""}`} key={r.id}>
             <div className="report-card-top">
               <div><span className="report-number">Report #{r.id}</span><DateCell value={r.created_at} /></div>
-              <div className="report-card-badges"><span className={"badge s-" + slug(r.status)}>{r.status}</span><Flags r={r} /></div>
+              <div className="report-card-badges"><span className={"badge s-" + slug(r.status)}>{r.status}</span><Flags r={r} />
+                {r.ai?.status === "analyzed" && <span className={`badge severity-${r.ai.severity || "unclear"}`}>AI severity: {(r.ai.severity || "unclear").toUpperCase()}</span>}
+              </div>
             </div>
             <div className="report-card-main">
               <section>

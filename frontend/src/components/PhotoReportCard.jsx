@@ -13,6 +13,7 @@ const FIELDS = [
 ];
 const ASKED = { location: "location", noticed_when: "when", observed_cause: "cause" };
 const CONFIDENCE = { high: "fairly sure", medium: "somewhat sure", low: "not sure" };
+const PESO = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 });
 // photos that are clearly not a campus problem: show a short card instead of a report form
 const NOT_A_REPORT = {
   people: "This looks like a photo of people.",
@@ -117,6 +118,23 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
           <ul>{a.observations.map((o, i) => <li key={i}>{o}</li>)}</ul>
           {a.check_explanation && <p className="muted">{a.check_explanation}</p>}
         </details>
+      )}
+
+      {a.status === "analyzed" && (
+        <section className="photo-assessment" aria-label="Preliminary AI assessment">
+          <h4>Preliminary assessment <span className="badge ai-guess">AI estimate · unverified</span></h4>
+          <p><strong>Severity:</strong> <span className={`badge severity-${a.severity || "unclear"}`}>{(a.severity || "unclear").toUpperCase()}</span>
+            {a.severity_reason ? ` ${a.severity_reason}` : " Must be confirmed by facilities staff."}</p>
+          {a.estimated_budget_php_min != null && a.estimated_budget_php_max != null ? (
+            <p><strong>Planning range:</strong> {PESO.format(a.estimated_budget_php_min)} to {PESO.format(a.estimated_budget_php_max)} |
+              {a.estimated_staff ? ` ${a.estimated_staff} workers |` : ""} {a.estimated_days_min} to {a.estimated_days_max} working days
+              <small> ({a.estimate_confidence || "low"} confidence)</small></p>
+          ) : <p><strong>Cost / crew / time:</strong> Needs an onsite inspection before a useful estimate can be made.</p>}
+          {a.repair_approach && <p><strong>Possible repair:</strong> {a.repair_approach}</p>}
+          {a.repair_steps?.length > 0 && <ul>{a.repair_steps.map((step, i) => <li key={i}>{step}</li>)}</ul>}
+          {a.estimate_assumptions && <p className="muted">Assumptions: {a.estimate_assumptions}</p>}
+          <small className="muted">AI screening only. Not a diagnosis, quotation, or approved budget; an administrator must inspect the site and use current local prices.</small>
+        </section>
       )}
 
       <label htmlFor="pr-desc">{asked.has("description") ? result.questions.find((q) => q.key === "description").question : "Your description"}</label>

@@ -30,6 +30,7 @@ DESC_CHECK = ("supports", "partly", "contradicts", "cannot_tell", "no_descriptio
 DESC_ISSUE = ("yes", "no", "no_description")
 
 MAX_OBSERVATIONS = 5
+MAX_REPAIR_STEPS = 5
 MAX_CHECKS_PER_DRAFT = 6
 NO_DESCRIPTION = "(The student did not write a description. See the photo and the AI notes.)"
 NOT_PROVIDED = "Not provided"
@@ -47,6 +48,17 @@ Rules:
 - Set urgent to true only if the photo or description suggests a possible danger to people (exposed live
   wires, sparks, smoke, fire, flooding near electricity, structural damage or things about to fall,
   broken glass in walkways, injuries). Explain in urgent_reason.
+- Give a preliminary severity: low for minor/cosmetic, medium for damage needing timely maintenance,
+  high only for a clearly visible immediate or serious safety concern, and unclear when the photo cannot
+  support a rating. Explain briefly; do not diagnose structural integrity from a photo.
+- For a plausible campus repair only, provide a rough planning range in Philippine pesos, number of workers,
+  and working days. Use broad ranges and conservative assumptions; do not invent measurements or claim
+  to know local supplier prices. If the photo lacks enough scale/context, set estimates to null and say
+  what an onsite inspection must determine. These are screening estimates, never a quotation or budget
+  approval. A qualified facilities staff member must inspect before work is scoped or costed. Since no
+  current local price database or site measurements are provided, estimate confidence must not be high.
+- Suggest practical next steps and likely repair approach only as possibilities. Do not claim a root
+  cause that is not visible. Distinguish a visual observation from a hypothesis.
 
 Answer with ONE JSON object and nothing else, with exactly these keys:
 {{
@@ -58,6 +70,17 @@ Answer with ONE JSON object and nothing else, with exactly these keys:
  "confidence": one of {list(CONFIDENCE)},
  "urgent": true or false,
  "urgent_reason": string, "" if not urgent,
+ "severity": one of ["low", "medium", "high", "unclear"],
+ "severity_reason": short visible-evidence reason,
+ "repair_steps": up to 5 short next steps,
+ "repair_approach": short possible repair approach, or "" if unclear,
+ "estimated_budget_php_min": integer or null,
+ "estimated_budget_php_max": integer or null,
+ "estimated_staff": integer or null,
+ "estimated_days_min": integer or null,
+ "estimated_days_max": integer or null,
+ "estimate_confidence": one of ["low", "medium"],
+ "estimate_assumptions": short assumptions / missing information,
  "description_check": one of {list(DESC_CHECK)}  (does the photo support the description? "no_description" if none),
  "description_is_campus_issue": one of {list(DESC_ISSUE)}  (is the description itself a plausible campus problem?),
  "check_explanation": one short sentence on how the photo and description relate, or ""
@@ -102,6 +125,16 @@ def _text(value, limit):
     return re.sub(r"[\x00-\x1f]", " ", str(value or "")).strip()[:limit]
 
 
+def _bounded_int(value, low, high):
+    if isinstance(value, bool):
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if low <= number <= high else None
+
+
 def parse_model_json(text):
     """Find the first {...} object in the model's answer. Returns a dict or None."""
     text = re.sub(r"```(?:json)?", "", text or "")
@@ -122,6 +155,10 @@ def sanitize(raw, has_description):
     if not isinstance(observations, list):
         observations = []
     observations = [_text(o, 160) for o in observations if _text(o, 160)][:MAX_OBSERVATIONS]
+    steps = raw.get("repair_steps")
+    if not isinstance(steps, list):
+        steps = []
+    steps = [_text(step, 180) for step in steps if _text(step, 180)][:MAX_REPAIR_STEPS]
     category = raw.get("category")
     category = category if category in REPORT_TYPES else "Other"
     desc_check = _pick(raw.get("description_check"), DESC_CHECK, "cannot_tell")
@@ -133,15 +170,37 @@ def sanitize(raw, has_description):
     if has_description and desc_issue == "no_description":
         desc_issue = "no"
     urgent = raw.get("urgent") is True or str(raw.get("urgent")).lower() == "true"
+    image_kind = _pick(raw.get("image_kind"), IMAGE_KINDS, "unclear")
+    shows_issue = _pick(raw.get("shows_issue"), SHOWS, "unclear")
+    estimate_applicable = image_kind == "campus_issue" and shows_issue in ("yes", "possible")
+    budget_min = _bounded_int(raw.get("estimated_budget_php_min"), 0, 100_000_000)
+    budget_max = _bounded_int(raw.get("estimated_budget_php_max"), 0, 100_000_000)
+    staff = _bounded_int(raw.get("estimated_staff"), 1, 50)
+    days_min = _bounded_int(raw.get("estimated_days_min"), 1, 365)
+    days_max = _bounded_int(raw.get("estimated_days_max"), 1, 365)
+    estimate_complete = (estimate_applicable and budget_min is not None and budget_max is not None and budget_max >= budget_min
+                         and staff is not None and days_min is not None and days_max is not None
+                         and days_max >= days_min)
     return {
-        "image_kind": _pick(raw.get("image_kind"), IMAGE_KINDS, "unclear"),
-        "shows_issue": _pick(raw.get("shows_issue"), SHOWS, "unclear"),
+        "image_kind": image_kind,
+        "shows_issue": shows_issue,
         "issue_title": _text(raw.get("issue_title"), 120),
         "category": category,
         "observations": observations,
         "confidence": _pick(raw.get("confidence"), CONFIDENCE, "low"),
         "urgent": urgent,
         "urgent_reason": _text(raw.get("urgent_reason"), 240) if urgent else "",
+        "severity": _pick(raw.get("severity"), ("low", "medium", "high", "unclear"), "unclear"),
+        "severity_reason": _text(raw.get("severity_reason"), 240),
+        "repair_steps": steps,
+        "repair_approach": _text(raw.get("repair_approach"), 400),
+        "estimated_budget_php_min": budget_min if estimate_complete else None,
+        "estimated_budget_php_max": budget_max if estimate_complete else None,
+        "estimated_staff": staff if estimate_complete else None,
+        "estimated_days_min": days_min if estimate_complete else None,
+        "estimated_days_max": days_max if estimate_complete else None,
+        "estimate_confidence": _pick(raw.get("estimate_confidence"), ("low", "medium"), "low"),
+        "estimate_assumptions": _text(raw.get("estimate_assumptions"), 400),
         "description_check": desc_check,
         "description_is_campus_issue": desc_issue,
         "check_explanation": _text(raw.get("check_explanation"), 240),
@@ -188,6 +247,12 @@ def analyze(image_path, description="", location="", noticed_when="", observed_c
         analysis = {"status": "unavailable", "urgent": False, "urgent_reason": "", "observations": [],
                     "issue_title": "", "category": "Other", "image_kind": "unclear",
                     "shows_issue": "unclear", "confidence": "low",
+                    "severity": "unclear", "severity_reason": "", "repair_steps": [],
+                    "repair_approach": "", "estimated_budget_php_min": None,
+                    "estimated_budget_php_max": None, "estimated_staff": None,
+                    "estimated_days_min": None, "estimated_days_max": None,
+                    "estimate_confidence": "low", "estimate_assumptions": "AI analysis unavailable; onsite inspection required.",
+                    "unavailable_reason": "no_provider_configured" if not systemAi.vision_available() else "providers_unavailable",
                     "description_check": "no_description" if not description else "cannot_tell",
                     "description_is_campus_issue": "no_description" if not description else "no",
                     "check_explanation": ""}
@@ -307,5 +372,8 @@ def student_message(analysis, description="", questions=()):
 def public_view(analysis):
     """What the browser may see about the analysis (no internal fields)."""
     keys = ("status", "image_kind", "shows_issue", "issue_title", "category", "observations",
-            "confidence", "urgent", "urgent_reason", "description_check", "check_explanation")
+            "confidence", "urgent", "urgent_reason", "severity", "severity_reason", "repair_steps",
+            "repair_approach", "estimated_budget_php_min", "estimated_budget_php_max",
+            "estimated_staff", "estimated_days_min", "estimated_days_max", "estimate_confidence",
+            "estimate_assumptions", "description_check", "check_explanation")
     return {k: analysis.get(k) for k in keys}

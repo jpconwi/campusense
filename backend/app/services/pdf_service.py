@@ -124,6 +124,17 @@ def _photo_rows(r):
         ("PRIORITY", "POSSIBLE URGENT HAZARD - review promptly" if r.get("urgent") else "Normal"),
         ("AI finding (unverified)", ai.get("issue_title") or ("AI check unavailable" if ai.get("status") == "unavailable" else "-")),
         ("AI notes (what it saw)", notes), ("AI confidence", ai.get("confidence") or "-"),
+        ("AI severity (unverified)", ai.get("severity") or "-"),
+        ("AI severity reason", ai.get("severity_reason") or "-"),
+        ("Preliminary repair budget (PHP)", (f"{ai.get('estimated_budget_php_min'):,} to {ai.get('estimated_budget_php_max'):,}"
+         if ai.get("estimated_budget_php_min") is not None and ai.get("estimated_budget_php_max") is not None
+         else "Not estimable from photo; inspect onsite")),
+        ("Preliminary workers / work days", (f"{ai.get('estimated_staff')} workers; {ai.get('estimated_days_min')} to {ai.get('estimated_days_max')} working days"
+         if ai.get("estimated_staff") is not None and ai.get("estimated_days_min") is not None
+         and ai.get("estimated_days_max") is not None else "Not estimable from photo; inspect onsite")),
+        ("Possible repair approach", ai.get("repair_approach") or "-"),
+        ("Suggested next steps", "; ".join(ai.get("repair_steps") or []) or "-"),
+        ("Estimate assumptions", ai.get("estimate_assumptions") or "-"),
         ("Photo vs description", ai.get("check_explanation") or ai.get("description_check") or "-"),
         ("Submitted At", r["created_at"]), ("Status", r["status"])]
 
