@@ -55,11 +55,11 @@ export default function AdminOnlineUsers() {
       <section className="card user-activity-card">
         <div className="user-activity-heading"><h3>All students and instructors</h3><Link to="/admin/users">Manage users</Link></div>
         {data.rows.length ? <div className="table-wrap"><table>
-          <thead><tr><th>Status</th><th>User</th><th>Role</th><th>Last online</th><th>Today</th><th>7 days</th><th>30 days</th></tr></thead>
+          <thead><tr><th>Status</th><th>User</th><th>Role</th><th>Last online</th></tr></thead>
           <tbody>{data.rows.map((u) => <tr key={u.id}>
             <td><span className={`user-presence ${u.online ? "is-online" : ""}`}><i />{u.online ? "Online" : "Offline"}</span></td>
             <td><strong>{u.name}</strong><br /><small>{u.email}</small></td><td>{u.role}</td>
-            <td>{since(u.last_seen_at, u.online)}</td><td>{u.minutes_1d} min</td><td>{u.minutes_7d} min</td><td>{u.minutes_30d} min</td>
+            <td>{since(u.last_seen_at, u.online)}</td>
           </tr>)}</tbody>
         </table></div> : <p className="empty">No active student or instructor accounts.</p>}
         <small className="muted activity-refresh-note">Updates every 30 seconds. Offline status appears after two minutes without a heartbeat.</small>

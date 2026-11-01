@@ -46,10 +46,10 @@ export default function AdminHelpMessages() {
     {visibleRows.length === 0 ? <EmptyState title="No help messages found">Try another search or status filter.</EmptyState> : (
       <section className="help-message-list" aria-label="Help messages">
         {visibleRows.map((message) => <article className="help-message-card" key={message.id}>
-          <header className="help-message-head">
+          <div className="help-message-head">
             <div><h3>{message.category}</h3><p>{message.name} · {message.applicant_type} · {message.created_at.replace("T", " ")}</p></div>
             <span className={"badge " + (message.status === "New" ? "s-pending" : "s-available")}>{message.status}</span>
-          </header>
+          </div>
           <a href={`mailto:${message.email}`}>{message.email}</a>
           <p className="help-message-body">{message.message}</p>
           {message.status === "New" && <button className="btn small" type="button" onClick={() => resolve(message)}>Mark resolved</button>}
