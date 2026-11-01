@@ -75,6 +75,11 @@ GOOGLE_MODEL = os.getenv("GOOGLE_MODEL") or os.getenv("GEMINI_MODEL")
 OPENROUTER_API_KEY = (os.getenv("OPENROUTER_API_KEY") or "").strip()
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
 
+# Optional Apify Actor used to retrieve current Philippine repair/material price pages.
+# Defaults to Apify's Google Search Results Scraper; override the Actor if using a custom one.
+APIFY_API_TOKEN = (os.getenv("APIFY_API_TOKEN") or "").strip()
+APIFY_PRICE_ACTOR = (os.getenv("APIFY_PRICE_ACTOR") or "apify/google-search-scraper").strip()
+
 # ---- photo analysis (vision-language models). Optional: each can list several models,
 # comma separated. Defaults are in model/systemAi.py (free-tier / open-source models first).
 HF_VISION_MODEL = os.getenv("HF_VISION_MODEL")

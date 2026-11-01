@@ -139,6 +139,8 @@ def _photo_rows(r, include_estimate=False):
             ("Possible repair approach", ai.get("repair_approach") or "-"),
             ("Suggested next steps", "; ".join(ai.get("repair_steps") or []) or "-"),
             ("Estimate assumptions", ai.get("estimate_assumptions") or "-"),
+            ("Price basis", ai.get("pricing_basis") or "AI general knowledge; no current web prices used"),
+            ("Price source URLs", "\n".join(source.get("url", "") for source in ai.get("pricing_sources", []) if isinstance(source, dict)) or "-"),
         ])
     return rows
 

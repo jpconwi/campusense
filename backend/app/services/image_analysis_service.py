@@ -201,6 +201,8 @@ def sanitize(raw, has_description):
         "estimated_days_max": days_max if estimate_complete else None,
         "estimate_confidence": _pick(raw.get("estimate_confidence"), ("low", "medium"), "low"),
         "estimate_assumptions": _text(raw.get("estimate_assumptions"), 400),
+        "pricing_basis": "",
+        "pricing_sources": [],
         "description_check": desc_check,
         "description_is_campus_issue": desc_issue,
         "check_explanation": _text(raw.get("check_explanation"), 240),
@@ -252,6 +254,7 @@ def analyze(image_path, description="", location="", noticed_when="", observed_c
                     "estimated_budget_php_max": None, "estimated_staff": None,
                     "estimated_days_min": None, "estimated_days_max": None,
                     "estimate_confidence": "low", "estimate_assumptions": "AI analysis unavailable; onsite inspection required.",
+                    "pricing_basis": "", "pricing_sources": [],
                     "unavailable_reason": "no_provider_configured" if not systemAi.vision_available() else "providers_unavailable",
                     "description_check": "no_description" if not description else "cannot_tell",
                     "description_is_campus_issue": "no_description" if not description else "no",
@@ -262,6 +265,12 @@ def analyze(image_path, description="", location="", noticed_when="", observed_c
     analysis = sanitize(raw, bool(description))
     analysis["status"] = "analyzed"
     analysis["model"] = model
+    try:
+        from app.services.apify_price_service import lookup_and_ground
+        lookup_and_ground(analysis, location)
+    except Exception as error:
+        # Price lookup is optional and must never block web or mobile report submission.
+        print("APIFY PRICE LOOKUP ERROR:", repr(error)[:240])
     _apply_safety_net(analysis, description)
     analysis.update(meta)
     return analysis, provider

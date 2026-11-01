@@ -170,6 +170,10 @@ function PhotoDetail({ row, onChanged }) {
               {ai.repair_approach && <p><strong>Possible repair approach:</strong> {ai.repair_approach}</p>}
               {ai.repair_steps?.length > 0 && <ul>{ai.repair_steps.map((step, i) => <li key={i}>{step}</li>)}</ul>}
               {ai.estimate_assumptions && <p className="muted"><strong>Assumptions:</strong> {ai.estimate_assumptions}</p>}
+              {ai.pricing_basis && <p className="muted"><strong>Price basis:</strong> {ai.pricing_basis}</p>}
+              {ai.pricing_sources?.length > 0 && <div><strong>Price sources:</strong><ul>{ai.pricing_sources.map((source, i) => (
+                <li key={`${source.url}-${i}`}><a href={source.url} target="_blank" rel="noreferrer">{source.title || source.url}</a></li>
+              ))}</ul></div>}
               <small className="muted">NEMSAI screening only, not a diagnosis, quotation, or approved budget. Confirm onsite and price with current local supplier/labor rates.</small>
             </section>
           </>
