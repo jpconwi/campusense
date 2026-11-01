@@ -6,6 +6,8 @@ workflows:
     environment:
       flutter: 3.27.4
       xcode: latest
+      groups:
+        - ios_config
     scripts:
       - name: Configure Google Sign-In URL scheme
         script: |
