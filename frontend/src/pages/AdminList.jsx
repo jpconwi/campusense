@@ -201,7 +201,43 @@ export default function AdminList({ kind }) {
         <SearchBox value={q} onChange={setQ} shown={rows.length} total={allRows.length}
                    placeholder={`Search ${spec.title.toLowerCase()}...`} />
       )}
-      {rows.length ? (
+      {rows.length ? kind === "reports" ? (
+        <section className="report-card-list" aria-label="Campus reports">
+          {rows.map((r) => <article className={`report-card${r.urgent ? " is-urgent" : ""}`} key={r.id}>
+            <div className="report-card-top">
+              <div><span className="report-number">Report #{r.id}</span><DateCell value={r.created_at} /></div>
+              <div className="report-card-badges"><span className={"badge s-" + slug(r.status)}>{r.status}</span><Flags r={r} /></div>
+            </div>
+            <div className="report-card-main">
+              <section>
+                <h3>{r.report_type || "Campus report"}</h3>
+                <p className="report-card-description">{r.description || "No description provided."}</p>
+                <div className="report-card-meta">
+                  <span><b>Location</b>{r.location || "Not provided"}</span>
+                  {r.area && <span><b>Area</b>{r.area}</span>}
+                  {r.room && <span><b>Room</b>{r.room}</span>}
+                  {r.noticed_when && <span><b>When noticed</b>{r.noticed_when}</span>}
+                  {r.sentiment && <span><b>Sentiment</b><span className={"badge sent-" + slug(r.sentiment)}>{r.sentiment}</span></span>}
+                </div>
+              </section>
+              <aside className="report-card-reporter">
+                <b>Submitted by</b><strong>{r.reporter_name || "Unknown"}</strong>
+                {r.reporter_email && <a href={`mailto:${r.reporter_email}`}>{r.reporter_email}</a>}
+                <small>{r.submitter_role || ""}</small>
+                {r.image_filename && <ReportPhoto filename={r.image_filename} />}
+                {spec.pdf && <a href={`/api/pdf/${kind}/${r.id}`} target="_blank" rel="noopener noreferrer">Download PDF</a>}
+              </aside>
+            </div>
+            <div className="report-card-actions">
+              <div><label>Assigned administrator</label><AssignmentForm row={r} assignees={assignees} onChanged={load} /></div>
+              <div><label>Update status</label><StatusForm kind={kind} row={r} statuses={statuses} onChanged={load} /></div>
+              {r.source === "photo" && <button type="button" className="btn small ghost" aria-expanded={open === r.id}
+                onClick={() => setOpen(open === r.id ? null : r.id)}>{open === r.id ? "Hide AI details" : "View AI details"}</button>}
+            </div>
+            {open === r.id && <div className="report-card-detail"><PhotoDetail row={r} onChanged={load} /></div>}
+          </article>)}
+        </section>
+      ) : (
         <div className="table-wrap"><table className="data-table">
           <thead><tr>
             {shownColumns.map(([header]) => <th key={header}>{header}</th>)}

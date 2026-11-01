@@ -544,6 +544,34 @@ h2.page-title { letter-spacing: -.01em; }
 .data-table tbody tr { transition: background .12s; }
 .data-table tbody tr:hover td { background: #f7f7ff; }
 .data-table tr.detail-row:hover td { background: var(--paper); }
+.report-card-list { display: grid; gap: 14px; }
+.report-card { min-width: 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 1px 2px rgba(21,22,58,.04); }
+.report-card.is-urgent { border-left: 5px solid var(--error); }
+.report-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.report-card-top > div:first-child { display: grid; gap: 2px; }
+.report-number { color: var(--muted); font-size: .86rem; font-weight: 700; }
+.report-card-badges { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.report-card-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(210px, .32fr); gap: 20px; padding: 15px 0; }
+.report-card-main h3 { margin: 0 0 5px; color: var(--blue-deep); font-family: var(--serif); font-size: 1.15rem; }
+.report-card-description { white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-card-meta { display: flex; flex-wrap: wrap; gap: 9px 18px; margin-top: 12px; }
+.report-card-meta > span { display: grid; gap: 2px; color: var(--ink); }
+.report-card-meta b, .report-card-reporter > b, .report-card-actions label { color: var(--muted); font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .035em; }
+.report-card-reporter { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px; border-radius: 9px; background: #f7f7ff; overflow-wrap: anywhere; }
+.report-card-reporter .report-photo-link { margin-top: 5px; }
+.report-card-actions { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 18px; padding-top: 13px; border-top: 1px solid var(--line); }
+.report-card-actions > div { display: grid; gap: 5px; min-width: min(100%, 250px); }
+.report-card-actions form.inline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.report-card-actions form.inline select { min-width: 150px; max-width: 260px; }
+.report-card-detail { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+@media (max-width: 680px) {
+  .report-card { padding: 14px; }
+  .report-card-main { grid-template-columns: 1fr; gap: 12px; }
+  .report-card-top { flex-direction: column; }
+  .report-card-badges { justify-content: flex-start; }
+  .report-card-actions { align-items: stretch; flex-direction: column; }
+  .report-card-actions > div, .report-card-actions form.inline, .report-card-actions form.inline select { width: 100%; max-width: none; }
+}
 .table-wrap { border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
 .table-wrap table { border-radius: 12px; }
 .table-wrap tr:last-child td { border-bottom: none; }
