@@ -9,12 +9,14 @@ import AdminHelpMessages from "./pages/AdminHelpMessages.jsx";
 import AdminList from "./pages/AdminList.jsx";
 import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminUsers from "./pages/AdminUsers.jsx";
+import AdminOnlineUsers from "./pages/AdminOnlineUsers.jsx";
 import Chat from "./pages/Chat.jsx";
 import Faculty from "./pages/Faculty.jsx";
 import Home from "./pages/Home.jsx";
 import Login from "./pages/Login.jsx";
 import MyList from "./pages/MyList.jsx";
 import NotFound from "./pages/NotFound.jsx";
+import Notifications from "./pages/Notifications.jsx";
 import Profile from "./pages/Profile.jsx";
 import Register from "./pages/Register.jsx";
 import RoleSelect from "./pages/RoleSelect.jsx";
@@ -47,6 +49,7 @@ export default function App() {
 
       <Route element={<Layout />}>
         <Route path="/" element={page(<Home />)} />
+        <Route path="/notifications" element={page(<Notifications />, person)} />
         <Route path="/ai" element={page(<Chat />)} />
         <Route path="/profile" element={page(<Profile />)} />
         <Route path="/concerns" element={page(<MyList kind="concerns" />, person)} />
@@ -57,6 +60,7 @@ export default function App() {
 
         <Route path="/admin" element={page(<AdminDashboard />, ["admin"])} />
         <Route path="/admin/users" element={page(<AdminUsers />, ["admin"])} />
+        <Route path="/admin/online-users" element={page(<AdminOnlineUsers />, ["admin"])} />
         <Route path="/admin/help-messages" element={page(<AdminHelpMessages />, ["admin"])} />
         <Route path="/admin/faculty" element={page(<AdminFaculty />, ["admin"])} />
         <Route path="/admin/rooms" element={page(<AdminDataset kind="rooms" />, ["admin"])} />

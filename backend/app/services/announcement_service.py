@@ -70,7 +70,13 @@ def delete_announcement(db: Session, row_id):
 
 # ------------------------------------------------------------ answers (pure functions)
 def _one(r):
-    return f"**{r['title']}** ({r['category']})\n{r['body']}"
+    dates = []
+    if r.get("start_date"):
+        dates.append(f"Date: {r['start_date']}")
+    if r.get("end_date"):
+        dates.append(f"Until: {r['end_date']}")
+    date_text = f"\n{' · '.join(dates)}" if dates else ""
+    return f"**{r['title']}** ({r['category']})\n{r['body']}{date_text}"
 
 
 def format_reply(rows, label="announcements"):

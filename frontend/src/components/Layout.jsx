@@ -40,6 +40,7 @@ export function Flashes() {
 const ICONS = {
   "/": "M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10",
   "/ai": "M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.5A8 8 0 1 1 21 12z",
+  "/notifications": "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4",
   "/reports": "M7 3h8l4 4v14H7zM15 3v4h4M10 12h6M10 16h6",
   "/concerns": "M12 3l10 18H2zM12 10v5M12 18v.5",
   "/feedback": "M4 5h16v11H9l-5 4zM8 9h8M8 12h5",
@@ -48,6 +49,7 @@ const ICONS = {
   "/faculty": "M3 9l9-5 9 5-9 5zM7 12v5c3 2 7 2 10 0v-5",
   "/admin": "M4 4h7v7H4zM13 4h7v4h-7zM13 11h7v9h-7zM4 14h7v6H4z",
   "/admin/users": "M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20a6 6 0 0 1 12 0M16 11a2.5 2.5 0 1 0 0-5M17 15a5 5 0 0 1 4 5",
+  "/admin/online-users": "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0M19 8h3M20.5 6.5v3",
   "/admin/help-messages": "M4 5h16v11H9l-5 4zM8 9h8M8 12h5",
   "/admin/concerns": "M12 3l10 18H2zM12 10v5M12 18v.5",
   "/admin/reports": "M7 3h8l4 4v14H7zM15 3v4h4M10 12h6M10 16h6",
@@ -170,13 +172,13 @@ function ChatHistory({ activeId, tick, onOpen, onDeleted }) {
 
 // Sidebar sections. The server sends a flat list; the groups are decided here by path.
 const GROUPS = {
-  "/": "Menu", "/ai": "Menu", "/admin": "Overview",
+  "/": "Menu", "/notifications": "Menu", "/ai": "Menu", "/admin": "Overview",
   "/reports": "My records", "/concerns": "My records", "/feedback": "My records",
   "/reservations": "My records", "/faculty": "My records",
   "/profile": "Account",
   "/admin/concerns": "Inbox", "/admin/reports": "Inbox", "/admin/faculty": "Inbox",
   "/admin/feedback": "Inbox", "/admin/reservations": "Inbox", "/admin/help-messages": "Inbox",
-  "/admin/users": "Manage", "/admin/rooms": "Manage", "/admin/campus": "Manage", "/admin/announcements": "Manage",
+  "/admin/users": "Manage", "/admin/online-users": "Manage", "/admin/rooms": "Manage", "/admin/campus": "Manage", "/admin/announcements": "Manage",
 };
 function groupNav(nav, role) {
   const out = [];

@@ -81,21 +81,8 @@ export default function AdminDashboard() {
           <div><h3>User activity</h3><p className="muted">Active minutes while the website or mobile app is open in the foreground.</p></div>
           {activity && <strong>{activity.online_count} online now</strong>}
         </div>
-        {!activity ? <p className="muted">Loading user activity…</p> : activity.rows.length ? (
-          <div className="table-wrap"><table>
-            <thead><tr><th>Status</th><th>User</th><th>Role</th><th>Active today</th><th>Past 7 days</th><th>Past 30 days</th><th>Last seen</th></tr></thead>
-            <tbody>{activity.rows.map((u) => (
-              <tr key={u.id}>
-                <td><span className={`user-presence ${u.online ? "is-online" : ""}`}><i />{u.online ? "Online" : "Offline"}</span></td>
-                <td><strong>{u.name}</strong><br /><small>{u.email}</small></td>
-                <td>{u.role}</td>
-                <td>{u.minutes_1d} min</td><td>{u.minutes_7d} min</td><td>{u.minutes_30d} min</td>
-                <td>{u.last_seen_at ? new Date(`${u.last_seen_at}Z`).toLocaleString() : "Never"}</td>
-              </tr>
-            ))}</tbody>
-          </table></div>
-        ) : <p className="empty">No active student or instructor accounts.</p>}
-        <small className="muted">Online status updates every 30 seconds; users are considered offline after 2 minutes without a heartbeat.</small>
+        <p className="muted">See who is online, recent activity, and the top three most active users.</p>
+        <Link className="btn small" to="/admin/online-users">Open online users</Link>
       </section>
 
       {d.urgent_reports && d.urgent_reports.length > 0 && (

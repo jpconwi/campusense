@@ -49,6 +49,21 @@ h2.page-title { font-family: var(--serif); color: var(--blue-deep); font-size: 1
 .user-presence i { width: 9px; height: 9px; border-radius: 50%; background: #9aa0b5; }
 .user-presence.is-online i { background: #1a9b60; box-shadow: 0 0 0 3px rgba(26,155,96,.13); }
 .user-activity-card > .muted:last-child { display: block; margin-top: 10px; }
+.activity-top-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.activity-top-user { display: grid; gap: 5px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #fafaff; }
+.activity-top-user small { color: var(--muted); }
+.activity-rank { width: fit-content; border-radius: 999px; padding: 2px 9px; color: var(--blue-deep); background: var(--blue-soft); font-size: .8rem; font-weight: 700; }
+.rank-1 { background: #fff1bd; }
+.activity-refresh-note { display: block; margin-top: 12px; }
+.announcement-notifications { border-left: 4px solid var(--gold); }
+.announcement-count { flex: none; border-radius: 999px; padding: 3px 10px; color: var(--blue-deep); background: #fff1bd; font-size: .82rem; font-weight: 700; }
+.announcement-list { display: grid; gap: 10px; margin-top: 14px; }
+.announcement-item { padding: 12px 14px; border: 1px solid var(--line); border-radius: 9px; }
+.announcement-item > div { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+.announcement-category { border-radius: 999px; padding: 1px 8px; background: var(--blue-soft); color: var(--blue-deep); font-size: .78rem; }
+.announcement-item p { margin: 5px 0; white-space: pre-wrap; }
+.announcement-item small { color: var(--muted); }
+@media (max-width: 680px) { .activity-top-three { grid-template-columns: 1fr; } }
 .registration-scan-result-title { margin: 16px 0 4px; color: var(--blue-deep); font-family: var(--serif); }
 .card h3 { font-family: var(--serif); color: var(--blue-deep); font-size: 1.2rem; margin-bottom: 10px; }
 .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); margin-bottom: 20px; }

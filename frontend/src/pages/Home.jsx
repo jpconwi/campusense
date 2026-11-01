@@ -13,10 +13,19 @@ function greeting() {
 export default function Home() {
   const { user } = useAuth();
   const [counts, setCounts] = useState(null);   // null = still loading
+  const [announcements, setAnnouncements] = useState([]);
 
   useEffect(() => { document.title = "Home | NEMSU"; }, []);
   useEffect(() => {
     if (user.role !== "admin") api("/api/home").then((d) => setCounts(d.counts)).catch(() => setCounts({ concerns: 0, reports: 0, reservations: 0 }));
+  }, [user.role]);
+  useEffect(() => {
+    if (user.role === "admin") return;
+    let alive = true;
+    const load = () => api("/api/announcements").then((d) => { if (alive) setAnnouncements(d.rows || []); }).catch(() => {});
+    load();
+    const timer = window.setInterval(load, 60_000);
+    return () => { alive = false; window.clearInterval(timer); };
   }, [user.role]);
 
   if (user.role === "admin") return <Navigate to="/admin" replace />;
@@ -53,6 +62,19 @@ export default function Home() {
           </div>
         </div>
         <img className="hero-logo" src="/logo.png" alt="" />
+      </section>
+
+      <section className="card announcement-notifications" aria-label="Campus announcements">
+        <div className="user-activity-heading"><div><h3>Campus announcements</h3><p className="muted">Updates from the administration.</p></div>
+          {announcements.length > 0 && <span className="announcement-count">{announcements.length} active</span>}
+        </div>
+        {announcements.length ? <div className="announcement-list">{announcements.map((item) => (
+          <article className="announcement-item" key={item.id}>
+            <div><strong>{item.title}</strong><span className="announcement-category">{item.category}</span></div>
+            <p>{item.body}</p>
+            {(item.start_date || item.end_date) && <small>{item.start_date ? `Date: ${item.start_date}` : ""}{item.start_date && item.end_date ? " · " : ""}{item.end_date ? `Until: ${item.end_date}` : ""}</small>}
+          </article>
+        ))}</div> : <p className="empty">There are no current announcements.</p>}
       </section>
 
       <div className="tiles">

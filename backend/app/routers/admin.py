@@ -116,7 +116,10 @@ def user_activity(db: Session = Depends(get_db)):
             "minutes_7d": seconds.get("7d", 0) // 60,
             "minutes_30d": seconds.get("30d", 0) // 60,
         })
-    rows.sort(key=lambda row: (not row["online"], row["name"].lower()))
+    # Keep currently online users first, then most recently seen, then name.
+    rows.sort(key=lambda row: (not row["online"],
+                               -(datetime.fromisoformat(row["last_seen_at"]).timestamp()
+                                 if row["last_seen_at"] else 0), row["name"].lower()))
     return {"rows": rows, "online_count": sum(row["online"] for row in rows), "as_of": now.isoformat()}
 
 
