@@ -391,7 +391,13 @@ def pdf(kind: str, record_id: str, user: CurrentUser = Depends(login_required),
         if row is None or (not user.is_admin and row["user_id"] != user.id):
             raise HTTPException(404, "That page was not found.")
         path = builders[kind](row["id"])
-        pdf_service.ensure_pdf(kind, row, path)
+        include_ai_estimate = bool(user.is_admin and kind == "reports" and row.get("source") == "photo")
+        if kind == "reports" and row.get("source") == "photo":
+            # Owner and admin PDFs are separate so admin-only planning estimates can never
+            # leak through a shared cached PDF path.
+            suffix = "_admin" if user.is_admin else "_user"
+            path = path.with_name(f"{path.stem}{suffix}{path.suffix}")
+        pdf_service.ensure_pdf(kind, row, path, include_ai_estimate=include_ai_estimate)
     return FileResponse(path, media_type="application/pdf")
 
 

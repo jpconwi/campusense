@@ -359,7 +359,7 @@ def student_message(analysis, description="", questions=()):
             lines.append("**This could be a safety hazard.** If anyone is in immediate danger, keep away from it "
                          "and tell campus security or the nearest staff member right now. "
                          "I'll mark your report for priority review.")
-        lines.append("This is only what the AI thinks. An administrator will check it before anything is decided.")
+        lines.append("This is only NEMSAI's assessment. An administrator will check it before anything is decided.")
         text = "\n\n".join(lines)
 
     if questions:

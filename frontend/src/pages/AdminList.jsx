@@ -120,14 +120,14 @@ function Flags({ r }) {
   return (
     <>
       {r.urgent && <span className="badge urgent" title="Possible safety hazard, not confirmed">Possible hazard</span>}{" "}
-      {r.source === "photo" && <span className="badge ai-guess" title="Sent with a photo and checked by AI">Photo + AI</span>}{" "}
+      {r.source === "photo" && <span className="badge ai-guess" title="Sent with a photo and checked by NEMSAI">Photo + NEMSAI</span>}{" "}
       {r.source === "photo" && r.verification && r.verification !== "Unverified" &&
         <span className={"badge ver-" + slug(r.verification)}>{r.verification}</span>}
     </>
   );
 }
 
-/** Everything about one photo report: photo, student's words, AI notes, verification. */
+/** Everything about one photo report: photo, student's words, NEMSAI notes, verification. */
 function PhotoDetail({ row, onChanged }) {
   const { setFlash } = useAuth();
   const ai = row.ai || {};
@@ -149,17 +149,17 @@ function PhotoDetail({ row, onChanged }) {
         <h4>Student's report</h4>
         <p>{row.description}</p>
         <p className="muted">Location: {row.location}{row.noticed_when ? ` · Noticed: ${row.noticed_when}` : ""}{row.observed_cause ? ` · Cause mentioned: ${row.observed_cause}` : ""}</p>
-        <h4>AI analysis <span className="badge ai-guess">unverified</span></h4>
+        <h4>NEMSAI analysis <span className="badge ai-guess">unverified</span></h4>
         {ai.status === "unavailable" || !row.ai ? <p>{ai.unavailable_reason === "no_provider_configured"
-          ? "No vision AI provider key is configured for this backend. Add a supported key to the backend environment to enable photo analysis."
-          : "The configured AI providers could not analyze this photo. Please review it by hand."}</p> : (
+          ? "No NEMSAI vision provider key is configured for this backend. Add a supported key to the backend environment to enable photo analysis."
+          : "The configured NEMSAI providers could not analyze this photo. Please review it by hand."}</p> : (
           <>
             <p><strong>{ai.issue_title || "No clear problem named"}</strong> · category {row.report_type} · {CONF[ai.confidence] || "not sure"}</p>
             {ai.observations && ai.observations.length > 0 && <ul>{ai.observations.map((o, i) => <li key={i}>{o}</li>)}</ul>}
             {row.description && !row.description.startsWith("(The student did not") &&
               <p className="muted">Description {CHECK[ai.description_check] || "was not compared"}. {ai.check_explanation}</p>}
             <section className="photo-admin-estimate">
-              <h4>Preliminary severity and repair estimate</h4>
+              <h4>Preliminary severity and repair estimate <span className="badge ai-guess">NEMSAI estimate · unverified</span></h4>
               <p><strong>Severity:</strong> <span className={`badge severity-${ai.severity || "unclear"}`}>{(ai.severity || "unclear").toUpperCase()}</span>
                 {ai.severity_reason ? ` ${ai.severity_reason}` : " Needs onsite review."}</p>
               {ai.estimated_budget_php_min != null && ai.estimated_budget_php_max != null ? (
@@ -170,12 +170,12 @@ function PhotoDetail({ row, onChanged }) {
               {ai.repair_approach && <p><strong>Possible repair approach:</strong> {ai.repair_approach}</p>}
               {ai.repair_steps?.length > 0 && <ul>{ai.repair_steps.map((step, i) => <li key={i}>{step}</li>)}</ul>}
               {ai.estimate_assumptions && <p className="muted"><strong>Assumptions:</strong> {ai.estimate_assumptions}</p>}
-              <small className="muted">AI screening only, not a diagnosis, quotation, or approved budget. Confirm onsite and price with current local supplier/labor rates.</small>
+              <small className="muted">NEMSAI screening only, not a diagnosis, quotation, or approved budget. Confirm onsite and price with current local supplier/labor rates.</small>
             </section>
           </>
         )}
         <form className="verify-form" onSubmit={save}>
-          <label htmlFor={`v-${row.id}`}>Your verdict on the AI's findings</label>
+          <label htmlFor={`v-${row.id}`}>Your verdict on NEMSAI's findings</label>
           <select id={`v-${row.id}`} value={choice} onChange={(e) => setChoice(e.target.value)}>
             <option>Unverified</option><option>Confirmed</option><option>Not confirmed</option>
           </select>
@@ -249,7 +249,7 @@ export default function AdminList({ kind }) {
             <div className="report-card-top">
               <div><span className="report-number">Report #{r.id}</span><DateCell value={r.created_at} /></div>
               <div className="report-card-badges"><span className={"badge s-" + slug(r.status)}>{r.status}</span><Flags r={r} />
-                {r.ai?.status === "analyzed" && <span className={`badge severity-${r.ai.severity || "unclear"}`}>AI severity: {(r.ai.severity || "unclear").toUpperCase()}</span>}
+                {r.ai?.status === "analyzed" && <span className={`badge severity-${r.ai.severity || "unclear"}`}>NEMSAI severity: {(r.ai.severity || "unclear").toUpperCase()}</span>}
               </div>
             </div>
             <div className="report-card-main">
@@ -276,7 +276,7 @@ export default function AdminList({ kind }) {
               <div><label>Assigned administrator</label><AssignmentForm row={r} assignees={assignees} onChanged={load} /></div>
               <div><label>Update status</label><StatusForm kind={kind} row={r} statuses={statuses} onChanged={load} /></div>
               {r.source === "photo" && <button type="button" className="btn small ghost" aria-expanded={open === r.id}
-                onClick={() => setOpen(open === r.id ? null : r.id)}>{open === r.id ? "Hide AI details" : "View AI details"}</button>}
+                onClick={() => setOpen(open === r.id ? null : r.id)}>{open === r.id ? "Hide NEMSAI details" : "View NEMSAI details"}</button>}
             </div>
             {open === r.id && <div className="report-card-detail"><PhotoDetail row={r} onChanged={load} /></div>}
           </article>)}

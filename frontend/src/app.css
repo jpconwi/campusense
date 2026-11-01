@@ -458,11 +458,11 @@ tr.detail-row > td { background: var(--paper); }
 .photo-detail-text { flex: 1; min-width: 260px; }
 .photo-detail-text h4 { font-family: var(--serif); color: var(--blue-deep); margin: 10px 0 4px; }
 .photo-detail-text ul { margin: 4px 0 6px 20px; }
-.photo-assessment, .photo-admin-estimate { display: grid; gap: 7px; margin: 12px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #f8f8ff; }
-.photo-assessment h4, .photo-admin-estimate h4 { margin: 0; color: var(--blue-deep); font-family: var(--serif); }
-.photo-assessment p, .photo-admin-estimate p { margin: 0; }
-.photo-assessment ul, .photo-admin-estimate ul { margin: 0 0 0 20px; }
-.photo-assessment > small, .photo-admin-estimate > small { color: var(--muted); }
+.photo-admin-estimate { display: grid; gap: 7px; margin: 12px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #f8f8ff; }
+.photo-admin-estimate h4 { margin: 0; color: var(--blue-deep); font-family: var(--serif); }
+.photo-admin-estimate p { margin: 0; }
+.photo-admin-estimate ul { margin: 0 0 0 20px; }
+.photo-admin-estimate > small { color: var(--muted); }
 .severity-low { background: #e5f5eb; color: #17623b; }
 .severity-medium { background: #fff1c9; color: #755400; }
 .severity-high { background: #ffe2e2; color: #9f2020; }

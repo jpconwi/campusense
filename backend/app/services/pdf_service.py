@@ -79,7 +79,7 @@ def generate_pdf(path, title, rows, image_path=None):
 # On Render (and most hosts) the disk is wiped on every deploy/restart, but the
 # database is kept. So a PDF that is missing on disk is simply drawn again from
 # its database row the next time someone opens it.
-def _rows_for(kind, r):
+def _rows_for(kind, r, include_ai_estimate=False):
     if kind == "concerns":
         return "Campus Concern Report", [
             ("Concern ID", r["id"]), ("Name", r["reporter_name"]), ("Email", r["reporter_email"]),
@@ -88,7 +88,7 @@ def _rows_for(kind, r):
             ("Date", r["concern_date"]), ("Submitted At", r["created_at"]),
             ("Status", r["status"])]
     if kind == "reports" and r.get("source") == "photo":
-        return "Campus Photo Report (AI-assisted)", _photo_rows(r)
+        return "Campus Photo Report (NEMSAI-assisted)", _photo_rows(r, include_ai_estimate)
     if kind == "reports":
         return "Campus Report", [
             ("Report ID", r["id"]), ("Reporter", r["reporter_name"]), ("Email", r["reporter_email"]),
@@ -109,41 +109,45 @@ def _rows_for(kind, r):
         ("Submitted At", r["submitted_at"]), ("Status", r["status"])]
 
 
-def _photo_rows(r):
+def _photo_rows(r, include_estimate=False):
     import json
     try:
         ai = json.loads(r.get("ai_analysis") or "null") or {}
     except ValueError:
         ai = {}
     notes = "; ".join(ai.get("observations") or []) or "-"
-    return [
+    rows = [
         ("Report ID", r["id"]), ("Reporter", r["reporter_name"]), ("Email", r["reporter_email"]),
         ("Location", r["location"]), ("When noticed", r.get("noticed_when") or "-"),
         ("Cause mentioned", r.get("observed_cause") or "-"),
         ("Category", r["report_type"]), ("Student's description", r["description"]),
         ("PRIORITY", "POSSIBLE URGENT HAZARD - review promptly" if r.get("urgent") else "Normal"),
-        ("AI finding (unverified)", ai.get("issue_title") or ("AI check unavailable" if ai.get("status") == "unavailable" else "-")),
-        ("AI notes (what it saw)", notes), ("AI confidence", ai.get("confidence") or "-"),
-        ("AI severity (unverified)", ai.get("severity") or "-"),
-        ("AI severity reason", ai.get("severity_reason") or "-"),
-        ("Preliminary repair budget (PHP)", (f"{ai.get('estimated_budget_php_min'):,} to {ai.get('estimated_budget_php_max'):,}"
-         if ai.get("estimated_budget_php_min") is not None and ai.get("estimated_budget_php_max") is not None
-         else "Not estimable from photo; inspect onsite")),
-        ("Preliminary workers / work days", (f"{ai.get('estimated_staff')} workers; {ai.get('estimated_days_min')} to {ai.get('estimated_days_max')} working days"
-         if ai.get("estimated_staff") is not None and ai.get("estimated_days_min") is not None
-         and ai.get("estimated_days_max") is not None else "Not estimable from photo; inspect onsite")),
-        ("Possible repair approach", ai.get("repair_approach") or "-"),
-        ("Suggested next steps", "; ".join(ai.get("repair_steps") or []) or "-"),
-        ("Estimate assumptions", ai.get("estimate_assumptions") or "-"),
+        ("NEMSAI finding (unverified)", ai.get("issue_title") or ("NEMSAI check unavailable" if ai.get("status") == "unavailable" else "-")),
+        ("NEMSAI notes (what it saw)", notes), ("NEMSAI confidence", ai.get("confidence") or "-"),
         ("Photo vs description", ai.get("check_explanation") or ai.get("description_check") or "-"),
         ("Submitted At", r["created_at"]), ("Status", r["status"])]
+    if include_estimate:
+        rows.extend([
+            ("NEMSAI severity (unverified)", ai.get("severity") or "-"),
+            ("Severity reason", ai.get("severity_reason") or "-"),
+            ("Preliminary repair budget (PHP)", (f"{ai.get('estimated_budget_php_min'):,} to {ai.get('estimated_budget_php_max'):,}"
+             if ai.get("estimated_budget_php_min") is not None and ai.get("estimated_budget_php_max") is not None
+             else "Not estimable from photo; inspect onsite")),
+            ("Preliminary workers / work days", (f"{ai.get('estimated_staff')} workers; {ai.get('estimated_days_min')} to {ai.get('estimated_days_max')} working days"
+             if ai.get("estimated_staff") is not None and ai.get("estimated_days_min") is not None
+             and ai.get("estimated_days_max") is not None else "Not estimable from photo; inspect onsite")),
+            ("Possible repair approach", ai.get("repair_approach") or "-"),
+            ("Suggested next steps", "; ".join(ai.get("repair_steps") or []) or "-"),
+            ("Estimate assumptions", ai.get("estimate_assumptions") or "-"),
+        ])
+    return rows
 
 
-def ensure_pdf(kind, row, path):
+def ensure_pdf(kind, row, path, include_ai_estimate=False):
     """Make sure the PDF file exists; draw it again from `row` if the disk lost it."""
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
-        title, rows = _rows_for(kind, row)
+        title, rows = _rows_for(kind, row, include_ai_estimate=include_ai_estimate)
         image = None
         if row.get("image_filename") and row.get("source") == "photo":
             from app.services.upload_service import get_image_path

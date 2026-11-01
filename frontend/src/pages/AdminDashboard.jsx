@@ -88,9 +88,9 @@ export default function AdminDashboard() {
       {d.urgent_reports && d.urgent_reports.length > 0 && (
         <div className="card urgent-card">
           <h3>Possible hazards waiting for review</h3>
-          <p className="muted">Flagged from photos or descriptions. These are AI suggestions, not confirmed facts. Please check each one.</p>
+          <p className="muted">Flagged from photos or descriptions. These are NEMSAI suggestions, not confirmed facts. Please check each one.</p>
           <div className="table-wrap"><table>
-            <thead><tr><th>ID</th><th>Reporter</th><th>Location</th><th>What the AI saw</th><th>Description</th><th>Submitted</th></tr></thead>
+            <thead><tr><th>ID</th><th>Reporter</th><th>Location</th><th>What NEMSAI saw</th><th>Description</th><th>Submitted</th></tr></thead>
             <tbody>{d.urgent_reports.map((r) => (
               <tr key={r.id}><td>{r.id}</td><td>{r.reporter_name}</td><td>{r.location}</td>
                 <td className="desc">{short((r.ai && r.ai.issue_title) || r.urgent_reason || "-")}</td>
