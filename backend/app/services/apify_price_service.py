@@ -62,7 +62,9 @@ def lookup_and_ground(analysis, location=""):
                 f"https://api.apify.com/v2/acts/{config.APIFY_PRICE_ACTOR.replace('/', '~')}/run-sync-get-dataset-items",
                 headers={"Authorization": f"Bearer {config.APIFY_API_TOKEN}"},
                 params={"timeout": 12, "memory": 512},
-                json={"queries": query, "resultsPerPage": 5, "maxPagesPerQuery": 1, "countryCode": "ph"},
+                # `resultsPerPage` is not an input supported by Apify's official Actor;
+                # it controls how many pages are fetched via maxPagesPerQuery instead.
+                json={"queries": query, "maxPagesPerQuery": 1, "countryCode": "ph", "languageCode": "en"},
                 timeout=18,
             )
             response.raise_for_status()
@@ -70,7 +72,8 @@ def lookup_and_ground(analysis, location=""):
             if items:
                 _search_cache[query] = (time.monotonic(), items)
         except Exception as error:
-            print("APIFY PRICE LOOKUP:", repr(error)[:240])
+            detail = getattr(getattr(error, "response", None), "text", "")
+            print("APIFY PRICE LOOKUP:", repr(error)[:180], str(detail)[:400])
             return
     if not items:
         return
@@ -88,7 +91,23 @@ def lookup_and_ground(analysis, location=""):
         return
     try:
         start, end = answer.find("{"), answer.rfind("}")
-        result = json.loads(answer[start:end + 1]) if start >= 0 and end > start else {}
+        try:
+            result = json.loads(answer[start:end + 1]) if start >= 0 and end > start else {}
+        except ValueError:
+            # Some model backends occasionally append malformed source arrays. Salvage only
+            # the two numeric budget fields; the sources still come from Apify's actual items.
+            import re
+            result = {}
+            for key in ("estimated_budget_php_min", "estimated_budget_php_max"):
+                match = re.search(r'"' + key + r'"\s*:\s*(null|-?\d+)', answer)
+                if match:
+                    result[key] = None if match.group(1) == "null" else int(match.group(1))
+            match = re.search(r'"estimate_assumptions"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"', answer)
+            if match:
+                try:
+                    result["estimate_assumptions"] = json.loads('"' + match.group(1) + '"')
+                except ValueError:
+                    pass
         low, high = result.get("estimated_budget_php_min"), result.get("estimated_budget_php_max")
         if (isinstance(low, int) and not isinstance(low, bool) and
                 isinstance(high, int) and not isinstance(high, bool) and 0 <= low <= high <= 100_000_000):

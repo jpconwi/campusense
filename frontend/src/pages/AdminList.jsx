@@ -162,11 +162,12 @@ function PhotoDetail({ row, onChanged }) {
               <h4>Preliminary severity and repair estimate <span className="badge ai-guess">NEMSAI estimate · unverified</span></h4>
               <p><strong>Severity:</strong> <span className={`badge severity-${ai.severity || "unclear"}`}>{(ai.severity || "unclear").toUpperCase()}</span>
                 {ai.severity_reason ? ` ${ai.severity_reason}` : " Needs onsite review."}</p>
-              {ai.estimated_budget_php_min != null && ai.estimated_budget_php_max != null ? (
-                <p><strong>Planning range:</strong> {PESO.format(ai.estimated_budget_php_min)} to {PESO.format(ai.estimated_budget_php_max)} |
-                  {ai.estimated_staff ? ` ${ai.estimated_staff} workers |` : ""} {ai.estimated_days_min} to {ai.estimated_days_max} working days
-                  <small> ({ai.estimate_confidence || "low"} confidence)</small></p>
-              ) : <p><strong>Cost, crew and duration:</strong> Not estimable from the available image; inspect onsite.</p>}
+              <p><strong>Planning cost:</strong> {ai.estimated_budget_php_min != null && ai.estimated_budget_php_max != null
+                ? <>{PESO.format(ai.estimated_budget_php_min)} to {PESO.format(ai.estimated_budget_php_max)} <small>({ai.estimate_confidence || "low"} confidence)</small></>
+                : "Not estimable from available evidence; inspect onsite."}</p>
+              <p><strong>Workers:</strong> {ai.estimated_staff != null ? `${ai.estimated_staff} (preliminary)` : "Needs onsite scope assessment."}</p>
+              <p><strong>Working days:</strong> {ai.estimated_days_min != null && ai.estimated_days_max != null
+                ? `${ai.estimated_days_min} to ${ai.estimated_days_max} (preliminary)` : "Needs onsite scope assessment."}</p>
               {ai.repair_approach && <p><strong>Possible repair approach:</strong> {ai.repair_approach}</p>}
               {ai.repair_steps?.length > 0 && <ul>{ai.repair_steps.map((step, i) => <li key={i}>{step}</li>)}</ul>}
               {ai.estimate_assumptions && <p className="muted"><strong>Assumptions:</strong> {ai.estimate_assumptions}</p>}

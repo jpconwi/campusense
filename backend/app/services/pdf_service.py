@@ -133,9 +133,11 @@ def _photo_rows(r, include_estimate=False):
             ("Preliminary repair budget (PHP)", (f"{ai.get('estimated_budget_php_min'):,} to {ai.get('estimated_budget_php_max'):,}"
              if ai.get("estimated_budget_php_min") is not None and ai.get("estimated_budget_php_max") is not None
              else "Not estimable from photo; inspect onsite")),
-            ("Preliminary workers / work days", (f"{ai.get('estimated_staff')} workers; {ai.get('estimated_days_min')} to {ai.get('estimated_days_max')} working days"
-             if ai.get("estimated_staff") is not None and ai.get("estimated_days_min") is not None
-             and ai.get("estimated_days_max") is not None else "Not estimable from photo; inspect onsite")),
+            ("Preliminary workers", (f"{ai.get('estimated_staff')} workers" if ai.get("estimated_staff") is not None
+                                     else "Not estimable from photo; inspect onsite")),
+            ("Preliminary working days", (f"{ai.get('estimated_days_min')} to {ai.get('estimated_days_max')} days"
+                                          if ai.get("estimated_days_min") is not None and ai.get("estimated_days_max") is not None
+                                          else "Not estimable from photo; inspect onsite")),
             ("Possible repair approach", ai.get("repair_approach") or "-"),
             ("Suggested next steps", "; ".join(ai.get("repair_steps") or []) or "-"),
             ("Estimate assumptions", ai.get("estimate_assumptions") or "-"),

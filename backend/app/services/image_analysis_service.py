@@ -178,9 +178,10 @@ def sanitize(raw, has_description):
     staff = _bounded_int(raw.get("estimated_staff"), 1, 50)
     days_min = _bounded_int(raw.get("estimated_days_min"), 1, 365)
     days_max = _bounded_int(raw.get("estimated_days_max"), 1, 365)
-    estimate_complete = (estimate_applicable and budget_min is not None and budget_max is not None and budget_max >= budget_min
-                         and staff is not None and days_min is not None and days_max is not None
-                         and days_max >= days_min)
+    # Keep planning values independently: one missing value must not erase the others.
+    budget_valid = estimate_applicable and budget_min is not None and budget_max is not None and budget_max >= budget_min
+    staff_valid = estimate_applicable and staff is not None
+    days_valid = estimate_applicable and days_min is not None and days_max is not None and days_max >= days_min
     return {
         "image_kind": image_kind,
         "shows_issue": shows_issue,
@@ -194,11 +195,11 @@ def sanitize(raw, has_description):
         "severity_reason": _text(raw.get("severity_reason"), 240),
         "repair_steps": steps,
         "repair_approach": _text(raw.get("repair_approach"), 400),
-        "estimated_budget_php_min": budget_min if estimate_complete else None,
-        "estimated_budget_php_max": budget_max if estimate_complete else None,
-        "estimated_staff": staff if estimate_complete else None,
-        "estimated_days_min": days_min if estimate_complete else None,
-        "estimated_days_max": days_max if estimate_complete else None,
+        "estimated_budget_php_min": budget_min if budget_valid else None,
+        "estimated_budget_php_max": budget_max if budget_valid else None,
+        "estimated_staff": staff if staff_valid else None,
+        "estimated_days_min": days_min if days_valid else None,
+        "estimated_days_max": days_max if days_valid else None,
         "estimate_confidence": _pick(raw.get("estimate_confidence"), ("low", "medium"), "low"),
         "estimate_assumptions": _text(raw.get("estimate_assumptions"), 400),
         "pricing_basis": "",
