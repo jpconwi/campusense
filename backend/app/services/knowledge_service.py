@@ -98,7 +98,10 @@ def _stem(word):
 def keywords(question):
     """Meaningful words of a question (lower case, simple plural stripping)."""
     words = [w for w in normalize(question).split() if len(w) > 2 and w not in STOP]
-    return list(dict.fromkeys(_stem(w) for w in words))
+    aliases = {"prisedent": "president", "prisedents": "president",
+               "presidnt": "president", "presidnets": "president",
+               "presedint": "president", "presedents": "president"}
+    return list(dict.fromkeys(aliases.get(_stem(w), _stem(w)) for w in words))
 
 
 def _matches(query_word, text_words):

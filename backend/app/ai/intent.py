@@ -521,6 +521,7 @@ def detect(db, question, role):
     # Clean high-confidence typos against the official campus vocabulary before
     # classifying intent; keep `question` unchanged for form fields and replies.
     q = normalize(preprocessing.correct_question(db, question))
+    q = re.sub(r"\b(?:prisedents?|presidnt|presidnets?|presedints?)\b", "president", q)
     original = question
     tokens = q.split()
 
@@ -533,8 +534,14 @@ def detect(db, question, role):
     if colleges is not None:
         return {"intent": "college_day", "colleges": colleges}
 
+    vice_president_terms = ("vice president", "vice presidents", "vice-president",
+                            "vice-presidents", "vicepresident", "vicepresidents")
+    if (has(q, *vice_president_terms)
+            and not has(q, "philippines", "republic of the philippines", "united states", "america")):
+        return {"intent": "nemsu_vice_presidents"}
+
     if (has(q, "president", "suc president")
-            and not has(q, "vice president", "vice-president", "vicepresident")
+            and not has(q, *vice_president_terms)
             and has(q, "nemsu", "university", "who", "name", "know", "current",
                     "did you know", "who is", "who was")):
         return {"intent": "nemsu_president"}
