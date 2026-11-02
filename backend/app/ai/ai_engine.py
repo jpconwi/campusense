@@ -96,7 +96,8 @@ def _is_food_business_question(question):
     food = intents.has(q, "hotdog", "hot dog", "hot dogs", "milk tea", "bubble tea", "boba",
                        "burger", "sandwich", "fries", "snack", "cake", "coffee", "food product",
                        "food business", "beverage", "drink", "adobo", "lumpia", "pizza", "pasta",
-                       "noodles", "rice meal", "chicken", "bread", "turon", "fruit shake", "juice")
+                       "noodles", "rice meal", "chicken", "bread", "turon", "fruit shake", "juice",
+                       "avocado", "avocado float", "halo halo", "dessert", "smoothie")
     asks_action = intents.has(q, "ingredient", "ingredients", "recipe", "how to make", "prepare",
                               "how much", "cost", "price", "sell", "selling", "business")
     selling_cost = (intents.has(q, "sell", "selling")
@@ -132,6 +133,7 @@ def _course_gate_decision(reply):
                           "i am an instructor", "im an instructor")
            or re.search(r"\b(?:i am|im) (?:an? )?[a-z0-9 -]+ student\b", q)
            or re.search(r"\b(?:i am|im) (?:in|taking|studying) [a-z0-9 -]+\b", q)
+           or re.search(r"\bmy (?:course|program|major) is [a-z0-9 -]+\b", q)
            or re.search(r"\b[a-z0-9 -]+ major\b", q)
            or re.search(r"\b(?:i study|im studying|i am studying) [a-z0-9 -]+\b", q))
     no = (q in {"no", "nope", "not really"}
