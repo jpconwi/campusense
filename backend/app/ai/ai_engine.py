@@ -539,7 +539,10 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
             return _general_reply(question, conversation)
 
     # ---- NEMSU news collected from the Newsroom (knowledge_documents)
-    docs = knowledge_service.search(db, question)
+    # Use the current chat to resolve short campus follow-ups ("when is it?", "where is that?")
+    # before grounding the answer in official NEMSU pages. Role-specific instructions are added
+    # by build_system_prompt for both students and instructors.
+    docs = knowledge_service.search(db, question, conversation=conversation)
     if docs and knowledge_service.wants_number(question):    # "how many ...?" needs a figure
         docs = knowledge_service.with_figures(docs)
     if docs:

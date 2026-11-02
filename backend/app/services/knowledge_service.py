@@ -360,8 +360,30 @@ def program_offerings(db, program):
     }
 
 
-def search(db: Session, question, limit=MAX_DOCS):
-    return rank(_rows(db), question, limit)
+def search(db: Session, question, limit=MAX_DOCS, conversation=None):
+    """Retrieve official pages for the current question, using recent turns to resolve follow-ups.
+
+    The current question gets the strongest weight. A short contextual query helps with messages
+    such as "when is it?" without letting unrelated older chat dominate retrieval.
+    """
+    rows = _rows(db)
+    direct = rank(rows, question, limit)
+    if not conversation:
+        return direct
+
+    recent = [m.get("text", "") for m in conversation[-4:]
+              if m.get("text") and m.get("role") in ("user", "ai")]
+    if not recent:
+        return direct
+    contextual = rank(rows, " ".join([*recent, question]), limit)
+    combined = {}
+    for doc in contextual:
+        combined[doc["source_url"]] = dict(doc, score=doc["score"] * 0.5)
+    for doc in direct:
+        combined[doc["source_url"]] = dict(doc, score=doc["score"] +
+                                            combined.get(doc["source_url"], {}).get("score", 0))
+    return sorted(combined.values(), key=lambda doc: (-doc["score"],
+                   -(doc["published_at"].timestamp() if doc.get("published_at") else 0)))[:limit]
 
 
 def directory_lookup(db: Session, question):
