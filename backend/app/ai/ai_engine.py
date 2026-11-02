@@ -86,9 +86,31 @@ def _is_campus_related(question):
                for w in q.split())
 
 
-def _has_explicit_campus_context(question):
-    """Avoid treating generic words like 'student' or 'course' as proof of campus context."""
-    return intents.has(normalize(question), *_EXPLICIT_CAMPUS_CONTEXT)
+def _has_explicit_campus_context(question, conversation=None):
+    """Use explicit campus terms or a clear reference to a recent campus answer."""
+    q = normalize(question)
+    if intents.has(q, *_EXPLICIT_CAMPUS_CONTEXT):
+        return True
+    messages = conversation or []
+    prior_campus_context = any(
+        m.get("text") and COURSE_GATE_MARKER not in normalize(m.get("text", ""))
+        and intents.has(normalize(m["text"]), *_EXPLICIT_CAMPUS_CONTEXT)
+        for m in messages[-8:])
+    if not prior_campus_context:
+        return False
+    # Require a meaningful word from the latest answer to be repeated in this message.
+    latest_answer = next((normalize(m.get("text", "")) for m in reversed(messages)
+                          if m.get("role") == "ai" and m.get("text")
+                          and COURSE_GATE_MARKER not in normalize(m.get("text", ""))), "")
+    role_terms = ("vice president", "vice presidents", "campus director", "dean", "registrar")
+    if intents.has(q, *role_terms) and intents.has(latest_answer, *role_terms):
+        return True
+    ignored = {"this", "that", "then", "they", "them", "there", "their", "what", "who",
+               "when", "where", "which", "does", "have", "with", "from", "about", "meaning",
+               "mean", "now", "are", "the", "for", "and", "was", "were", "vice", "president",
+               "presidents", "director", "campus", "nemsu", "tandag", "dr"}
+    words = {word for word in q.split() if len(word) >= 4 and word not in ignored}
+    return bool(words & set(latest_answer.split()))
 
 
 def _is_food_business_question(question):
@@ -148,12 +170,14 @@ def _food_business_reply(question):
     return response.message(answer or "Tell me what you're making or the ingredient prices you have, and I can help work it out.")
 
 
-def _course_scope_response(question, conversation, requires_gate):
+def _course_scope_response(db, user, earlier, lang, question, conversation, requires_gate):
     """Allow general information only after the user connects it to an NEMSU course."""
     original, state = _course_gate_context(conversation)
     current_decision = _course_gate_decision(question)
     if state == "pending" and original and current_decision:
         if current_decision == "allowed":
+            if _has_explicit_campus_context(original, conversation):
+                return _answer(db, original, user, earlier, lang, conversation=conversation)
             return (_food_business_reply(original) if _is_food_business_question(original)
                     else _general_reply(original))
         return response.message(COURSE_SCOPE_REFUSAL)
@@ -454,9 +478,10 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     found = intents.detect(db, question, role)
     name = found["intent"]
     needs_course_gate = (name in ("general", "general_tutor", "learn_program")
-                         and (not _has_explicit_campus_context(question)
+                         and (not _has_explicit_campus_context(question, conversation)
                               or _is_food_business_question(question)))
-    scope_reply = _course_scope_response(question, conversation, needs_course_gate)
+    scope_reply = _course_scope_response(db, user, earlier, lang, question, conversation,
+                                         needs_course_gate)
     if scope_reply:
         return scope_reply
     if name == "current_day":
@@ -525,7 +550,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         return response.message(texts.en("learn_ask"))
     if name == "concern_ask":
         return response.message(texts.en("concern_ask"))
-    if name == "general_tutor":
+    if name == "general_tutor" and not _has_explicit_campus_context(question, conversation):
         return _general_reply(question, conversation)
     if name == "learn_program":
         return _learn_about_program(db, question, found["topic"], user,
@@ -705,7 +730,8 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
 
     # Handle general conversation before searching campus pages; loose matches must not attach
     # unrelated NEMSU links to grief, tutoring, or other general questions.
-    related = _is_campus_related(question)
+    related = (_is_campus_related(question)
+               or _has_explicit_campus_context(question, conversation))
     if not rewritten and (not related or lang in ("tl", "ceb")):
         view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
         if view and view["kind"] == "campus" and normalize(view["english"]) != normalize(question):
