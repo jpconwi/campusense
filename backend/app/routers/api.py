@@ -264,9 +264,10 @@ def photo_analyze(
 
 
 @router.get("/reports/photo/drafts/latest")
-def photo_resume(session_id: Optional[int] = None,
+def photo_resume(response: Response, session_id: Optional[int] = None,
                  user: CurrentUser = Depends(role_required("student", "instructor")),
                  db: Session = Depends(get_db)):
+    response.headers["Cache-Control"] = "no-store"
     result = photo_report_service.resume_latest(db, user, session_id)
     if result:
         result["image_url"] = f"/api/uploads/{result['image_filename']}"

@@ -264,6 +264,10 @@ def other_campus_key(q):
     questions or a bare campus name get a map.
     """
     from app.prompts.locationPrompt import OTHER_CAMPUSES
+    if has(q, "phone", "contact", "email", "e mail", "telephone", "number", "call"):
+        return None
+    if rejects_map(q):
+        return None
     if _looks_like_form(q):
         return None
     found = [k for k in OTHER_CAMPUSES if has(q, k)]
@@ -281,6 +285,10 @@ def place_request(q):
     message, so 'what time does the library open' does not get a map.
     """
     from app.services import place_service
+    if has(q, "phone", "contact", "email", "e mail", "telephone", "number", "call"):
+        return None
+    if rejects_map(q):
+        return None
     if _looks_like_form(q) or rooms_request(q, q):
         return None
     asks_where = (has(q, *LOCATION_ASK, "maps", "google map", "google maps")
@@ -302,6 +310,8 @@ def place_request(q):
 
 def is_campus_location(q):
     """'where is nemsu', 'map of tandag campus', 'how do i get to the campus'."""
+    if rejects_map(q):
+        return False
     if has(q, *SUB_AREA_WORDS):
         return False
     if has(q, *OTHER_CAMPUS_WORDS):
@@ -313,6 +323,13 @@ def is_campus_location(q):
     if not has(q, *CAMPUS_ANCHORS):
         return False
     return has(q, *LOCATION_ASK)
+
+
+def rejects_map(q):
+    """True when the user explicitly says they do not want directions or a map."""
+    return has(q, "not asking for a map", "not asking for the map", "dont need a map",
+               "dont need maps", "do not need a map", "do not need maps", "not the map",
+               "no map", "no maps", "not asking for directions")
 
 
 _COLLEGE_DAY_ALIASES = {

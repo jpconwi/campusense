@@ -114,6 +114,15 @@ def discard(db: Session, user, draft_id):
 def resume_latest(db: Session, user, session_id=None):
     """Restore the most recent analyzed draft when the chat page is reopened."""
     query = select(PhotoDraft).where(PhotoDraft.user_id == user.id, PhotoDraft.analysis.is_not(None))
+    # A stale/orphaned draft can survive older deployments or a failed cleanup. Never
+    # reopen a photo that already belongs to a submitted report or concern.
+    submitted_report = select(Report.id).where(
+        Report.user_id == user.id, Report.source == "photo",
+        Report.image_filename == PhotoDraft.image_filename).exists()
+    submitted_concern = select(Concern.id).where(
+        Concern.user_id == user.id, Concern.source == "photo",
+        Concern.image_filename == PhotoDraft.image_filename).exists()
+    query = query.where(~submitted_report, ~submitted_concern)
     if session_id:
         query = query.where(PhotoDraft.session_id == session_id)
     draft = db.execute(query.order_by(PhotoDraft.updated_at.desc()).limit(1)).scalar_one_or_none()
@@ -160,7 +169,9 @@ def submit(db: Session, user, draft_id, form):
             ai_provider=draft.ai_provider, noticed_when=draft.noticed_when,
             observed_cause=draft.observed_cause)
         db.add(concern)
-        db.delete(draft)
+        # Remove every draft row tied to this uploaded file, including stale duplicates.
+        db.execute(delete(PhotoDraft).where(PhotoDraft.user_id == user.id,
+                                            PhotoDraft.image_filename == draft.image_filename))
         db.commit()
         return common.get_row(db, "concerns", concern.id)
 
@@ -175,7 +186,8 @@ def submit(db: Session, user, draft_id, form):
         noticed_when=draft.noticed_when, observed_cause=draft.observed_cause, verification="Unverified")
     report.assigned_admin_email = common.assigned_report_admin(report.report_type)
     db.add(report)
-    db.delete(draft)
+    db.execute(delete(PhotoDraft).where(PhotoDraft.user_id == user.id,
+                                        PhotoDraft.image_filename == draft.image_filename))
     db.commit()
 
     row = common.get_row(db, "reports", report.id)
