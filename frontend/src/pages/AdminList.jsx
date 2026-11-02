@@ -84,6 +84,15 @@ function RecordCard({ row, columns, kind, spec, statuses, onChanged }) {
     {row.source === "photo" && row.ai && <div className="record-card-fields">
       {row.ai.urgent && <div><b>Priority flag</b><span>Possible hazard · needs administrator review</span></div>}
       {row.ai.issue_title && <div><b>NEMSAI suggestion</b><span>{row.ai.issue_title} ({row.ai.confidence || "low"} confidence)</span></div>}
+      {row.ai.status === "analyzed" && <div className="record-card-long"><b>Repair planning estimate (admin only · unverified)</b><span>
+        {row.ai.image_kind === "campus_issue" && ["yes", "possible"].includes(row.ai.shows_issue) ? <>
+          Cost: {row.ai.estimated_budget_php_min != null && row.ai.estimated_budget_php_max != null
+            ? `${PESO.format(row.ai.estimated_budget_php_min)} to ${PESO.format(row.ai.estimated_budget_php_max)} (${row.ai.estimate_confidence || "low"} confidence)`
+            : "not estimable from the photo; inspect onsite"}. Workers: {row.ai.estimated_staff ?? "needs onsite assessment"}. Working days: {row.ai.estimated_days_min != null && row.ai.estimated_days_max != null
+              ? `${row.ai.estimated_days_min} to ${row.ai.estimated_days_max}` : "needs onsite assessment"}.
+          {row.ai.estimate_assumptions && ` ${row.ai.estimate_assumptions}`}
+        </> : "No repair estimate: the image check did not identify a clear campus repair issue."}
+      </span></div>}
       {row.ai.observations?.length > 0 && <div className="record-card-long"><b>Photo notes</b><span>{row.ai.observations.join(" · ")}</span></div>}
     </div>}
     <div className="record-card-fields">

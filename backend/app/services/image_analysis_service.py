@@ -385,10 +385,8 @@ def student_message(analysis, description="", questions=()):
 
 
 def public_view(analysis):
-    """What the browser may see about the analysis (no internal fields)."""
+    """Student-safe analysis fields; planning estimates are only returned by admin APIs."""
     keys = ("status", "image_kind", "shows_issue", "issue_title", "category", "observations",
             "destination", "confidence", "urgent", "urgent_reason", "severity", "severity_reason", "repair_steps",
-            "repair_approach", "estimated_budget_php_min", "estimated_budget_php_max",
-            "estimated_staff", "estimated_days_min", "estimated_days_max", "estimate_confidence",
-            "estimate_assumptions", "description_check", "check_explanation")
+            "repair_approach", "description_check", "check_explanation")
     return {k: analysis.get(k) for k in keys}
