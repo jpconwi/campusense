@@ -214,7 +214,7 @@ export default function Chat() {
           image: draft.image_url, time: timeNow() });
         say(draft.message);
         add({ role: "ai", kind: "photo", result: draft, preview: draft.image_url, onMessage: say,
-          onSent: (result) => add({ role: "ai", kind: "success", result }),
+          onSent: (result) => { add({ role: "ai", kind: "success", result }); onSaved(); },
           onDiscarded: () => say("No problem, I removed the photo. Nothing was sent.") });
       }).catch(() => {});
     if (openId) {
@@ -268,7 +268,7 @@ export default function Chat() {
       say(data.message);
       add({
         role: "ai", kind: "photo", result: data, preview: data.image_url || url, onMessage: say,
-        onSent: (result) => add({ role: "ai", kind: "success", result }),
+        onSent: (result) => { add({ role: "ai", kind: "success", result }); onSaved(); },
         onDiscarded: () => say("No problem, I removed the photo. Nothing was sent."),
       });
     } catch (e) {

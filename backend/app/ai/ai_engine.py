@@ -119,6 +119,56 @@ def _records(db, user, found):
     return result
 
 
+def _campus_contact_reply(db, question, conversation=None):
+    """Answer public campus phone questions from the saved official contact listing."""
+    q = normalize(question)
+    if not intents.has(q, "phone", "phone number", "contact", "contact number", "telephone",
+                       "call", "number"):
+        return None
+    if intents.has(q, "student number", "enrollment number", "number of students",
+                   "student population", "report number", "room number"):
+        return None
+
+    campuses = ("San Miguel", "Tandag", "Bislig", "Cantilan", "Tagbina", "Lianga", "Cagwait")
+    reference = q
+    campus = next((name for name in campuses if intents.has(reference, normalize(name))), None)
+    # A short clarification such as "I mean phone number" keeps the campus from
+    # the user's preceding question in this same chat.
+    if campus is None:
+        prior_questions = [normalize(m.get("text", "")) for m in (conversation or [])[-6:]
+                           if m.get("role") == "user" and m.get("text")]
+        campus = next((name for previous in reversed(prior_questions)
+                       for name in campuses if intents.has(previous, normalize(name))), None)
+    if campus is None:
+        return None
+
+    listing = campus_service.lookup(db, "nemsu contact numbers") or ""
+    for segment in re.split(r";", listing):
+        if intents.has(normalize(segment), normalize(campus)):
+            start = segment.lower().find(campus.lower())
+            detail = segment[start:] if start >= 0 else segment
+            following = [detail.lower().find(name.lower()) for name in campuses
+                         if name != campus and {name, campus} != {"Bislig", "Cagwait"}
+                         and detail.lower().find(name.lower()) >= 0]
+            if following:
+                detail = detail[:min(following)]
+            phone = re.search(r"\+?\(?\d[\d() .-]{6,}\d", detail)
+            if phone:
+                number = phone.group(0).strip(" .")
+                return _data(f"The official NEMSU contact listing gives the {campus} Campus number "
+                             f"as **{number}**.\n\nSource: [NEMSU contact information]"
+                             "(https://nemsu.edu.ph/academics/academic-affairs)")
+            email = re.search(r"[\w.+-]+@nemsu\.edu\.ph\b", segment, re.I)
+            if email:
+                return _data(f"The NEMSU contact listing does not show a phone number for {campus}. "
+                             f"It lists this contact email: **{email.group(0)}**.\n\nSource: "
+                             "[NEMSU contact information](https://nemsu.edu.ph/academics/academic-affairs)")
+            return _data(f"I couldn't find a phone number for {campus} in the NEMSU contact listing. "
+                         "[Check the NEMSU contact information]"
+                         "(https://nemsu.edu.ph/academics/academic-affairs).")
+    return None
+
+
 def _form_reply(user, found):
     role = user.role
     kind = found["intent"]
@@ -181,6 +231,9 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if not normalize(question) and style.EMOJI.search(question):   # "😊😊", "👍"
         return response.message(texts.en("emoji_only"))
     normalized = normalize(question)
+    contact_reply = _campus_contact_reply(db, question, conversation)
+    if contact_reply:
+        return contact_reply
     recent_ai = next((normalize(m.get("text", "")) for m in reversed(conversation or [])
                       if m.get("role") == "ai"), "")
     if recent_ai and normalized in {"huh", "what", "i dont understand", "i dont get it",

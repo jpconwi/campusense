@@ -6,6 +6,10 @@ One URL per line. To teach the AI a new page, add its link here and run a sync
 """
 
 OFFICIAL_PAGES = [
+    # sustainability / SDG initiatives (explicit page on the SDG subdomain)
+    "https://sdg.nemsu.edu.ph/",
+    "https://sdg.nemsu.edu.ph/sdg-initiatives/sdg-3-good-health-and-well-being",
+    "https://sdg.nemsu.edu.ph/sdg-initiatives/sdg-4-quality-education",
     # about / leadership
     "https://nemsu.edu.ph/about/board-of-regents",
     "https://nemsu.edu.ph/about/office-of-the-president",

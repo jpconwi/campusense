@@ -283,6 +283,8 @@ def photo_submit(
         raise HTTPException(429, "Please wait a moment and try again.")
     form = {"description": description, "location": location, "noticed_when": noticed_when,
             "observed_cause": observed_cause}
+    draft = db.get(PhotoDraft, draft_id)
+    session_id = draft.session_id if draft and draft.user_id == user.id else None
     row = photo_report_service.submit(db, user, draft_id, form)
     kind = "concerns" if row.get("source") == "photo" and "concern_type" in row else "reports"
     row["destination"] = "concern" if kind == "concerns" else "report"
@@ -290,6 +292,13 @@ def photo_submit(
                else "Your report was sent to the administrators.") + " Its status is Pending."
     if kind == "reports" and row["urgent"]:
         message += " It was marked for priority review. If anyone is in danger, tell campus security or the nearest staff now."
+    if session_id:
+        try:                                  # keep the submitted state when this chat is reopened
+            chat_history_service.save_exchange(
+                db, user.id, session_id, "Photo report submitted", {"answer": message})
+        except Exception as error:
+            db.rollback()
+            print("CHAT HISTORY ERROR:", repr(error))
     return _ok(row, message, kind)
 
 
