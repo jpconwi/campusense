@@ -79,7 +79,13 @@ function RecordCard({ row, columns, kind, spec, statuses, onChanged }) {
       <strong>{row[nameKey] || "Unknown sender"}</strong>
       {row[emailKey] && <a href={`mailto:${row[emailKey]}`}>{row[emailKey]}</a>}
       {row.submitter_role && <small>{row.submitter_role}</small>}
+      {row.source === "photo" && <span className="badge ai-guess">Photo + NEMSAI · unverified</span>}
     </div>
+    {row.source === "photo" && row.ai && <div className="record-card-fields">
+      {row.ai.urgent && <div><b>Priority flag</b><span>Possible hazard · needs administrator review</span></div>}
+      {row.ai.issue_title && <div><b>NEMSAI suggestion</b><span>{row.ai.issue_title} ({row.ai.confidence || "low"} confidence)</span></div>}
+      {row.ai.observations?.length > 0 && <div className="record-card-long"><b>Photo notes</b><span>{row.ai.observations.join(" · ")}</span></div>}
+    </div>}
     <div className="record-card-fields">
       {details.map(([label, key]) => <div className={LONG_TEXT.includes(key) ? "record-card-long" : ""} key={key}>
         <b>{label}</b>

@@ -66,6 +66,7 @@ Answer with ONE JSON object and nothing else, with exactly these keys:
  "shows_issue": one of {list(SHOWS)},
  "issue_title": short title of the possible problem, or "",
  "category": one of {REPORT_TYPES},
+ "destination": one of ["concern", "report"] (facility/equipment maintenance issues are concerns; security, lost items and other incidents are reports),
  "observations": up to {MAX_OBSERVATIONS} short strings, only what is visible,
  "confidence": one of {list(CONFIDENCE)},
  "urgent": true or false,
@@ -161,6 +162,9 @@ def sanitize(raw, has_description):
     steps = [_text(step, 180) for step in steps if _text(step, 180)][:MAX_REPAIR_STEPS]
     category = raw.get("category")
     category = category if category in REPORT_TYPES else "Other"
+    destination = raw.get("destination")
+    if destination not in ("concern", "report"):
+        destination = "concern" if category in ("Maintenance", "Cleanliness", "Equipment") else "report"
     desc_check = _pick(raw.get("description_check"), DESC_CHECK, "cannot_tell")
     desc_issue = _pick(raw.get("description_is_campus_issue"), DESC_ISSUE, "no")
     if not has_description:
@@ -187,6 +191,7 @@ def sanitize(raw, has_description):
         "shows_issue": shows_issue,
         "issue_title": _text(raw.get("issue_title"), 120),
         "category": category,
+        "destination": destination,
         "observations": observations,
         "confidence": _pick(raw.get("confidence"), CONFIDENCE, "low"),
         "urgent": urgent,
@@ -248,7 +253,7 @@ def analyze(image_path, description="", location="", noticed_when="", observed_c
     raw = parse_model_json(answer) if answer else None
     if raw is None:
         analysis = {"status": "unavailable", "urgent": False, "urgent_reason": "", "observations": [],
-                    "issue_title": "", "category": "Other", "image_kind": "unclear",
+                    "issue_title": "", "category": "Other", "destination": "report", "image_kind": "unclear",
                     "shows_issue": "unclear", "confidence": "low",
                     "severity": "unclear", "severity_reason": "", "repair_steps": [],
                     "repair_approach": "", "estimated_budget_php_min": None,
@@ -382,7 +387,7 @@ def student_message(analysis, description="", questions=()):
 def public_view(analysis):
     """What the browser may see about the analysis (no internal fields)."""
     keys = ("status", "image_kind", "shows_issue", "issue_title", "category", "observations",
-            "confidence", "urgent", "urgent_reason", "severity", "severity_reason", "repair_steps",
+            "destination", "confidence", "urgent", "urgent_reason", "severity", "severity_reason", "repair_steps",
             "repair_approach", "estimated_budget_php_min", "estimated_budget_php_max",
             "estimated_staff", "estimated_days_min", "estimated_days_max", "estimate_confidence",
             "estimate_assumptions", "description_check", "check_explanation")

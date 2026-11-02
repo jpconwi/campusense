@@ -36,6 +36,8 @@ def init_db():
     _widen_campus_info_columns()
     _add_sentiment_columns()
     _add_photo_report_columns()
+    _add_photo_concern_columns()
+    _add_photo_draft_session_column()
     _add_report_assignment_column()
     from app.services import campus_service, sentiment_service
     with SessionLocal() as db:
@@ -131,6 +133,34 @@ def _add_photo_report_columns():
     with engine.begin() as conn:
         for name, kind in columns:
             conn.execute(text(f"ALTER TABLE reports ADD COLUMN IF NOT EXISTS {name} {kind}"))
+
+
+def _add_photo_concern_columns():
+    """Keep AI assisted photo concerns reviewable in the normal concerns inbox."""
+    from sqlalchemy import inspect, text
+    columns = [
+        ("source", "VARCHAR(10) NOT NULL DEFAULT 'form'"), ("ai_status", "VARCHAR(15)"),
+        ("ai_analysis", "TEXT"), ("ai_provider", "VARCHAR(80)"),
+        ("noticed_when", "VARCHAR(120)"), ("observed_cause", "VARCHAR(500)"),
+    ]
+    existing = {column["name"] for column in inspect(engine).get_columns("concerns")}
+    with engine.begin() as conn:
+        for name, kind in columns:
+            if engine.dialect.name == "postgresql":
+                conn.execute(text(f"ALTER TABLE concerns ADD COLUMN IF NOT EXISTS {name} {kind}"))
+            elif name not in existing:
+                conn.execute(text(f"ALTER TABLE concerns ADD COLUMN {name} {kind}"))
+
+
+def _add_photo_draft_session_column():
+    """Associate an unfinished photo draft with its chat where possible."""
+    from sqlalchemy import inspect, text
+    if "photo_drafts" not in inspect(engine).get_table_names():
+        return
+    columns = {column["name"] for column in inspect(engine).get_columns("photo_drafts")}
+    if "session_id" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE photo_drafts ADD COLUMN session_id INTEGER"))
 
 
 def _add_report_assignment_column():

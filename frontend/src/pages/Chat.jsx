@@ -205,14 +205,27 @@ export default function Chat() {
     let alive = true;
     setItems([]); setText(""); sessionId.current = null; nextId.current = 1;
     setLoadingChat(!!openId);
+    const restorePhotoDraft = (id) => api(`/api/reports/photo/drafts/latest${id ? `?session_id=${id}` : ""}`)
+      .then(({ draft }) => {
+        if (!alive || !draft) return;
+        if (draft.session_id) sessionId.current = draft.session_id;
+        const say = (t) => add({ role: "ai", kind: "text", text: t, time: timeNow() });
+        add({ role: "user", kind: "text", text: draft.values.description || "(photo only)",
+          image: draft.image_url, time: timeNow() });
+        say(draft.message);
+        add({ role: "ai", kind: "photo", result: draft, preview: draft.image_url, onMessage: say,
+          onSent: (result) => add({ role: "ai", kind: "success", result }),
+          onDiscarded: () => say("No problem, I removed the photo. Nothing was sent.") });
+      }).catch(() => {});
     if (openId) {
-      api(`/api/chats/${openId}`).then((d) => {
+      api(`/api/chats/${openId}`).then(async (d) => {
         if (!alive) return;
         const { rows, next } = restore(d.messages);
         sessionId.current = d.id; nextId.current = next; setItems(rows);
+        await restorePhotoDraft(d.id);
       }).catch(() => { if (alive) onSaved(); })        // deleted meanwhile: just refresh the list
         .finally(() => { if (alive) setLoadingChat(false); });
-    }
+    } else restorePhotoDraft(null);
     input.current && input.current.focus();
     return () => { alive = false; };
   }, [chatKey]);   // eslint-disable-line react-hooks/exhaustive-deps
@@ -254,7 +267,7 @@ export default function Chat() {
       const say = (t) => add({ role: "ai", kind: "text", text: t, time: timeNow() });
       say(data.message);
       add({
-        role: "ai", kind: "photo", result: data, preview: url, onMessage: say,
+        role: "ai", kind: "photo", result: data, preview: data.image_url || url, onMessage: say,
         onSent: (result) => add({ role: "ai", kind: "success", result }),
         onDiscarded: () => say("No problem, I removed the photo. Nothing was sent."),
       });

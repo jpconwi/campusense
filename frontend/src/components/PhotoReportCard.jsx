@@ -22,13 +22,20 @@ const NOT_A_REPORT = {
 
 export default function PhotoReportCard({ result: first, preview, onMessage, onSent, onDiscarded }) {
   const [result, setResult] = useState(first);
-  const [vals, setVals] = useState(first.values);
+  const [vals, setVals] = useState(() => {
+    try { return { ...first.values, ...JSON.parse(sessionStorage.getItem(`photo-draft-${first.draft_id}`) || "{}") }; }
+    catch { return first.values; }
+  });
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [state, setState] = useState("open");           // open | sent | discarded
   const [expanded, setExpanded] = useState(false);       // "report a problem anyway"
 
-  const set = (k, v) => setVals((x) => ({ ...x, [k]: v }));
+  const set = (k, v) => setVals((x) => {
+    const next = { ...x, [k]: v };
+    try { sessionStorage.setItem(`photo-draft-${result.draft_id}`, JSON.stringify(next)); } catch { /* storage is optional */ }
+    return next;
+  });
   const dirty = Object.keys(vals).some((k) => (vals[k] || "") !== (result.values[k] || ""));
   const asked = new Set(result.questions.map((q) => q.key));
   const question = (key) => (result.questions.find((q) => q.key === ASKED[key]) || {}).question;
@@ -54,6 +61,8 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
     setBusy("send"); setError("");
     try {
       const data = await api(`/api/reports/photo/${result.draft_id}/submit`, { method: "POST", form: body() });
+      try { sessionStorage.removeItem(`photo-draft-${result.draft_id}`); } catch { /* storage is optional */ }
+      setResult((current) => ({ ...current, destination: data.destination }));
       setState("sent"); onSent(data);
     } catch (e) { setError(e.message); } finally { setBusy(""); }
   }
@@ -62,11 +71,12 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
     setBusy("discard"); setError("");
     try {
       await api(`/api/reports/photo/${result.draft_id}`, { method: "DELETE" });
+      try { sessionStorage.removeItem(`photo-draft-${result.draft_id}`); } catch { /* storage is optional */ }
       setState("discarded"); onDiscarded();
     } catch (e) { setError(e.message); setBusy(""); }
   }
 
-  if (state === "sent") return <div className="bubble rich photo-card done"><strong>Report sent.</strong> An administrator will review it.</div>;
+  if (state === "sent") return <div className="bubble rich photo-card done"><strong>{result.destination === "concern" ? "Concern sent." : "Report sent."}</strong> An administrator will review it.</div>;
   if (state === "discarded") return <div className="bubble rich photo-card done">Photo removed. Nothing was sent.</div>;
 
   const a0 = result.analysis || {};
@@ -98,7 +108,7 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
       <div className="photo-head">
         {preview && <img className="photo-thumb" src={preview} alt="The photo you sent" />}
         <div>
-          <h3>Your photo report</h3>
+          <h3>Your photo {a.destination === "concern" ? "concern" : "report"}</h3>
           <p className="desc">Nothing is sent to the administrators until you press <em>Send report</em>.</p>
         </div>
       </div>
@@ -138,7 +148,7 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
       <p className="form-error" role="alert">{error}</p>
       <div className="photo-actions">
         <button type="button" className="btn" disabled={!!busy || !result.can_submit} onClick={send}>
-          {busy === "send" ? "Sending..." : "Send report"}
+          {busy === "send" ? "Sending..." : a.destination === "concern" ? "Send concern" : "Send report"}
         </button>
         <button type="button" className="btn ghost" disabled={!!busy || !dirty || result.checks_left < 1} onClick={check}>
           {busy === "check" ? "Checking..." : "Check again"}

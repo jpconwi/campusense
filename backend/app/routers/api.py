@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app import config
 from app.ai.ai_engine import ask_ai
 from app.database import get_db
-from app.models import UserDailyActivity, UserPresence
+from app.models import PhotoDraft, UserDailyActivity, UserPresence
 from app.security import CurrentUser, csrf_protect, login_required, role_required
 from app.services import (announcement_service, chat_history_service, common, concern_service, faculty_service, feedback_service,
                           pdf_service, photo_report_service, report_service, reservation_service)
@@ -110,6 +110,8 @@ def _too_many(user_id, limit=20, window=60):  # user_id may also be a tuple such
 def _ok(row, message, pdf_kind=None):
     data = {"success": True, "message": message, "id": row["id"], "status": row["status"],
             "submitted_at": row.get("created_at", row.get("submitted_at"))}
+    if row.get("destination"):
+        data["destination"] = row["destination"]
     if pdf_kind:
         data["pdf_url"] = f"/api/pdf/{pdf_kind}/{row['id']}"
     return data
@@ -241,16 +243,34 @@ def photo_analyze(
         raise HTTPException(429, "Please wait a moment before checking another photo.")
     form = {"description": description, "location": location, "noticed_when": noticed_when,
             "observed_cause": observed_cause}
-    result = photo_report_service.analyze(db, user, form, image if not draft_id else None, draft_id)
+    result = photo_report_service.analyze(db, user, form, image if not draft_id else None, draft_id, session_id)
+    draft = db.get(PhotoDraft, result["draft_id"])
+    if draft:
+        result["image_filename"] = draft.image_filename
+        result["image_url"] = f"/api/uploads/{draft.image_filename}"
     if not draft_id:                          # keep the first exchange in the chat history
         try:
             asked = "Photo report" + (f": {description.strip()[:120]}" if (description or "").strip() else "")
             result["session_id"] = chat_history_service.save_exchange(
                 db, user.id, session_id, asked, {"answer": result["message"]})
+            draft = db.get(PhotoDraft, result["draft_id"])
+            if draft:
+                draft.session_id = result["session_id"]
+                db.commit()
         except Exception as error:
             db.rollback()
             print("CHAT HISTORY ERROR:", repr(error))
     return result
+
+
+@router.get("/reports/photo/drafts/latest")
+def photo_resume(session_id: Optional[int] = None,
+                 user: CurrentUser = Depends(role_required("student", "instructor")),
+                 db: Session = Depends(get_db)):
+    result = photo_report_service.resume_latest(db, user, session_id)
+    if result:
+        result["image_url"] = f"/api/uploads/{result['image_filename']}"
+    return {"draft": result}
 
 
 @router.post("/reports/photo/{draft_id}/submit")
@@ -264,10 +284,13 @@ def photo_submit(
     form = {"description": description, "location": location, "noticed_when": noticed_when,
             "observed_cause": observed_cause}
     row = photo_report_service.submit(db, user, draft_id, form)
-    message = "Your report was sent to the administrators. Its status is Pending."
-    if row["urgent"]:
+    kind = "concerns" if row.get("source") == "photo" and "concern_type" in row else "reports"
+    row["destination"] = "concern" if kind == "concerns" else "report"
+    message = ("Your concern was sent to the administrators." if kind == "concerns"
+               else "Your report was sent to the administrators.") + " Its status is Pending."
+    if kind == "reports" and row["urgent"]:
         message += " It was marked for priority review. If anyone is in danger, tell campus security or the nearest staff now."
-    return _ok(row, message, "reports")
+    return _ok(row, message, kind)
 
 
 @router.delete("/reports/photo/{draft_id}")
@@ -420,4 +443,12 @@ def upload(filename: str, user: CurrentUser = Depends(login_required),
                         return Response(image_data, media_type=content_type,
                                         headers={"Cache-Control": "private, max-age=300"})
                 break
+        else:
+            draft_owner = db.execute(select(PhotoDraft.user_id).where(
+                PhotoDraft.image_filename == filename).limit(1)).scalar_one_or_none()
+            if draft_owner is not None and draft_owner == user.id:
+                image_data, content_type = upload_service.get_image(filename)
+                if image_data is not None:
+                    return Response(image_data, media_type=content_type,
+                                    headers={"Cache-Control": "private, max-age=300"})
     raise HTTPException(404, "That page was not found.")

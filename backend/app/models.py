@@ -111,6 +111,12 @@ class Concern(Base):
     status: Mapped[str] = mapped_column(String(30), default="Pending", nullable=False)
     sentiment: Mapped[Optional[str]] = mapped_column(String(10))        # Positive / Neutral / Negative / Mixed
     sentiment_score: Mapped[Optional[int]] = mapped_column(Integer)      # -100 .. 100
+    source: Mapped[str] = mapped_column(String(10), default="form", nullable=False)
+    ai_status: Mapped[Optional[str]] = mapped_column(String(15))
+    ai_analysis: Mapped[Optional[str]] = mapped_column(Text)
+    ai_provider: Mapped[Optional[str]] = mapped_column(String(80))
+    noticed_when: Mapped[Optional[str]] = mapped_column(String(120))
+    observed_cause: Mapped[Optional[str]] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
 
@@ -306,6 +312,7 @@ class PhotoDraft(Base):
     observed_cause: Mapped[Optional[str]] = mapped_column(String(500))
     analysis: Mapped[Optional[str]] = mapped_column(Text)             # JSON result of the last check
     ai_provider: Mapped[Optional[str]] = mapped_column(String(80))
+    session_id: Mapped[Optional[int]] = mapped_column(ForeignKey("chat_sessions.id", ondelete="SET NULL"))
     checks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)

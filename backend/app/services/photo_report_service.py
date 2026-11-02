@@ -18,7 +18,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app import config
-from app.models import PhotoDraft, Report
+from app.models import Concern, PhotoDraft, Report
 from app.services import common, image_analysis_service as ias, sentiment_service
 from app.services.common import ValidationError, clean_text, now
 from app.services.pdf_service import ensure_pdf
@@ -83,7 +83,7 @@ def _response(draft, analysis):
     }
 
 
-def analyze(db: Session, user, form, image_file, draft_id=None):
+def analyze(db: Session, user, form, image_file, draft_id=None, session_id=None):
     """First check (needs a photo) or a re-check after the student added information (draft_id)."""
     values = _fields(form)
     if draft_id:
@@ -96,7 +96,7 @@ def analyze(db: Session, user, form, image_file, draft_id=None):
         if not filename:
             raise ValidationError("Please choose or take a photo first.")
         draft = PhotoDraft(user_id=user.id, image_filename=filename, checks=0,
-                           created_at=now(), updated_at=now())
+                           created_at=now(), updated_at=now(), session_id=session_id)
         db.add(draft)
     for key, value in values.items():
         setattr(draft, key, value or None)
@@ -109,6 +109,20 @@ def discard(db: Session, user, draft_id):
     _remove_file(draft.image_filename)
     db.delete(draft)
     db.commit()
+
+
+def resume_latest(db: Session, user, session_id=None):
+    """Restore the most recent analyzed draft when the chat page is reopened."""
+    query = select(PhotoDraft).where(PhotoDraft.user_id == user.id, PhotoDraft.analysis.is_not(None))
+    if session_id:
+        query = query.where(PhotoDraft.session_id == session_id)
+    draft = db.execute(query.order_by(PhotoDraft.updated_at.desc()).limit(1)).scalar_one_or_none()
+    if draft is None:
+        return None
+    result = _response(draft, _loaded(draft))
+    result["image_filename"] = draft.image_filename
+    result["session_id"] = draft.session_id
+    return result
 
 
 def submit(db: Session, user, draft_id, form):
@@ -133,6 +147,23 @@ def submit(db: Session, user, draft_id, form):
     stamp = now()
     real_text = description.strip()
     mood = sentiment_service.analyze(real_text) if real_text else {"label": "Neutral", "score": 0}
+    if analysis.get("destination") == "concern":
+        concern_type = {"Equipment": "Equipment", "Cleanliness": "Cleanliness",
+                        "Safety": "Safety"}.get(analysis.get("category"), "Building / Structure")
+        concern = Concern(
+            user_id=user.id, reporter_name=user.name, reporter_email=user.email,
+            location=draft.location or ias.NOT_PROVIDED, room=None, concern_type=concern_type,
+            description=real_text or ias.NO_DESCRIPTION, concern_date=stamp.date(),
+            image_filename=draft.image_filename, status="Pending", sentiment=mood["label"],
+            sentiment_score=mood["score"], created_at=stamp, updated_at=stamp,
+            source="photo", ai_status=analysis.get("status"), ai_analysis=json.dumps(analysis),
+            ai_provider=draft.ai_provider, noticed_when=draft.noticed_when,
+            observed_cause=draft.observed_cause)
+        db.add(concern)
+        db.delete(draft)
+        db.commit()
+        return common.get_row(db, "concerns", concern.id)
+
     report = Report(
         user_id=user.id, reporter_name=user.name, reporter_email=user.email,
         location=draft.location or ias.NOT_PROVIDED, report_type=analysis["category"] if state == "issue" else "Other",

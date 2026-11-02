@@ -7,6 +7,7 @@ not a signed-in admin gets a plain 404.
 All numbers on the dashboard are real counts from the database.
 """
 
+import json
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 
@@ -134,6 +135,13 @@ def records(kind: str, status: Optional[str] = None, sentiment: Optional[str] = 
     if sentiment not in ("Positive", "Neutral", "Negative", "Mixed"):
         sentiment = None
     rows = common.list_rows(db, kind, status=status, sentiment=sentiment)
+    if kind == "concerns":
+        for row in rows:
+            if row.get("source") == "photo":
+                try:
+                    row["ai"] = json.loads(row.get("ai_analysis") or "null")
+                except ValueError:
+                    row["ai"] = None
     if kind == "reports":
         rows = [photo_report_service.for_admin(r) for r in rows]
         if urgent == "1":
