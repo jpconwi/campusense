@@ -53,8 +53,28 @@ CAMPUS_KEYWORDS = [
     "map", "maps", "locate", "location", "directions", "john patrick", "conwi", "handsome", "genius", "ict area", "wifi",
 ]
 
+FOOD_BUSINESS_PROMPT = """You are NEMSAI helping with a NEMSU course, class, or project that the user
+has confirmed. Answer the requested question directly. General recipes may use common ingredients,
+clearly labeling optional variations. For selling costs or prices, do not invent current local
+ingredient prices or currency amounts. Explain a simple per-item cost and selling-price formula,
+then ask for the user's local supplier costs if they want a calculation. Keep the answer practical
+and concise."""
+COURSE_GATE_MARKER = "before i answer this general question"
+COURSE_GATE_MESSAGE = ("Before I answer this general question, is it connected to an NEMSU course, "
+                       "class assignment, or project in any program? You can say yes or name the "
+                       "course. I keep NEMSAI focused on NEMSU and campus-related help.")
+COURSE_SCOPE_REFUSAL = ("I can help with NEMSU and campus matters, but I can't answer unrelated "
+                        "general questions. I can help if this is for an NEMSU course, class, or project.")
+
 
 _CAMPUS_WORDS = sorted({w for k in CAMPUS_KEYWORDS for w in normalize(k).split() if len(w) >= 5})
+_EXPLICIT_CAMPUS_CONTEXT = (
+    "nemsu", "campus", "tandag", "bislig", "cantilan", "tagbina", "lianga", "san miguel",
+    "cagwait", "surigao", "cas", "cbm", "cite", "cte", "bscs", "beed", "ict",
+    "library", "canteen", "gate", "classroom", "laboratory", "building", "facility",
+    "equipment", "projector", "registrar", "reservation", "concern", "report", "feedback",
+    "faculty", "instructor", "dean", "college of",
+)
 
 
 def _is_campus_related(question):
@@ -64,6 +84,87 @@ def _is_campus_related(question):
     # misspelt campus word, e.g. "libary", "canten", "reservaton"
     return any(len(w) >= 5 and difflib.get_close_matches(w, _CAMPUS_WORDS, n=1, cutoff=0.84)
                for w in q.split())
+
+
+def _has_explicit_campus_context(question):
+    """Avoid treating generic words like 'student' or 'course' as proof of campus context."""
+    return intents.has(normalize(question), *_EXPLICIT_CAMPUS_CONTEXT)
+
+
+def _is_food_business_question(question):
+    q = normalize(question)
+    food = intents.has(q, "hotdog", "hot dog", "hot dogs", "milk tea", "bubble tea", "boba",
+                       "burger", "sandwich", "fries", "snack", "cake", "coffee", "food product",
+                       "food business", "beverage", "drink", "adobo", "lumpia", "pizza", "pasta",
+                       "noodles", "rice meal", "chicken", "bread", "turon", "fruit shake", "juice")
+    asks_action = intents.has(q, "ingredient", "ingredients", "recipe", "how to make", "prepare",
+                              "how much", "cost", "price", "sell", "selling", "business")
+    selling_cost = (intents.has(q, "sell", "selling")
+                    and intents.has(q, "cost", "price", "how much"))
+    return food and asks_action or selling_cost
+
+
+def _course_gate_context(conversation):
+    """Return the original general request and course-related authorization, if gated."""
+    messages = conversation or []
+    for index in range(len(messages) - 1, -1, -1):
+        message = messages[index]
+        if message.get("role") != "ai" or COURSE_GATE_MARKER not in normalize(message.get("text", "")):
+            continue
+        original = next((m.get("text", "") for m in reversed(messages[:index])
+                        if m.get("role") == "user"), "")
+        state = "pending"
+        for reply in (m.get("text", "") for m in messages[index + 1:] if m.get("role") == "user"):
+            decision = _course_gate_decision(reply)
+            if decision:
+                state = decision
+        return original, state
+    return "", None
+
+
+def _course_gate_decision(reply):
+    q = normalize(reply)
+    yes = (q in {"yes", "yeah", "yep", "yup", "sure", "correct", "i do"}
+           or intents.has(q, "for my course", "for a course", "for my class", "for class",
+                          "for a class", "for my assignment", "for an assignment", "for a project",
+                          "class project", "course project", "school project", "nemsu project",
+                          "nemsu student", "nemsu instructor", "i am a student", "im a student",
+                          "i am an instructor", "im an instructor")
+           or re.search(r"\b(?:i am|im) (?:an? )?[a-z0-9 -]+ student\b", q)
+           or re.search(r"\b(?:i am|im) (?:in|taking|studying) [a-z0-9 -]+\b", q)
+           or re.search(r"\b[a-z0-9 -]+ major\b", q)
+           or re.search(r"\b(?:i study|im studying|i am studying) [a-z0-9 -]+\b", q))
+    no = (q in {"no", "nope", "not really"}
+          or intents.has(q, "not related", "unrelated", "not a student", "not for school",
+                         "not for class", "not for a project")
+          or re.search(r"\bnot (?:an? )?[a-z0-9 -]+ student\b", q))
+    return "allowed" if yes else "denied" if no else None
+
+
+def _food_business_reply(question):
+    answer = ask_model(FOOD_BUSINESS_PROMPT, question)
+    return response.message(answer or "Tell me what you're making or the ingredient prices you have, and I can help work it out.")
+
+
+def _course_scope_response(question, conversation, requires_gate):
+    """Allow general information only after the user connects it to an NEMSU course."""
+    original, state = _course_gate_context(conversation)
+    current_decision = _course_gate_decision(question)
+    if state == "pending" and original and current_decision:
+        if current_decision == "allowed":
+            return (_food_business_reply(original) if _is_food_business_question(original)
+                    else _general_reply(original))
+        return response.message(COURSE_SCOPE_REFUSAL)
+    if state == "pending" and original and requires_gate:
+        return response.message(COURSE_GATE_MESSAGE)
+    if state == "allowed" and requires_gate:
+        return (_food_business_reply(question) if _is_food_business_question(question)
+                else _general_reply(question, conversation))
+    if state == "denied" and requires_gate:
+        return response.message(COURSE_SCOPE_REFUSAL)
+    if requires_gate:
+        return response.message(COURSE_GATE_MESSAGE)
+    return None
 
 
 def _english(result):
@@ -350,6 +451,12 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     role = user.role if user else "student"
     found = intents.detect(db, question, role)
     name = found["intent"]
+    needs_course_gate = (name in ("general", "general_tutor", "learn_program")
+                         and (not _has_explicit_campus_context(question)
+                              or _is_food_business_question(question)))
+    scope_reply = _course_scope_response(question, conversation, needs_course_gate)
+    if scope_reply:
+        return scope_reply
     if name == "current_day":
         philippine_time = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
         date_text = philippine_time.strftime("%A, %B %d, %Y").replace(" 0", " ")
