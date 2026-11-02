@@ -1,12 +1,4 @@
-"""
-ai/style.py - friendly emojis, only sometimes.
-
-NEMSAI adds one emoji to a reply only when the person's own message is friendly:
-  * they used an emoji themselves          -> always (it mirrors theirs when it is a happy one)
-  * they sound casual ("haha", "thanks", "salamat", "pls", "!!", ":)") -> about every other time
-Never in serious replies (refusals, lost items, concerns, forms, records, admin data) and
-never when the person sounds upset.
-"""
+"""Add an occasional, context-aware emoji to friendly replies."""
 
 import re
 import zlib
@@ -14,20 +6,30 @@ import zlib
 from app.ai import texts
 from app.services import sentiment_service
 
-EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF\u2B50\u2764]")
-PREFERRED = "😊🙂😀😄😃😁👍👏🙏😉😍🥰🤗😎😅😂🤣🎉✨😘❤"        # best first; hearts last
-HAPPY = set(PREFERRED)
+ALLOWED = ("😊", "🥳", "😂", "😁", "❤️", "👍", "😉", "😎", "😢", "😅", "😄", "😃",
+           "😋", "🥰", "🤔", "🤗", "🙂", "😑", "😮", "☠️", "🧠", "⚡", "😵‍💫", "🥶")
+EMOJI = re.compile("|".join(re.escape(emoji) for emoji in sorted(ALLOWED, key=len, reverse=True)))
+PREFERRED = ("😊", "🙂", "😄", "😃", "😁", "😉", "😅", "🥳", "😂", "🥰", "🤗",
+             "😎", "😋", "👍", "❤️", "🤔", "😮", "😢", "😑", "☠️", "🧠", "⚡", "😵‍💫", "🥶")
 
 
 def _best(emojis):
-    """The user's friendliest emoji (a smile before a heart), or None."""
-    found = [e for e in emojis if e in HAPPY]
+    """Prefer a warm expression when mirroring one of the user's approved emojis."""
+    found = [emoji for emoji in emojis if emoji in PREFERRED]
     return min(found, key=PREFERRED.index) if found else None
+
+
 CASUAL = {"haha", "hahaha", "hehe", "hihi", "lol", "lmao", "omg", "yay", "wow", "pls", "plss", "plz",
           "please", "thanks", "thank", "salamat", "ty", "charot", "nice", "daghang", "maraming",
           "palihug", "paki"}
 _WORD = re.compile(r"[a-z']+")
-MAX_LENGTH = 600                      # long answers (lists, news, records) stay plain
+MAX_LENGTH = 600
+TONE_EMOJI = {
+    "curious": "🤔", "wonder": "🤔", "wondering": "🤔", "question": "🤔",
+    "confused": "😅", "confusing": "😅", "unsure": "😅", "understand": "🤔",
+    "happy": "😊", "excited": "🥳", "celebrate": "🥳", "love": "🥰",
+    "funny": "😂", "laugh": "😂", "sad": "😢", "cold": "🥶", "surprised": "😮",
+}
 
 
 def _friendly(question):
@@ -37,15 +39,21 @@ def _friendly(question):
         or "^_^" in question
 
 
+def _tone_emoji(question):
+    """Choose an emoji when wording clearly signals curiosity or emotion."""
+    if sentiment_service.analyze(question)["label"] == "Negative":
+        return None
+    words = set(_WORD.findall(question.lower()))
+    for tone in ("confused", "confusing", "unsure", "curious", "wondering", "wonder",
+                 "surprised", "excited", "happy", "love", "funny", "laugh", "sad", "cold"):
+        if tone in words:
+            return TONE_EMOJI[tone]
+    return None
+
+
 def _roll(question):
-    """The same message always gives the same 'sometimes' answer (no flicker, easy to test)."""
+    """Keep casual-message behavior consistent for a given input."""
     return zlib.crc32(question.strip().lower().encode("utf-8")) % 2 == 0
-
-
-def _default_emoji(result):
-    if result.get("type") == "map":
-        return "📍"
-    return "🙂"
 
 
 def add_emoji(result, question):
@@ -59,12 +67,16 @@ def add_emoji(result, question):
     result.pop("serious", None)
 
     theirs = EMOJI.findall(question)
-    if not theirs and not (_friendly(question) and _roll(question)):
+    tone_emoji = _tone_emoji(question)
+    if not theirs and not tone_emoji and not (_friendly(question) and _roll(question)):
         return result
     if sentiment_service.analyze(question)["label"] == "Negative":
         return result
 
-    emoji = _best(theirs) or texts.FRIENDLY_EMOJI.get(key) or _default_emoji(result)
+    canned = texts.FRIENDLY_EMOJI.get(key)
+    if canned not in ALLOWED:
+        canned = None
+    emoji = _best(theirs) or tone_emoji or canned or "🙂"
     first, sep, rest = answer.partition("\n\n")
     result["answer"] = f"{first.rstrip()} {emoji}{sep}{rest}"
     return result
