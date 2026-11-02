@@ -380,6 +380,17 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         return response.message("Understood—I won't show a map. What campus information or contact details do you need?")
     recent_ai = next((normalize(m.get("text", "")) for m in reversed(conversation or [])
                       if m.get("role") == "ai"), "")
+    recent_user = next((normalize(m.get("text", "")) for m in reversed(conversation or [])
+                        if m.get("role") == "user"), "")
+    wants_concern_form = bool(re.search(
+        r"\b(?:give|show|open|bring) me (?:the )?(?:concern )?form\b|"
+        r"\b(?:concern|campus issue) form\b|\b(?:file|submit) (?:a )?concern\b", normalized))
+    concern_context = ("what is your concern about" in recent_ai
+                       or "report this campus concern" in recent_ai
+                       or intents.vague_concern(recent_user)
+                       or intents.concern_request(recent_user))
+    if wants_concern_form and concern_context:
+        return response.form("concern_form", "Please fill out this form to submit your concern.")
     if recent_ai and normalized in {"huh", "what", "i dont understand", "i dont get it",
                                    "did you understand me", "did you not understand me"}:
         return response.message(texts.en("chat_confused"))

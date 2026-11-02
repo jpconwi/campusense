@@ -63,9 +63,9 @@ TEXTS = {
         "Siyempre! Ano ang gusto mong matutuhan? Sabihin mo lang ang paksa o programa sa NEMSU.",
         "Sige! Unsa ang gusto nimong makat-onan? Isulti lang ang subject o programa sa NEMSU."),
     "concern_ask": (
-        "I can listen. What is your concern about? I’ll only open a report form if you want to report a campus issue.",
-        "Makikinig ako. Ano ang concern mo? Magbubukas lang ako ng report form kung gusto mong mag-report ng problema sa campus.",
-        "Maminaw ko. Unsa imong concern? Magpakita ra ko og report form kung gusto nimong mo-report og problema sa campus."),
+        "I can listen. What is your concern about? If you'd rather submit it now, just ask me to open the concern form.",
+        "Makikinig ako. Ano ang concern mo? Kung gusto mo na itong isumite, sabihin mo lang na buksan ang concern form.",
+        "Maminaw ko. Unsa imong concern? Kung gusto na nimo isumite, ingna lang ko nga ablihan ang concern form."),
     "form_already_shown": (
         "The concern form is already open in this chat, below my earlier message. You can fill it out there, or tell me what part is confusing.",
         "Nasa chat na ang concern form, sa ibaba ng nauna kong mensahe. Punan mo iyon, o sabihin kung aling bahagi ang nakakalito.",

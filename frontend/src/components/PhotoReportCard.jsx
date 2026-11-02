@@ -26,6 +26,10 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
     try { return { ...first.values, ...JSON.parse(sessionStorage.getItem(`photo-draft-${first.draft_id}`) || "{}") }; }
     catch { return first.values; }
   });
+  const [destination, setDestination] = useState(() => {
+    try { return sessionStorage.getItem(`photo-destination-${first.draft_id}`) || first.analysis?.destination || "report"; }
+    catch { return first.analysis?.destination || "report"; }
+  });
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [state, setState] = useState("open");           // open | sent | discarded
@@ -44,7 +48,13 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
   function body() {
     const f = new FormData();
     Object.entries(vals).forEach(([k, v]) => f.append(k, (v || "").trim()));
+    f.append("destination", destination);
     return f;
+  }
+
+  function chooseDestination(value) {
+    setDestination(value);
+    try { sessionStorage.setItem(`photo-destination-${result.draft_id}`, value); } catch { /* storage is optional */ }
   }
 
   async function check() {
@@ -62,6 +72,7 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
     try {
       const data = await api(`/api/reports/photo/${result.draft_id}/submit`, { method: "POST", form: body() });
       try { sessionStorage.removeItem(`photo-draft-${result.draft_id}`); } catch { /* storage is optional */ }
+      try { sessionStorage.removeItem(`photo-destination-${result.draft_id}`); } catch { /* storage is optional */ }
       setResult((current) => ({ ...current, destination: data.destination }));
       setState("sent"); onSent(data);
     } catch (e) { setError(e.message); } finally { setBusy(""); }
@@ -72,6 +83,7 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
     try {
       await api(`/api/reports/photo/${result.draft_id}`, { method: "DELETE" });
       try { sessionStorage.removeItem(`photo-draft-${result.draft_id}`); } catch { /* storage is optional */ }
+      try { sessionStorage.removeItem(`photo-destination-${result.draft_id}`); } catch { /* storage is optional */ }
       setState("discarded"); onDiscarded();
     } catch (e) { setError(e.message); setBusy(""); }
   }
@@ -108,10 +120,18 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
       <div className="photo-head">
         {preview && <img className="photo-thumb" src={preview} alt="The photo you sent" />}
         <div>
-          <h3>Your photo {a.destination === "concern" ? "concern" : "report"}</h3>
-          <p className="desc">Nothing is sent to the administrators until you press <em>Send report</em>.</p>
+          <h3>Your photo {destination === "concern" ? "concern" : "report"}</h3>
+          <p className="desc">NEMSAI's image check is only a suggestion. Choose how to submit it; nothing is sent until you press the button below.</p>
         </div>
       </div>
+
+      <label htmlFor="pr-destination">Submit this as</label>
+      <select id="pr-destination" value={destination} disabled={!!busy}
+              onChange={(e) => chooseDestination(e.target.value)}>
+        <option value="concern">Concern — a campus facility or service problem</option>
+        <option value="report">Report — an incident or safety/security issue</option>
+      </select>
+      <p className="muted">NEMSAI suggests: {a.destination === "concern" ? "Concern" : "Report"}. You can change this.</p>
 
       {a.urgent && (
         <div className="urgent-note" role="alert">
@@ -148,7 +168,7 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
       <p className="form-error" role="alert">{error}</p>
       <div className="photo-actions">
         <button type="button" className="btn" disabled={!!busy || !result.can_submit} onClick={send}>
-          {busy === "send" ? "Sending..." : a.destination === "concern" ? "Send concern" : "Send report"}
+          {busy === "send" ? "Sending..." : destination === "concern" ? "Send concern" : "Send report"}
         </button>
         <button type="button" className="btn ghost" disabled={!!busy || !dirty || result.checks_left < 1} onClick={check}>
           {busy === "check" ? "Checking..." : "Check again"}

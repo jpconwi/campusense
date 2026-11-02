@@ -134,7 +134,7 @@ def resume_latest(db: Session, user, session_id=None):
     return result
 
 
-def submit(db: Session, user, draft_id, form):
+def submit(db: Session, user, draft_id, form, destination=None):
     draft = _own_draft(db, user, draft_id)
     for key, value in _fields(form).items():
         setattr(draft, key, value or None)
@@ -156,7 +156,12 @@ def submit(db: Session, user, draft_id, form):
     stamp = now()
     real_text = description.strip()
     mood = sentiment_service.analyze(real_text) if real_text else {"label": "Neutral", "score": 0}
-    if analysis.get("destination") == "concern":
+    destination = destination or analysis.get("destination") or "report"
+    if destination not in ("concern", "report"):
+        raise ValidationError("Choose whether this should be submitted as a concern or a report.")
+    # Keep the AI's recommendation and record the user's final choice separately.
+    analysis["user_selected_destination"] = destination
+    if destination == "concern":
         concern_type = {"Equipment": "Equipment", "Cleanliness": "Cleanliness",
                         "Safety": "Safety"}.get(analysis.get("category"), "Building / Structure")
         concern = Concern(

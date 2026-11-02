@@ -278,6 +278,7 @@ def photo_resume(response: Response, session_id: Optional[int] = None,
 def photo_submit(
         draft_id: int, description: Optional[str] = Form(None), location: Optional[str] = Form(None),
         noticed_when: Optional[str] = Form(None), observed_cause: Optional[str] = Form(None),
+        destination: Optional[str] = Form(None),
         user: CurrentUser = Depends(role_required("student", "instructor")),
         db: Session = Depends(get_db)):
     if _too_many(("photo", user.id), limit=6):
@@ -286,7 +287,7 @@ def photo_submit(
             "observed_cause": observed_cause}
     draft = db.get(PhotoDraft, draft_id)
     session_id = draft.session_id if draft and draft.user_id == user.id else None
-    row = photo_report_service.submit(db, user, draft_id, form)
+    row = photo_report_service.submit(db, user, draft_id, form, destination)
     kind = "concerns" if row.get("source") == "photo" and "concern_type" in row else "reports"
     row["destination"] = "concern" if kind == "concerns" else "report"
     message = ("Your concern was sent to the administrators." if kind == "concerns"
