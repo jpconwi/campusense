@@ -118,9 +118,11 @@ def score(words, title, content, official=False):
     points = sum((3 + (1 if _matches(w, c) else 0)) if _matches(w, t) else 1
                  for w in matched)
     ok = len(matched) >= 2 and points >= MIN_SCORE
-    if official and ((matched and points >= PAGE_MIN_SCORE)      # "who is the president"
-                     or len(matched) >= 2):                      # "who is the dean of cite"
-        ok = True
+    if official:
+        # For pages, require a strong title match or several body terms. Two generic
+        # words appearing somewhere in a long page are not enough to cite it.
+        ok = bool(matched and points >= PAGE_MIN_SCORE
+                  and (any(_matches(w, t) for w in matched) or len(matched) >= 3))
     return (points if ok else 0), matched
 
 
@@ -473,9 +475,11 @@ def for_prompt(docs, education=False):
     else:
         instruction = (
             "OFFICIAL NEMSU INFORMATION (NEMSU Newsroom articles and pages of the official NEMSU "
-            "website). Answer the question ONLY from these sources. If they do not contain the "
-            "answer, say you could not find it in the official NEMSU information. Never invent "
-            "names, dates, positions or numbers.\n\n")
+            "website). Read the retrieved passages before answering. Use a source only when its "
+            "passage directly supports the answer; do not cite merely keyword-matched pages. "
+            "Answer the question ONLY from relevant evidence in these sources. If they do not "
+            "contain the answer, say you could not find it in the official NEMSU information. "
+            "Never invent names, dates, positions or numbers.\n\n")
     return instruction + "\n\n".join(blocks)
 
 

@@ -529,6 +529,11 @@ def detect(db, question, role):
            "why did you send me a source", "why you send me a source", "why did you send me a map",
            "why did you send me library", "why did you send me an example"):
         return {"intent": "system_feedback"}
+    # Catch natural variants such as "I am confusing about the system" before the
+    # campus knowledge search can attach unrelated official articles.
+    if (has(q, "confusing", "confused", "confuse", "confusion")
+            and has(q, "system", "chat", "nemsai", "answer", "source", "article", "response")):
+        return {"intent": "system_feedback"}
     if vague_concern(q):
         return {"intent": "concern_ask"}
     if (has(q, *CONCERN_WORDS, "problem", "issue", "upset")
