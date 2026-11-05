@@ -66,7 +66,7 @@ Answer with ONE JSON object and nothing else, with exactly these keys:
  "shows_issue": one of {list(SHOWS)},
  "issue_title": short title of the possible problem, or "",
  "category": one of {REPORT_TYPES},
- "destination": one of ["concern", "report"] (facility/equipment maintenance issues are concerns; security, lost items and other incidents are reports),
+ "destination": one of ["concern", "report"] (routine facility/equipment maintenance issues are concerns; safety hazards or incidents that could hurt someone, plus security and lost-item issues, are reports),
  "observations": up to {MAX_OBSERVATIONS} short strings, only what is visible,
  "confidence": one of {list(CONFIDENCE)},
  "urgent": true or false,
@@ -227,6 +227,10 @@ def _apply_safety_net(analysis, description):
     if hit and not analysis["urgent"] and (in_description or analysis["shows_issue"] != "no"):
         analysis["urgent"] = True
         analysis["urgent_reason"] = f'The text mentions "{hit.group(0)}" (keyword check, not confirmed).'
+    # A possible immediate safety hazard belongs in the incident queue even when
+    # the underlying problem is a facility or equipment fault.
+    if analysis["urgent"]:
+        analysis["destination"] = "report"
     return analysis
 
 
