@@ -61,11 +61,12 @@ export default function App() {
         <Route path="/admin/users" element={page(<AdminUsers />, ["admin"])} />
         <Route path="/admin/online-users" element={<Navigate to="/admin/users?view=online" replace />} />
         <Route path="/admin/help-messages" element={page(<AdminHelpMessages />, ["admin"])} />
+        <Route path="/admin/concerns" element={<Navigate to="/admin/reports?type=concern" replace />} />
         <Route path="/admin/faculty" element={page(<AdminFaculty />, ["admin"])} />
         <Route path="/admin/rooms" element={page(<AdminDataset kind="rooms" />, ["admin"])} />
         <Route path="/admin/campus" element={page(<AdminDataset kind="campus" />, ["admin"])} />
         <Route path="/admin/announcements" element={page(<AdminDataset kind="announcements" />, ["admin"])} />
-        {["concerns", "reports", "feedback", "reservations"].map((k) => (
+        {["reports", "feedback", "reservations"].map((k) => (
           <Route key={k} path={`/admin/${k}`} element={page(<AdminList kind={k} />, ["admin"])} />
         ))}
       </Route>

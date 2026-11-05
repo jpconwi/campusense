@@ -8,7 +8,7 @@ from app.services import common
 from app.services.common import clean_choice_other, clean_date, clean_text, now
 from app.services import sentiment_service
 from app.services.pdf_service import generate_pdf
-from app.services.upload_service import save_image
+from app.services.upload_service import delete_image, save_image
 
 CONCERN_TYPES = ["Equipment", "Electrical", "Plumbing", "Furniture",
                  "Building / Structure", "Cleanliness", "Safety", "Other"]
@@ -44,3 +44,19 @@ def create_concern(db: Session, user, form, image_file):
         ("Submitted At", stamp.strftime("%Y-%m-%d %H:%M:%S")), ("Status", "Pending"),
     ])
     return common.get_row(db, "concerns", row.id)
+
+
+def delete_concern(db: Session, concern_id):
+    """Permanently delete a concern and its generated files (admin action)."""
+    row = db.get(Concern, concern_id)
+    if row is None:
+        raise common.ValidationError("Concern not found.")
+    image_filename = row.image_filename
+    generated_pdf = pdf_path(concern_id)
+    db.delete(row)
+    db.commit()
+    delete_image(image_filename)
+    try:
+        generated_pdf.unlink(missing_ok=True)
+    except OSError:
+        pass

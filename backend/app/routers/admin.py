@@ -20,7 +20,7 @@ from app import config
 from app.database import get_db
 from app.models import User, UserDailyActivity, UserPresence
 from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_email)
-from app.services import (announcement_service, campus_service, chart_service, common, faculty_service,
+from app.services import (announcement_service, campus_service, chart_service, common, concern_service, faculty_service,
                           photo_report_service, registration_help_service, report_service, reservation_service,
                           room_service, user_service)
 from app.services.common import ValidationError
@@ -146,14 +146,28 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
                     row["ai"] = None
     if kind == "reports":
         rows = [photo_report_service.for_admin(r) for r in rows]
+        for row in rows:
+            row["record_kind"] = "problem"
+        concerns = common.list_rows(db, "concerns", status=status)
+        for row in concerns:
+            try:
+                row["ai"] = json.loads(row.get("ai_analysis") or "null") if row.get("source") == "photo" else None
+            except ValueError:
+                row["ai"] = None
+            row["record_kind"] = "concern"
+            row["report_type"] = row.get("concern_type")
+            row["urgent"] = bool(row["ai"] and row["ai"].get("urgent"))
+        rows.extend(concerns)
         if urgent == "1":
             rows = [r for r in rows if r["urgent"]]
         open_now = ("Pending", "Under Review", "In Progress")
         # possible hazards that are still open come first (the sort keeps newest-first inside each group)
+        rows.sort(key=lambda r: str(r.get("created_at") or ""), reverse=True)
         rows.sort(key=lambda r: not (r["urgent"] and r["status"] in open_now))
     rows = _without_sentiment(rows)
     return {
-        "kind": kind, "spec": SECTIONS[kind], "current": status,
+        "kind": kind, "spec": ({**SECTIONS[kind], "title": "Reports and Concerns"}
+                                 if kind == "reports" else SECTIONS[kind]), "current": status,
         "urgent_only": urgent == "1",
         "statuses": common.TABLE_STATUSES[kind],
         "columns": [[h, k] for h, k, _ in common.COLUMNS[kind]],
@@ -206,6 +220,12 @@ def assign_report(report_id: int, body: ReportAssignmentBody, db: Session = Depe
 def delete_report(report_id: int, db: Session = Depends(get_db)):
     report_service.delete_report(db, report_id)
     return {"success": True, "message": f"Report #{report_id} deleted."}
+
+
+@router.delete("/concerns/{concern_id}")
+def delete_concern(concern_id: int, db: Session = Depends(get_db)):
+    concern_service.delete_concern(db, concern_id)
+    return {"success": True, "message": f"Concern #{concern_id} deleted."}
 
 
 @router.post("/reports/{report_id}/verify")

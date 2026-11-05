@@ -9,7 +9,7 @@ function statInfo(label) {
   const l = label.toLowerCase();
   const pending = l.includes("pending") ? "?status=Pending" : "";
   if (l.includes("urgent") || l.includes("hazard")) return { to: "/admin/reports?urgent=1", icon: PATHS.alert, tone: "red" };
-  if (l.includes("concern")) return { to: "/admin/concerns" + pending, icon: PATHS.concern, tone: pending ? "amber" : "blue" };
+  if (l.includes("concern")) return { to: `/admin/reports?type=concern${pending ? "&status=Pending" : ""}`, icon: PATHS.concern, tone: pending ? "amber" : "blue" };
   if (l.includes("report") && l.includes("faculty")) return { to: "/admin/faculty", icon: PATHS.faculty, tone: "blue" };
   if (l.includes("report")) return { to: "/admin/reports" + (l.includes("resolved") ? "?status=Resolved" : pending), icon: PATHS.report, tone: l.includes("resolved") ? "green" : pending ? "amber" : "teal" };
   if (l.includes("feedback")) return { to: "/admin/feedback", icon: PATHS.feedback, tone: "violet" };
@@ -36,7 +36,7 @@ export default function AdminDashboard() {
   const stat = (name) => (d.stats.find(([label]) => label === name) || [0, 0])[1];
   const attention = [
     [stat("Urgent Photo Reports (open)"), "possible hazard", "possible hazards", "/admin/reports?urgent=1", "red"],
-    [stat("Pending Concerns"), "concern waiting", "concerns waiting", "/admin/concerns?status=Pending", "amber"],
+    [stat("Pending Concerns"), "concern waiting", "concerns waiting", "/admin/reports?type=concern&status=Pending", "amber"],
     [stat("Pending Reports"), "report waiting", "reports waiting", "/admin/reports?status=Pending", "amber"],
   ].filter(([n]) => n > 0);
 
@@ -123,7 +123,7 @@ export default function AdminDashboard() {
                 <tr key={r.id}><td>{r.id}</td><td>{r.reporter_name}</td><td>{r.concern_type}</td><td>{r.location}</td><td>{r.room || ""}</td><td className="desc">{short(r.description)}</td><td>{r.created_at}</td></tr>
               ))}</tbody>
             </table></div>
-            <p style={{ marginTop: 10 }}><Link to="/admin/concerns?status=Pending">See all pending concerns</Link></p>
+            <p style={{ marginTop: 10 }}><Link to="/admin/reports?type=concern&status=Pending">See all pending concerns</Link></p>
           </>
         ) : <p className="empty">No pending concerns.</p>}
       </div>

@@ -59,14 +59,16 @@ function AssignmentForm({ row, assignees, onChanged }) {
   );
 }
 
-function DeleteReportButton({ row, onChanged }) {
+function DeleteRecordButton({ row, onChanged }) {
   const { setFlash } = useAuth();
   const [busy, setBusy] = useState(false);
+  const recordKind = row.record_kind === "concern" ? "concerns" : "reports";
+  const label = row.record_kind === "concern" ? "concern" : "report";
   async function remove() {
-    if (!window.confirm(`Permanently delete report #${row.id}? Its photo and generated PDF will also be deleted.`)) return;
+    if (!window.confirm(`Permanently delete ${label} #${row.id}? Its photo and generated PDF will also be deleted.`)) return;
     setBusy(true);
     try {
-      const result = await api(`/api/admin/reports/${row.id}`, { method: "DELETE" });
+      const result = await api(`/api/admin/${recordKind}/${row.id}`, { method: "DELETE" });
       setFlash({ text: result.message, kind: "info" });
       onChanged();
     } catch (err) {
@@ -76,7 +78,7 @@ function DeleteReportButton({ row, onChanged }) {
     }
   }
   return <button className="btn small danger" type="button" disabled={busy} onClick={remove}>
-    {busy ? "Deleting..." : "Delete report"}
+    {busy ? "Deleting..." : `Delete ${label}`}
   </button>;
 }
 
@@ -93,7 +95,7 @@ function RecordCard({ row, columns, kind, spec, statuses, onChanged }) {
     nameKey, emailKey, "submitter_role"].includes(key) && row[key]);
   return <article className="record-card">
     <div className="record-card-head">
-      <div><strong>#{row.id}</strong><DateCell value={row.created_at} /></div>
+      <div><strong>{row.record_kind === "concern" ? `Concern #${row.id}` : `#${row.id}`}</strong><DateCell value={row.created_at} /></div>
       <span className={"badge s-" + slug(row.status)}>{row.status}</span>
     </div>
     <div className="record-card-person">
@@ -129,6 +131,7 @@ function RecordCard({ row, columns, kind, spec, statuses, onChanged }) {
     <div className="record-card-footer">
       <label>Update status</label>
       <StatusForm kind={kind} row={row} statuses={statuses} onChanged={onChanged} />
+      {row.record_kind && <DeleteRecordButton row={row} onChanged={onChanged} />}
     </div>
   </article>;
 }
@@ -231,9 +234,11 @@ function PhotoDetail({ row, onChanged }) {
 
 /** Concerns / Reports / Feedback / Reservations for admins. */
 export default function AdminList({ kind }) {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const status = params.get("status") || "";
   const urgent = params.get("urgent") || "";
+  const requestedType = params.get("type") || "all";
+  const typeFilter = ["concern", "problem"].includes(requestedType) ? requestedType : "all";
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(null);                 // id of the report whose details are shown
   const [q, setQ] = useState("");                         // search box
@@ -250,30 +255,50 @@ export default function AdminList({ kind }) {
   if (!data) return <Loading wide={1400} />;
   const { spec, rows: allRows, columns, statuses, current } = data;
   const assignees = data.assignees || [];
-  const rows = allRows.filter((r) => matches(r, q));
+  const typeRows = allRows.filter((r) => kind !== "reports" || typeFilter === "all" || r.record_kind === typeFilter);
+  const rows = typeRows.filter((r) => matches(r, q));
   const base = `/admin/${kind}`;
+  const filterHref = ({ nextStatus = "", nextUrgent = "" } = {}) => {
+    const next = new URLSearchParams();
+    if (nextStatus) next.set("status", nextStatus);
+    if (kind === "reports" && typeFilter !== "all") next.set("type", typeFilter);
+    if (nextUrgent) next.set("urgent", nextUrgent);
+    return `${base}${next.toString() ? `?${next}` : ""}`;
+  };
 
   return (
     <div className="page" style={{ maxWidth: 1400 }}>
       <h2 className="page-title">{spec.title}</h2>
+      {kind === "reports" && <label className="admin-filter-label" htmlFor="admin-record-type">
+        Record type
+        <select id="admin-record-type" value={typeFilter} onChange={(e) => {
+          const next = new URLSearchParams(params);
+          if (e.target.value === "all") next.delete("type"); else next.set("type", e.target.value);
+          setParams(next);
+        }}>
+          <option value="all">All records</option><option value="concern">Concerns</option><option value="problem">Reports</option>
+        </select>
+      </label>}
       <div className="filters">
-        <Link to={base} className={!current ? "on" : ""}>All</Link>
-        {statuses.map((s) => <Link key={s} to={`${base}?status=${encodeURIComponent(s)}`} className={current === s ? "on" : ""}>{s}</Link>)}
+        <Link to={filterHref()} className={!current ? "on" : ""}>All statuses</Link>
+        {statuses.map((s) => <Link key={s} to={filterHref({ nextStatus: s, nextUrgent: urgent })} className={current === s ? "on" : ""}>{s}</Link>)}
       </div>
       {kind === "reports" && (
         <div className="filters" aria-label="Filter by priority">
           <span className="filter-label">Priority:</span>
-          <Link to={base} className={!urgent ? "on" : ""}>All reports</Link>
-          <Link to={`${base}?urgent=1`} className={urgent ? "on" : ""}>Possible hazards only</Link>
+          <Link to={filterHref({ nextStatus: status })} className={!urgent ? "on" : ""}>All priorities</Link>
+          <Link to={filterHref({ nextStatus: status, nextUrgent: "1" })} className={urgent ? "on" : ""}>Possible hazards only</Link>
         </div>
       )}
       {allRows.length > 0 && (
-        <SearchBox value={q} onChange={setQ} shown={rows.length} total={allRows.length}
+        <SearchBox value={q} onChange={setQ} shown={rows.length} total={typeRows.length}
                    placeholder={`Search ${spec.title.toLowerCase()}...`} />
       )}
       {rows.length ? kind === "reports" ? (
-        <section className="report-card-list" aria-label="Campus reports">
-          {rows.map((r) => <article className={`report-card${r.urgent ? " is-urgent" : ""}`} key={r.id}>
+        <section className="report-card-list" aria-label="Reports and concerns">
+          {rows.map((r) => r.record_kind === "concern" ? <RecordCard key={`concern-${r.id}`} row={r}
+            columns={[["Type", "report_type"], ["Location", "location"], ["Room", "room"], ["Description", "description"]]}
+            kind="concerns" spec={{ pdf: true }} statuses={statuses} onChanged={load} /> : <article className={`report-card${r.urgent ? " is-urgent" : ""}`} key={`problem-${r.id}`}>
             <div className="report-card-top">
               <div><span className="report-number">Report #{r.id}</span><DateCell value={r.created_at} /></div>
               <div className="report-card-badges"><span className={"badge s-" + slug(r.status)}>{r.status}</span><Flags r={r} />
@@ -302,7 +327,7 @@ export default function AdminList({ kind }) {
             <div className="report-card-actions">
               <div><label>Assigned administrator</label><AssignmentForm row={r} assignees={assignees} onChanged={load} /></div>
               <div><label>Update status</label><StatusForm kind={kind} row={r} statuses={statuses} onChanged={load} /></div>
-              <DeleteReportButton row={r} onChanged={load} />
+              <DeleteRecordButton row={r} onChanged={load} />
               {r.source === "photo" && <button type="button" className="btn small ghost" aria-expanded={open === r.id}
                 onClick={() => setOpen(open === r.id ? null : r.id)}>{open === r.id ? "Hide NEMSAI details" : "View NEMSAI details"}</button>}
             </div>

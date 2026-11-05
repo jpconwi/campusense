@@ -175,7 +175,7 @@ const GROUPS = {
   "/reports": "My records", "/feedback": "My records",
   "/reservations": "My records", "/faculty": "My records",
   "/profile": "Account",
-  "/admin/concerns": "Inbox", "/admin/reports": "Inbox", "/admin/faculty": "Inbox",
+  "/admin/reports": "Inbox", "/admin/faculty": "Inbox",
   "/admin/feedback": "Inbox", "/admin/reservations": "Inbox", "/admin/help-messages": "Inbox",
   "/admin/users": "Manage", "/admin/rooms": "Manage", "/admin/campus": "Manage", "/admin/announcements": "Manage",
 };
