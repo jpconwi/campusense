@@ -240,6 +240,8 @@ export default function AdminList({ kind }) {
   const urgent = params.get("urgent") || "";
   const requestedType = params.get("type") || "all";
   const typeFilter = ["concern", "problem"].includes(requestedType) ? requestedType : "all";
+  const priorityRelevant = kind === "reports" && typeFilter !== "concern";
+  const activeUrgent = priorityRelevant ? urgent : "";
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(null);                 // id of the report whose details are shown
   const [q, setQ] = useState("");                         // search box
@@ -247,9 +249,9 @@ export default function AdminList({ kind }) {
   const load = useCallback(() => {
     const q = new URLSearchParams();
     if (status) q.set("status", status);
-    if (urgent) q.set("urgent", urgent);
+    if (activeUrgent) q.set("urgent", activeUrgent);
     api(`/api/admin/records/${kind}` + (q.toString() ? `?${q}` : "")).then(setData).catch(() => {});
-  }, [kind, status, urgent]);
+  }, [kind, status, activeUrgent]);
   useEffect(() => { setData(null); setQ(""); load(); }, [load]);
   useEffect(() => { if (data) document.title = `${data.spec.title} | NEMSU`; }, [data]);
 
@@ -263,7 +265,7 @@ export default function AdminList({ kind }) {
     const next = new URLSearchParams();
     if (nextStatus) next.set("status", nextStatus);
     if (kind === "reports" && typeFilter !== "all") next.set("type", typeFilter);
-    if (nextUrgent) next.set("urgent", nextUrgent);
+    if (priorityRelevant && nextUrgent) next.set("urgent", nextUrgent);
     return `${base}${next.toString() ? `?${next}` : ""}`;
   };
 
@@ -275,6 +277,7 @@ export default function AdminList({ kind }) {
         <select id="admin-record-type" value={typeFilter} onChange={(e) => {
           const next = new URLSearchParams(params);
           if (e.target.value === "all") next.delete("type"); else next.set("type", e.target.value);
+          if (e.target.value === "concern") next.delete("urgent");
           setParams(next);
         }}>
           <option value="all">All records</option><option value="concern">Concerns</option><option value="problem">Reports</option>
@@ -284,7 +287,7 @@ export default function AdminList({ kind }) {
         <Link to={filterHref()} className={!current ? "on" : ""}>All statuses</Link>
         {statuses.map((s) => <Link key={s} to={filterHref({ nextStatus: s, nextUrgent: urgent })} className={current === s ? "on" : ""}>{s}</Link>)}
       </div>
-      {kind === "reports" && (
+      {priorityRelevant && (
         <div className="filters" aria-label="Filter by priority">
           <span className="filter-label">Priority:</span>
           <Link to={filterHref({ nextStatus: status })} className={!urgent ? "on" : ""}>All priorities</Link>
@@ -344,7 +347,7 @@ export default function AdminList({ kind }) {
         <EmptyState title="No matches">Nothing matches "{q}". Try fewer or different words.</EmptyState>
       ) : (
         <EmptyState title="Nothing here">
-          Nothing here{urgent ? " marked as a possible hazard" : ""}{current ? " with status " + current : ""}.
+          Nothing here{activeUrgent ? " marked as a possible hazard" : ""}{current ? " with status " + current : ""}.
         </EmptyState>
       )}
     </div>
