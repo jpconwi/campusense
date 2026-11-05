@@ -32,7 +32,7 @@ export default function Home() {
 
   const instructor = user.role === "instructor";
   const tiles = [
-    { to: "/ai", title: "Campus AI", icon: PATHS.chat, tone: "blue", wide: true,
+    { to: "/ai", title: "NEMSAI Assistant", icon: PATHS.chat, tone: "blue", wide: true,
       text: "Ask about rooms, facilities, locations and instructors. You can type, speak or send a photo." },
     { to: "/reports", title: "My Reports", icon: PATHS.report, tone: "teal", track: true,
       pending: counts && (counts.concerns || 0) + (counts.reports || 0),
@@ -56,7 +56,7 @@ export default function Home() {
           <h2 className="page-title">Welcome, {user.name.split(" ")[0]}</h2>
           <p className="page-intro">What would you like to do today?</p>
           <div className="hero-actions">
-            <Link className="btn gold" to="/ai"><Icon d={PATHS.chat} size={18} /> Ask Campus AI</Link>
+            <Link className="btn gold" to="/ai"><Icon d={PATHS.chat} size={18} /> Ask NEMSAI Assistant</Link>
             <Link className="btn ghost-light" to="/reports"><Icon d={PATHS.report} size={18} /> Report a problem</Link>
           </div>
         </div>

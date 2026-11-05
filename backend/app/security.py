@@ -32,12 +32,12 @@ SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 NAV = {
     "student": [
-        ("Home", "/"), ("Notifications", "/notifications"), ("Campus AI", "/ai"), ("My Reports", "/reports"),
+        ("Home", "/"), ("Notifications", "/notifications"), ("NEMSAI Assistant", "/ai"), ("My Reports", "/reports"),
         ("Feedback", "/feedback"),
         ("Profile", "/profile"),
     ],
     "instructor": [
-        ("Home", "/"), ("Notifications", "/notifications"), ("Campus AI", "/ai"), ("My Reports", "/reports"),
+        ("Home", "/"), ("Notifications", "/notifications"), ("NEMSAI Assistant", "/ai"), ("My Reports", "/reports"),
         ("Faculty Availability", "/faculty"),
         ("Feedback", "/feedback"), ("Reservations", "/reservations"), ("Profile", "/profile"),
     ],

@@ -193,6 +193,7 @@ export default function Chat() {
   const bottom = useRef(null);
   const input = useRef(null);
   const nextId = useRef(1);
+  const threadGeneration = useRef(0);
   const sessionId = useRef(null);                      // the saved chat we are talking in
   const [photo, setPhoto] = useState(null);            // { file, url } waiting to be sent
   const [menuOpen, setMenuOpen] = useState(false);
@@ -200,21 +201,29 @@ export default function Chat() {
   const cameraInput = useRef(null);
   const galleryInput = useRef(null);
 
-  useEffect(() => { document.title = "Campus AI | NEMSU"; }, []);
+  useEffect(() => { document.title = "NEMSAI Assistant | NEMSU"; }, []);
   useEffect(() => {                                    // "New chat" or a chat picked from the history
+    const generation = ++threadGeneration.current;
     let alive = true;
     setItems([]); setText(""); sessionId.current = null; nextId.current = 1;
+    setBusy(false); setPhotoError(""); setMenuOpen(false);
+    if (photo) URL.revokeObjectURL(photo.url);
+    setPhoto(null);
     setLoadingChat(!!openId);
     const restorePhotoDraft = (id) => api(`/api/reports/photo/drafts/latest${id ? `?session_id=${id}` : ""}`)
       .then(({ draft }) => {
-        if (!alive || !draft) return;
+        if (!alive || generation !== threadGeneration.current || !draft) return;
         if (draft.session_id) sessionId.current = draft.session_id;
-        const say = (t) => add({ role: "ai", kind: "text", text: t, time: timeNow() });
+        const say = (t) => {
+          if (generation === threadGeneration.current) add({ role: "ai", kind: "text", text: t, time: timeNow() });
+        };
         add({ role: "user", kind: "text", text: draft.values.description || "(photo only)",
           image: draft.image_url, time: timeNow() });
         say(draft.message);
         add({ role: "ai", kind: "photo", result: draft, preview: draft.image_url, onMessage: say,
-          onSent: (result) => { add({ role: "ai", kind: "success", result }); onSaved(); },
+          onSent: (result) => {
+            if (generation === threadGeneration.current) { add({ role: "ai", kind: "success", result }); onSaved(); }
+          },
           onDiscarded: () => say("No problem, I removed the photo. Nothing was sent.") });
       }).catch(() => {});
     if (openId) {
@@ -225,7 +234,7 @@ export default function Chat() {
         await restorePhotoDraft(d.id);
       }).catch(() => { if (alive) onSaved(); })        // deleted meanwhile: just refresh the list
         .finally(() => { if (alive) setLoadingChat(false); });
-    } else restorePhotoDraft(null);
+    }
     input.current && input.current.focus();
     return () => { alive = false; };
   }, [chatKey]);   // eslint-disable-line react-hooks/exhaustive-deps
@@ -250,6 +259,7 @@ export default function Chat() {
 
   async function sendPhoto() {
     if (busy || !photo) return;
+    const generation = threadGeneration.current;
     const { file, url } = photo;
     const description = text.trim();
     // the thumbnail stays in the conversation, so its address is not revoked here
@@ -262,23 +272,29 @@ export default function Chat() {
       if (description) f.append("description", description);
       if (sessionId.current) f.append("session_id", sessionId.current);
       const data = await api("/api/reports/photo/analyze", { method: "POST", form: f });
+      if (generation !== threadGeneration.current) return;
       remove(typing);
       if (data.session_id) { sessionId.current = data.session_id; onSaved(); }
-      const say = (t) => add({ role: "ai", kind: "text", text: t, time: timeNow() });
+      const say = (t) => {
+        if (generation === threadGeneration.current) add({ role: "ai", kind: "text", text: t, time: timeNow() });
+      };
       say(data.message);
       add({
         role: "ai", kind: "photo", result: data, preview: data.image_url || url, onMessage: say,
-        onSent: (result) => { add({ role: "ai", kind: "success", result }); onSaved(); },
+        onSent: (result) => {
+          if (generation === threadGeneration.current) { add({ role: "ai", kind: "success", result }); onSaved(); }
+        },
         onDiscarded: () => say("No problem, I removed the photo. Nothing was sent."),
       });
     } catch (e) {
+      if (generation !== threadGeneration.current) return;
       remove(typing);
       if (e.status !== 401) {
         add({ role: "ai", kind: "text", error: true, time: timeNow(),
               text: "I couldn't check that photo. " + e.message });
       }
     } finally {
-      setBusy(false);
+      if (generation === threadGeneration.current) setBusy(false);
     }
   }
 
@@ -289,12 +305,14 @@ export default function Chat() {
     if (photo && !preset) return sendPhoto();
     const question = (preset || text).trim();
     if (!question || busy) return;
+    const generation = threadGeneration.current;
     add({ role: "user", kind: "text", text: question, time: timeNow() });
     setText("");
     setBusy(true);
     const typing = add({ role: "ai", kind: "typing" });
     try {
       const data = await api("/api/ask", { method: "POST", json: { question, session_id: sessionId.current } });
+      if (generation !== threadGeneration.current) return;
       remove(typing);
       if (data.session_id) { sessionId.current = data.session_id; onSaved(); }
       add({ role: "ai", kind: "text", text: data.answer, suggestions: data.suggestions, time: timeNow() });
@@ -304,18 +322,23 @@ export default function Chat() {
       if (FORM_TYPES[data.type]) {
         add({
           role: "ai", kind: "form", formKind: FORM_TYPES[data.type], prefill: data.prefill,
-          onSuccess: (result) => add({ role: "ai", kind: "success", result }),
+          onSuccess: (result) => {
+            if (generation === threadGeneration.current) add({ role: "ai", kind: "success", result });
+          },
         });
       }
     } catch (e) {
+      if (generation !== threadGeneration.current) return;
       remove(typing);
       if (e.status !== 401) {
         add({ role: "ai", kind: "text", error: true, time: timeNow(),
               text: "Could not get an answer. " + e.message + " Please try again." });
       }
     } finally {
-      setBusy(false);
-      input.current && input.current.focus();
+      if (generation === threadGeneration.current) {
+        setBusy(false);
+        input.current && input.current.focus();
+      }
     }
   }
 

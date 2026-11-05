@@ -183,7 +183,7 @@ function groupNav(nav, role) {
   const out = [];
   for (const item of nav) {
     const path = item.path.split("?", 1)[0];
-    // Campus AI sits with the overview for admins
+    // NEMSAI Assistant sits with the overview for admins
     const name = path === "/ai" && role === "admin" ? "Overview" : GROUPS[path] || "More";
     let g = out.find((x) => x.name === name);
     if (!g) { g = { name, items: [] }; out.push(g); }
