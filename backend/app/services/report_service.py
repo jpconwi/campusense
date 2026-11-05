@@ -8,7 +8,7 @@ from app.services import common
 from app.services.common import clean_choice_other, clean_date, clean_text, now
 from app.services import sentiment_service
 from app.services.pdf_service import generate_pdf
-from app.services.upload_service import save_image
+from app.services.upload_service import delete_image, save_image
 
 REPORT_TYPES = ["Maintenance", "Safety", "Security", "Cleanliness",
                 "Equipment", "Lost & Found", "Other"]
@@ -46,3 +46,19 @@ def create_report(db: Session, user, form, image_file):
         ("Submitted At", stamp.strftime("%Y-%m-%d %H:%M:%S")), ("Status", "Pending"),
     ])
     return common.get_row(db, "reports", row.id)
+
+
+def delete_report(db: Session, report_id):
+    """Permanently delete a report and its generated files (admin action)."""
+    row = db.get(Report, report_id)
+    if row is None:
+        raise common.ValidationError("Report not found.")
+    image_filename = row.image_filename
+    generated_pdf = pdf_path(report_id)
+    db.delete(row)
+    db.commit()
+    delete_image(image_filename)
+    try:
+        generated_pdf.unlink(missing_ok=True)
+    except OSError:
+        pass

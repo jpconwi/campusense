@@ -21,7 +21,7 @@ from app.database import get_db
 from app.models import User, UserDailyActivity, UserPresence
 from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_email)
 from app.services import (announcement_service, campus_service, chart_service, common, faculty_service,
-                          photo_report_service, registration_help_service, reservation_service,
+                          photo_report_service, registration_help_service, report_service, reservation_service,
                           room_service, user_service)
 from app.services.common import ValidationError
 
@@ -200,6 +200,12 @@ def assign_report(report_id: int, body: ReportAssignmentBody, db: Session = Depe
     row.updated_at = common.now()
     db.commit()
     return {"success": True, "message": "Report assignment updated."}
+
+
+@router.delete("/reports/{report_id}")
+def delete_report(report_id: int, db: Session = Depends(get_db)):
+    report_service.delete_report(db, report_id)
+    return {"success": True, "message": f"Report #{report_id} deleted."}
 
 
 @router.post("/reports/{report_id}/verify")

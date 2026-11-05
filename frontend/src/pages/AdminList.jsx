@@ -59,6 +59,27 @@ function AssignmentForm({ row, assignees, onChanged }) {
   );
 }
 
+function DeleteReportButton({ row, onChanged }) {
+  const { setFlash } = useAuth();
+  const [busy, setBusy] = useState(false);
+  async function remove() {
+    if (!window.confirm(`Permanently delete report #${row.id}? Its photo and generated PDF will also be deleted.`)) return;
+    setBusy(true);
+    try {
+      const result = await api(`/api/admin/reports/${row.id}`, { method: "DELETE" });
+      setFlash({ text: result.message, kind: "info" });
+      onChanged();
+    } catch (err) {
+      setFlash({ text: err.message, kind: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <button className="btn small danger" type="button" disabled={busy} onClick={remove}>
+    {busy ? "Deleting..." : "Delete report"}
+  </button>;
+}
+
 /** "2026-10-29 11:26:02" -> date on one line, time (smaller) below it. */
 function DateCell({ value }) {
   const [date, ...time] = String(value || "").split(" ");
@@ -281,6 +302,7 @@ export default function AdminList({ kind }) {
             <div className="report-card-actions">
               <div><label>Assigned administrator</label><AssignmentForm row={r} assignees={assignees} onChanged={load} /></div>
               <div><label>Update status</label><StatusForm kind={kind} row={r} statuses={statuses} onChanged={load} /></div>
+              <DeleteReportButton row={r} onChanged={load} />
               {r.source === "photo" && <button type="button" className="btn small ghost" aria-expanded={open === r.id}
                 onClick={() => setOpen(open === r.id ? null : r.id)}>{open === r.id ? "Hide NEMSAI details" : "View NEMSAI details"}</button>}
             </div>
