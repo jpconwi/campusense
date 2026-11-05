@@ -349,7 +349,11 @@ export default function Chat() {
     ...(user.role === "instructor" ? [["Reserve a facility", RESERVE_QUICK]] : []),
     ["Report a concern", "How do I report a broken facility?"],
     ["Find a campus location", "Where is the NEMSU Tandag campus?"],
-    ["Borrow equipment", "What equipment can I borrow?"],
+  ...(user.role === "student" ? [
+    ["Check instructor availability", "Is Sir JP available today?"],
+    ["Track my concerns", "Show my pending concerns"],
+    ["Share campus feedback", "How do I share feedback about a campus facility?"],
+  ] : [["Borrow equipment", "What equipment can I borrow?"]]),
   ];
 
   return (
