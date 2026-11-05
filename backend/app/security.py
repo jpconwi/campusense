@@ -44,7 +44,7 @@ NAV = {
     "admin": [
         ("Dashboard", "/admin"), ("NEMSAI Assistant", "/ai"), ("Users", "/admin/users"),
         ("Help Messages", "/admin/help-messages"),
-        ("Manage Reports", "/admin/reports"),
+        ("Manage Reports", "/admin/reports?status=Pending"),
         ("Faculty Reports", "/admin/faculty"), ("Feedback & Suggestions", "/admin/feedback"),
         ("Campus Reservations", "/admin/reservations"), ("Rooms", "/admin/rooms"),
         ("Campus", "/admin/campus"), ("Announcements", "/admin/announcements"),

@@ -182,8 +182,9 @@ const GROUPS = {
 function groupNav(nav, role) {
   const out = [];
   for (const item of nav) {
+    const path = item.path.split("?", 1)[0];
     // Campus AI sits with the overview for admins
-    const name = item.path === "/ai" && role === "admin" ? "Overview" : GROUPS[item.path] || "More";
+    const name = path === "/ai" && role === "admin" ? "Overview" : GROUPS[path] || "More";
     let g = out.find((x) => x.name === name);
     if (!g) { g = { name, items: [] }; out.push(g); }
     g.items.push(item);
@@ -213,7 +214,7 @@ export default function Layout() {
 
   const showNav = user && user.role;
   const groups = showNav ? groupNav(nav, user.role) : [];
-  const pageLabel = (nav.find((n) => n.path === location.pathname) || {}).label || "NEMSAI";
+  const pageLabel = (nav.find((n) => n.path.split("?", 1)[0] === location.pathname) || {}).label || "NEMSAI";
   const initials = (user?.name || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
   return (
