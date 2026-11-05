@@ -1,6 +1,6 @@
 :root {
-    --blue: #28699e; --blue-deep: #173f67; --blue-soft: #edf4fa; --gold: #5f8eb7;
-    --paper: #f6f9fc; --card: #ffffff; --line: #d5e0ea; --ink: #18344d; --muted: #5c7184;
+    --blue: #246bb4; --blue-deep: #104b98; --blue-soft: #edf4fc; --gold: #5f91c7;
+    --paper: #f4f6f9; --card: #ffffff; --line: #d6dee8; --ink: #182f49; --muted: #5a6f84;
     --error: #b3121c; --ok-bg: #eef8ef; --ok-line: #b8dcb9;
     --serif: "Source Serif 4", Georgia, serif;
     --sans: "Source Sans 3", "Segoe UI", Arial, sans-serif;
@@ -494,8 +494,8 @@ h2.page-title { letter-spacing: -.01em; }
 
 /* ---- student home ---- */
 .hero { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 26px 28px; margin-bottom: 20px;
-        border-radius: 18px; color: #fff; background: #244f76;
-        box-shadow: 0 8px 22px rgba(23,63,103,.12); position: relative; overflow: hidden; }
+        border-radius: 18px; color: #fff; background: #104b98;
+        box-shadow: 0 8px 22px rgba(16,75,152,.12); position: relative; overflow: hidden; }
 .hero::after { content: ""; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%;
                background: radial-gradient(circle, rgba(255,255,255,.25), rgba(255,255,255,0) 70%); pointer-events: none; }
 .hero-text { position: relative; z-index: 1; min-width: 0; }
@@ -709,7 +709,7 @@ h2.page-title { letter-spacing: -.01em; }
    ===================================================================== */
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
-.sidebar { overflow: hidden; gap: 14px; padding: 14px 12px 12px; background: #173f67; }
+.sidebar { overflow: hidden; gap: 14px; padding: 14px 12px 12px; background: #0846a5; }
 .sb-top, .sb-new, .sb-bottom { flex: none; }
 
 /* New chat is the main action, so it is the one gold button */
@@ -802,7 +802,7 @@ h2.page-title { letter-spacing: -.01em; }
 .sk-tile .sk-lines { flex: 1; }
 .sk-tile.wide { grid-column: 1 / -1; }
 .sk-hero { display: grid; gap: 12px; padding: 26px 28px; margin-bottom: 20px; border-radius: 18px; min-height: 190px; align-content: center;
-           background: #244f76; }
+           background: #104b98; }
 .sk-attn { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; border-left: 5px solid #c9e2fb; }
 .sk-chart { display: grid; gap: 14px; margin-bottom: 16px; }
 .sk-charts { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
@@ -876,15 +876,15 @@ h2.page-title { letter-spacing: -.01em; }
 }
 
 /* Sidebar text and actions follow the clear blue admin navigation palette. */
-.sidebar { background: #173f67; color: #fff; }
-.mobilebar { background: #173f67; border-bottom-color: #315d82; }
-.sb-new { background: #28699e; border-color: transparent; color: #fff; box-shadow: none; }
-.sb-new:hover { background: #3478aa; }
+.sidebar { background: #0846a5; color: #fff; }
+.mobilebar { background: #0846a5; border-bottom-color: #3973bd; }
+.sb-new { background: #2b6fc0; border-color: transparent; color: #fff; box-shadow: none; }
+.sb-new:hover { background: #397dce; }
 .sb-group-name, .sb-history-head strong { color: #cbd9e7; }
 .sb-nav .sb-group a { color: #edf3f8; }
 .sb-nav .sb-group a:hover { background: rgba(255,255,255,.14); color: #fff; }
-.sb-nav .sb-group a.active { background: #fff; color: #173f67; font-weight: 700; }
-.sb-nav .sb-group a.active .sb-ico { background: #edf4fa; color: #173f67; }
+.sb-nav .sb-group a.active { background: #fff; color: #104b98; font-weight: 700; }
+.sb-nav .sb-group a.active .sb-ico { background: #edf4fc; color: #104b98; }
 .sb-nav .sb-group a.active::before { display: none; }
 .sb-logout { color: #fff; }
 .sb-userinfo small { color: #e3efff; }
