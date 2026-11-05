@@ -141,7 +141,7 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
       )}
 
       {(a.observations.length > 0 || a.issue_title) && (
-        <details className="ai-notes">
+        <details className="ai-notes" open>
           <summary>What NEMSAI noticed <span className="badge ai-guess">NEMSAI guess, not verified</span></summary>
           {a.issue_title && <p><strong>{a.issue_title}</strong> <span className="muted">({CONFIDENCE[a.confidence] || "not sure"})</span></p>}
           <ul>{a.observations.map((o, i) => <li key={i}>{o}</li>)}</ul>
