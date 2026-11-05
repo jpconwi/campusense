@@ -42,11 +42,11 @@ NAV = {
         ("Feedback", "/feedback"), ("Reservations", "/reservations"), ("Profile", "/profile"),
     ],
     "admin": [
-        ("Dashboard", "/admin"), ("Campus AI", "/ai"), ("Users", "/admin/users"),
+        ("Dashboard", "/admin"), ("NEMSAI Assistant", "/ai"), ("Users", "/admin/users"),
         ("Help Messages", "/admin/help-messages"),
-        ("Reports", "/admin/reports"),
-        ("Faculty Reports", "/admin/faculty"), ("Feedback", "/admin/feedback"),
-        ("Reservations", "/admin/reservations"), ("Rooms", "/admin/rooms"),
+        ("Manage Reports", "/admin/reports"),
+        ("Faculty Reports", "/admin/faculty"), ("Feedback & Suggestions", "/admin/feedback"),
+        ("Campus Reservations", "/admin/reservations"), ("Rooms", "/admin/rooms"),
         ("Campus", "/admin/campus"), ("Announcements", "/admin/announcements"),
     ],
 }
