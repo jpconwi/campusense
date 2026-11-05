@@ -36,7 +36,7 @@ COLUMNS = {
         ("From", "submitter_role", True),
         ("Type", "concern_type", False), ("Location", "location", False),
         ("Room", "room", False), ("Description", "description", False),
-        ("Sentiment", "sentiment", True), ("Status", "status", False),
+        ("Status", "status", False),
     ],
     "reports": [
         ("ID", "id", False), ("Submitted", "created_at", False),
@@ -45,7 +45,7 @@ COLUMNS = {
         ("Flags", "flags", True),
         ("Type", "report_type", False), ("Location", "location", False),
         ("Area", "area", False), ("Room", "room", False),
-        ("Description", "description", False), ("Sentiment", "sentiment", True),
+        ("Description", "description", False),
         ("Status", "status", False), ("Assigned administrator", "assigned_admin_email", True),
     ],
     "feedback": [
@@ -53,7 +53,7 @@ COLUMNS = {
         ("Name", "name", True), ("Email", "email", True),
         ("From", "submitter_role", True),
         ("Area", "area", False), ("Type", "feedback_type", False),
-        ("Message", "message", False), ("Sentiment", "sentiment", True),
+        ("Message", "message", False),
         ("Status", "status", False),
     ],
     "reservations": [

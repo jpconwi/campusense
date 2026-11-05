@@ -98,7 +98,7 @@ function RecordCard({ row, columns, kind, spec, statuses, onChanged }) {
     <div className="record-card-fields">
       {details.map(([label, key]) => <div className={LONG_TEXT.includes(key) ? "record-card-long" : ""} key={key}>
         <b>{label}</b>
-        {key === "sentiment" ? <span className={"badge sent-" + slug(row[key])}>{row[key]}</span> : <span>{row[key]}</span>}
+        <span>{row[key]}</span>
       </div>)}
     </div>
     <div className="record-card-links">
@@ -212,7 +212,6 @@ function PhotoDetail({ row, onChanged }) {
 export default function AdminList({ kind }) {
   const [params] = useSearchParams();
   const status = params.get("status") || "";
-  const sentiment = params.get("sentiment") || "";
   const urgent = params.get("urgent") || "";
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(null);                 // id of the report whose details are shown
@@ -221,10 +220,9 @@ export default function AdminList({ kind }) {
   const load = useCallback(() => {
     const q = new URLSearchParams();
     if (status) q.set("status", status);
-    if (sentiment) q.set("sentiment", sentiment);
     if (urgent) q.set("urgent", urgent);
     api(`/api/admin/records/${kind}` + (q.toString() ? `?${q}` : "")).then(setData).catch(() => {});
-  }, [kind, status, sentiment, urgent]);
+  }, [kind, status, urgent]);
   useEffect(() => { setData(null); setQ(""); load(); }, [load]);
   useEffect(() => { if (data) document.title = `${data.spec.title} | NEMSU`; }, [data]);
 
@@ -233,30 +231,19 @@ export default function AdminList({ kind }) {
   const assignees = data.assignees || [];
   const rows = allRows.filter((r) => matches(r, q));
   const base = `/admin/${kind}`;
-  const withSent = (s) => (sentiment ? `&sentiment=${sentiment}` : "");
 
   return (
     <div className="page" style={{ maxWidth: 1400 }}>
       <h2 className="page-title">{spec.title}</h2>
       <div className="filters">
         <Link to={base} className={!current ? "on" : ""}>All</Link>
-        {statuses.map((s) => <Link key={s} to={`${base}?status=${encodeURIComponent(s)}${withSent(s)}`} className={current === s ? "on" : ""}>{s}</Link>)}
+        {statuses.map((s) => <Link key={s} to={`${base}?status=${encodeURIComponent(s)}`} className={current === s ? "on" : ""}>{s}</Link>)}
       </div>
       {kind === "reports" && (
         <div className="filters" aria-label="Filter by priority">
           <span className="filter-label">Priority:</span>
           <Link to={base} className={!urgent ? "on" : ""}>All reports</Link>
           <Link to={`${base}?urgent=1`} className={urgent ? "on" : ""}>Possible hazards only</Link>
-        </div>
-      )}
-      {data.has_sentiment && (
-        <div className="filters" aria-label="Filter by sentiment">
-          <span className="filter-label">Sentiment:</span>
-          <Link to={current ? `${base}?status=${encodeURIComponent(current)}` : base} className={!sentiment ? "on" : ""}>Any</Link>
-          {["Negative", "Mixed", "Neutral", "Positive"].map((s) => (
-            <Link key={s} to={`${base}?${current ? `status=${encodeURIComponent(current)}&` : ""}sentiment=${s}`}
-                  className={sentiment === s ? "on" : ""}>{s}</Link>
-          ))}
         </div>
       )}
       {allRows.length > 0 && (
@@ -281,7 +268,6 @@ export default function AdminList({ kind }) {
                   {r.area && <span><b>Area</b>{r.area}</span>}
                   {r.room && <span><b>Room</b>{r.room}</span>}
                   {r.noticed_when && <span><b>When noticed</b>{r.noticed_when}</span>}
-                  {r.sentiment && <span><b>Sentiment</b><span className={"badge sent-" + slug(r.sentiment)}>{r.sentiment}</span></span>}
                 </div>
               </section>
               <aside className="report-card-reporter">
@@ -310,7 +296,7 @@ export default function AdminList({ kind }) {
         <EmptyState title="No matches">Nothing matches "{q}". Try fewer or different words.</EmptyState>
       ) : (
         <EmptyState title="Nothing here">
-          Nothing here{urgent ? " marked as a possible hazard" : ""}{current ? " with status " + current : ""}{sentiment ? " with " + sentiment.toLowerCase() + " sentiment" : ""}.
+          Nothing here{urgent ? " marked as a possible hazard" : ""}{current ? " with status " + current : ""}.
         </EmptyState>
       )}
     </div>

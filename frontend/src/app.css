@@ -394,10 +394,6 @@ button.send { width: 40px; height: 40px; padding: 0; border-radius: 50%; display
 
 
 /* ---- sentiment badges (admin) ---- */
-.badge.sent-positive { background: #dff3e1; color: #1b6a25; }
-.badge.sent-neutral { background: #e7e8f5; color: #4a4c70; }
-.badge.sent-mixed { background: #fff3cd; color: #7a5b00; }
-.badge.sent-negative { background: #fde0e0; color: #8e1118; }
 .filter-label { align-self: center; font-size: .85rem; color: var(--muted); margin-right: 4px; }
 
 /* ---------- voice input + photo reports ---------- */

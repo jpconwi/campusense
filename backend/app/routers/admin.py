@@ -42,6 +42,12 @@ def _strings(body):
     return {str(k): ("" if v is None else str(v)) for k, v in (body or {}).items()}
 
 
+def _without_sentiment(rows):
+    """Keep sentiment metadata out of the administrator interface payloads."""
+    return [{k: v for k, v in row.items() if k not in ("sentiment", "sentiment_score")}
+            for row in rows]
+
+
 # --------------------------------------------------------- AI provider chain
 @router.get("/ai-status")
 def ai_status():
@@ -53,7 +59,7 @@ def ai_status():
 def _urgent_open(db):
     rows = [r for r in common.list_rows(db, "reports") if r["urgent"]
             and r["status"] in ("Pending", "Under Review", "In Progress")]
-    return [photo_report_service.for_admin(r) for r in rows]
+    return _without_sentiment([photo_report_service.for_admin(r) for r in rows])
 
 
 # ------------------------------------------------------------- dashboard
@@ -70,16 +76,14 @@ def dashboard(db: Session = Depends(get_db)):
         ["Resolved Reports", common.count_rows(db, "reports", "Resolved")],
         ["Faculty Reports", len(faculty)],
         ["Total Feedback", common.count_rows(db, "feedback")],
-        ["Negative Feedback", common.count_rows(db, "feedback", sentiment="Negative")],
         ["Total Reservations", common.count_rows(db, "reservations")],
     ]
     return {
         "stats": stats,
         "charts": chart_service.dashboard_charts(db),
-        "recent_concerns": common.list_rows(db, "concerns", status="Pending", limit=5),
-        "recent_reports": common.list_rows(db, "reports", status="Pending", limit=5),
+        "recent_concerns": _without_sentiment(common.list_rows(db, "concerns", status="Pending", limit=5)),
+        "recent_reports": _without_sentiment(common.list_rows(db, "reports", status="Pending", limit=5)),
         "urgent_reports": _urgent_open(db)[:5],
-        "negative_feedback": common.list_rows(db, "feedback", status="Pending", sentiment="Negative", limit=5),
     }
 
 
@@ -126,15 +130,13 @@ def user_activity(db: Session = Depends(get_db)):
 
 # -------------------------------------------------------- record lists
 @router.get("/records/{kind}")
-def records(kind: str, status: Optional[str] = None, sentiment: Optional[str] = None,
-            urgent: Optional[str] = None, db: Session = Depends(get_db)):
+def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = None,
+            db: Session = Depends(get_db)):
     if kind not in SECTIONS:
         raise HTTPException(404, "That page was not found.")
     if status and status not in common.TABLE_STATUSES[kind]:
         status = None
-    if sentiment not in ("Positive", "Neutral", "Negative", "Mixed"):
-        sentiment = None
-    rows = common.list_rows(db, kind, status=status, sentiment=sentiment)
+    rows = common.list_rows(db, kind, status=status)
     if kind == "concerns":
         for row in rows:
             if row.get("source") == "photo":
@@ -149,10 +151,10 @@ def records(kind: str, status: Optional[str] = None, sentiment: Optional[str] = 
         open_now = ("Pending", "Under Review", "In Progress")
         # possible hazards that are still open come first (the sort keeps newest-first inside each group)
         rows.sort(key=lambda r: not (r["urgent"] and r["status"] in open_now))
+    rows = _without_sentiment(rows)
     return {
-        "kind": kind, "spec": SECTIONS[kind], "current": status, "current_sentiment": sentiment,
+        "kind": kind, "spec": SECTIONS[kind], "current": status,
         "urgent_only": urgent == "1",
-        "has_sentiment": kind != "reservations",
         "statuses": common.TABLE_STATUSES[kind],
         "columns": [[h, k] for h, k, _ in common.COLUMNS[kind]],
         "rows": rows,
