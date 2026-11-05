@@ -172,7 +172,7 @@ function ChatHistory({ activeId, tick, onOpen, onDeleted }) {
 // Sidebar sections. The server sends a flat list; the groups are decided here by path.
 const GROUPS = {
   "/": "Menu", "/notifications": "Menu", "/ai": "Menu", "/admin": "Overview",
-  "/reports": "My records", "/concerns": "My records", "/feedback": "My records",
+  "/reports": "My records", "/feedback": "My records",
   "/reservations": "My records", "/faculty": "My records",
   "/profile": "Account",
   "/admin/concerns": "Inbox", "/admin/reports": "Inbox", "/admin/faculty": "Inbox",

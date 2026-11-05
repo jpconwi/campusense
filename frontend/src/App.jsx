@@ -51,7 +51,7 @@ export default function App() {
         <Route path="/notifications" element={page(<Notifications />, person)} />
         <Route path="/ai" element={page(<Chat />)} />
         <Route path="/profile" element={page(<Profile />)} />
-        <Route path="/concerns" element={page(<MyList kind="concerns" />, person)} />
+        <Route path="/concerns" element={<Navigate to="/reports" replace />} />
         <Route path="/reports" element={page(<MyList kind="reports" />, person)} />
         <Route path="/feedback" element={page(<MyList kind="feedback" />, person)} />
         <Route path="/reservations" element={page(<MyList kind="reservations" />, ["instructor"])} />
