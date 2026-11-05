@@ -24,7 +24,7 @@ function StatusForm({ kind, row, statuses, onChanged }) {
 
   return (
     <form className="inline" onSubmit={save}>
-      <select aria-label="New status" value={value} onChange={(e) => setValue(e.target.value)}>
+      <select id={`status-${kind}-${row.id}`} aria-label="New status" value={value} onChange={(e) => setValue(e.target.value)}>
         {statuses.map((s) => <option key={s}>{s}</option>)}
       </select>{" "}
       <button className="btn small" type="submit">Save</button>
@@ -93,7 +93,7 @@ function RecordCard({ row, columns, kind, spec, statuses, onChanged }) {
   const emailKey = ["reporter_email", "email", "requester_email"].find((key) => row[key] !== undefined);
   const details = columns.filter(([, key]) => !["id", "created_at", "status", "assigned_admin_email",
     nameKey, emailKey, "submitter_role"].includes(key) && row[key]);
-  return <article className="record-card">
+  return <article className={`record-card${row.record_kind === "concern" ? " report-concern-card" : ""}`}>
     <div className="record-card-head">
       <div><strong>{row.record_kind === "concern" ? `Concern #${row.id}` : `#${row.id}`}</strong><DateCell value={row.created_at} /></div>
       <span className={"badge s-" + slug(row.status)}>{row.status}</span>
@@ -129,8 +129,9 @@ function RecordCard({ row, columns, kind, spec, statuses, onChanged }) {
       {spec.pdf && <a href={`/api/pdf/${kind}/${row.id}`} target="_blank" rel="noopener noreferrer">Download PDF</a>}
     </div>
     <div className="record-card-footer">
-      <label>Update status</label>
-      <StatusForm kind={kind} row={row} statuses={statuses} onChanged={onChanged} />
+      <div className="record-card-status"><label htmlFor={`status-${kind}-${row.id}`}>Update status</label>
+        <StatusForm kind={kind} row={row} statuses={statuses} onChanged={onChanged} />
+      </div>
       {row.record_kind && <DeleteRecordButton row={row} onChanged={onChanged} />}
     </div>
   </article>;
