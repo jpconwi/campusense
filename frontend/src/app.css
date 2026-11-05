@@ -874,3 +874,16 @@ h2.page-title { letter-spacing: -.01em; }
   .report-concern-card .record-card-status form.inline .btn,
   .report-concern-card .record-card-footer > .btn { width: 100%; text-align: center; }
 }
+
+/* Sidebar text and actions follow the clear blue admin navigation palette. */
+.sidebar { background: linear-gradient(180deg, #74b4f7 0%, #4b91f1 72%, #3479ef 100%); color: #fff; }
+.sb-new { background: #5aa2f2; border-color: transparent; color: #fff; box-shadow: none; }
+.sb-new:hover { background: #438fe8; }
+.sb-group-name, .sb-history-head strong { color: #eaf3ff; }
+.sb-nav .sb-group a { color: #f5f8ff; }
+.sb-nav .sb-group a:hover { background: rgba(255,255,255,.14); color: #fff; }
+.sb-nav .sb-group a.active { background: #e8f2ff; color: #1c5ea8; font-weight: 700; }
+.sb-nav .sb-group a.active .sb-ico { background: transparent; color: #1c5ea8; }
+.sb-nav .sb-group a.active::before { display: none; }
+.sb-logout { color: #fff; }
+.sb-userinfo small { color: #e3efff; }
