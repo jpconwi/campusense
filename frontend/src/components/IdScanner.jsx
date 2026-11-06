@@ -44,19 +44,21 @@ const Ico = ({ d }) => (
 );
 
 /** Rough quality check on a small grayscale copy: blur (Laplacian variance), too dark, glare. */
-function quality(canvas) {
+function quality(canvas, scratch = document.createElement("canvas")) {
   const w = 240, h = Math.max(1, Math.round((canvas.height / canvas.width) * w));
-  const c = document.createElement("canvas"); c.width = w; c.height = h;
-  const ctx = c.getContext("2d", { willReadFrequently: true });
+  if (scratch.width !== w) scratch.width = w;
+  if (scratch.height !== h) scratch.height = h;
+  const ctx = scratch.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(canvas, 0, 0, w, h);
   const { data } = ctx.getImageData(0, 0, w, h);
-  const g = new Float32Array(w * h); let sum = 0;
-  for (let i = 0; i < w * h; i++) { g[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2]; sum += g[i]; }
+  const gray = (i) => 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
+  let sum = 0;
+  for (let i = 0; i < w * h; i++) sum += gray(i);
   const mean = sum / (w * h);
   let acc = 0, n = 0;
   for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
     const i = y * w + x;
-    const lap = g[i - 1] + g[i + 1] + g[i - w] + g[i + w] - 4 * g[i];
+    const lap = gray(i - 1) + gray(i + 1) + gray(i - w) + gray(i + w) - 4 * gray(i);
     acc += lap * lap; n++;
   }
   const sharp = n ? acc / n : 0;
@@ -84,6 +86,7 @@ export default function IdScanner({ kind = "id-front", file, onChange, required 
   const openerRef = useRef(null);
   const clearFramesRef = useRef(0);
   const capturingRef = useRef(false);
+  const qualityCanvasRef = useRef(null);
 
   // preview URL for the chosen file
   useEffect(() => {
@@ -129,11 +132,7 @@ export default function IdScanner({ kind = "id-front", file, onChange, required 
     const timer = window.setInterval(() => {
       const video = videoRef.current;
       if (!video || !video.videoWidth || capturingRef.current) return;
-      const sample = document.createElement("canvas");
-      sample.width = 240;
-      sample.height = Math.max(1, Math.round(video.videoHeight / video.videoWidth * sample.width));
-      sample.getContext("2d").drawImage(video, 0, 0, sample.width, sample.height);
-      if (quality(sample).length === 0) clearFramesRef.current += 1;
+      if (quality(video, qualityCanvasRef.current || (qualityCanvasRef.current = document.createElement("canvas"))).length === 0) clearFramesRef.current += 1;
       else clearFramesRef.current = 0;
       if (clearFramesRef.current >= 3) {
         capturingRef.current = true;
@@ -257,7 +256,7 @@ export default function IdScanner({ kind = "id-front", file, onChange, required 
             <div className="ids-frame" ref={frameRef}>
               <i /><i /><i /><i />
               {ready && <span className="ids-sweep" aria-hidden="true" />}
-              <p className="ids-hint">{K.hint} · Hold steady; clear scans capture automatically</p>
+              <p className="ids-hint">{K.hint} - Hold steady; clear scans capture automatically</p>
             </div>
           </div>
           <div className="ids-bottom">
