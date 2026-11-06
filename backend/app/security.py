@@ -144,8 +144,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> Optiona
                 role = "admin"
             elif role == "super_admin":
                 role = "admin"       # elevated access must remain in the deployment allowlist
-            elif role != "admin":
-                role = None                   # no longer on the allowlist
+            elif role is None and row.approval_status == "Approved" and row.registration_type in ("student", "instructor"):
+                # Restore the intended role for approved registrations created before role persistence was fixed.
+                role = row.registration_type
+                row.role = role
+                db.commit()
+            elif role not in ("student", "instructor", "admin"):
+                role = None
             user = CurrentUser(
                 id=row.id, name=row.name, email=row.email, role=role,
                 created_at=row.created_at.strftime("%Y-%m-%d %H:%M:%S"),

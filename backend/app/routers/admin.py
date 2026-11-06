@@ -447,6 +447,7 @@ def system_user_role(user_id: int, body: AccessRoleBody, me: CurrentUser = Depen
 class CreateAdminBody(BaseModel):
     name: str = ""
     email: str = ""
+    password: str = ""
 
 
 @router.post("/system/admins")
@@ -464,10 +465,12 @@ def create_admin_account(body: CreateAdminBody, me: CurrentUser = Depends(super_
                created_at=common.now(), last_login=common.now())
     db.add(row)
     db.flush()
+    from app.services import admin_auth_service
+    admin_auth_service.set_password(db, email, body.password, commit=False)
     db.add(AdminActivityLog(actor_email=me.email, action="admin_account_created", target_email=email,
-                            details="Created report-manager account; Google sign-in required.", created_at=common.now()))
+                            details="Created report-manager account with password login enabled.", created_at=common.now()))
     db.commit()
-    return {"success": True, "message": f"Admin account created for {email}. They can sign in with their NEMSU Google account; no separate app password is created."}
+    return {"success": True, "message": f"Admin account created for {email}. Password sign-in: {config.ADMIN_LOGIN_URL}"}
 
 
 @router.delete("/system/admins/{user_id}")

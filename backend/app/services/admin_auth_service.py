@@ -13,6 +13,7 @@ from collections import defaultdict
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import config
@@ -46,11 +47,13 @@ def clear_failures(ip, email):
     _fails.pop(_key(ip, email), None)
 
 
-def set_password(db: Session, email, password):
-    """Used by scripts/create_admin.py. Raises ValidationError with a clear message."""
+def set_password(db: Session, email, password, commit=True):
+    """Save a per-account password for an active admin, or an allowlisted admin."""
     email = (email or "").strip().lower()
-    if not is_admin_email(email):
-        raise ValidationError("That email is not in ADMIN_EMAILS (backend/.env).")
+    from app.models import User
+    account = db.scalar(select(User).where(User.email == email, User.role == "admin", User.is_active.is_(True)))
+    if not is_admin_email(email) and account is None:
+        raise ValidationError("Create or allowlist this admin account before setting its password.")
     if len(password or "") < config.ADMIN_MIN_PASSWORD:
         raise ValidationError(f"Password must be at least {config.ADMIN_MIN_PASSWORD} characters.")
     row = db.get(AdminCredential, email)
@@ -59,7 +62,8 @@ def set_password(db: Session, email, password):
         db.add(row)
     row.password_hash = _hasher.hash(password)
     row.updated_at = now()
-    db.commit()
+    if commit:
+        db.commit()
 
 
 def _check_hash(stored_hash, password):
@@ -70,15 +74,16 @@ def _check_hash(stored_hash, password):
 
 
 def verify(db: Session, email, password):
-    """True only if the email is an allowlisted admin AND the password matches.
-
-    ADMIN_PASSWORD in .env is used when it is set. Otherwise the hashed
-    password saved by scripts/create_admin.py is used."""
+    """Verify per-account credentials for active admins, with env fallback for allowlisted admins."""
     email = (email or "").strip().lower()
+    from app.models import User
+    account = db.scalar(select(User).where(User.email == email, User.is_active.is_(True)))
+    row = db.get(AdminCredential, email)
+    if account is not None and account.role == "admin" and row is not None:
+        return _check_hash(row.password_hash, password)
     env_password = config.admin_password()
     if env_password:
         same = hmac.compare_digest((password or "").encode(), env_password.encode())
         return same and is_admin_email(email)
-    row = db.get(AdminCredential, email)
     matches = _check_hash(row.password_hash if row else _DUMMY_HASH, password)
     return bool(row) and matches and is_admin_email(email)

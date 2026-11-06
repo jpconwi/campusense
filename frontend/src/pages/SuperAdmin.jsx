@@ -7,10 +7,10 @@ export default function SuperAdmin() {
   const { user: me, setFlash } = useAuth();
   const [data, setData] = useState(null);
   const [users, setUsers] = useState([]);
-  const [departmentName, setDepartmentName] = useState("");
-  const [office, setOffice] = useState("");
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [showAdminForm, setShowAdminForm] = useState(false);
   const [loadError, setLoadError] = useState("");
   const load = useCallback(async () => {
     setLoadError("");
@@ -36,9 +36,9 @@ export default function SuperAdmin() {
   async function createAdmin(event) {
     event.preventDefault();
     try {
-      const result = await api("/api/admin/system/admins", { method: "POST", json: { name: adminName, email: adminEmail } });
+      const result = await api("/api/admin/system/admins", { method: "POST", json: { name: adminName, email: adminEmail, password: adminPassword } });
       setFlash({ text: result.message, kind: "info" });
-      setAdminName(""); setAdminEmail(""); await load();
+      setAdminName(""); setAdminEmail(""); setAdminPassword(""); setShowAdminForm(false); await load();
     } catch (error) { setFlash({ text: error.message, kind: "error" }); }
   }
 
@@ -46,22 +46,6 @@ export default function SuperAdmin() {
     if (!window.confirm(`Disable the report-manager account for ${person.email}?`)) return;
     try {
       const result = await api(`/api/admin/system/admins/${person.id}`, { method: "DELETE" });
-      setFlash({ text: result.message, kind: "info" }); await load();
-    } catch (error) { setFlash({ text: error.message, kind: "error" }); }
-  }
-
-  async function addDepartment(event) {
-    event.preventDefault();
-    try {
-      const result = await api("/api/admin/system/departments", { method: "POST", json: { name: departmentName, office } });
-      setFlash({ text: result.message, kind: "info" });
-      setDepartmentName(""); setOffice(""); await load();
-    } catch (error) { setFlash({ text: error.message, kind: "error" }); }
-  }
-
-  async function removeDepartment(department) {
-    try {
-      const result = await api(`/api/admin/system/departments/${department.id}`, { method: "DELETE" });
       setFlash({ text: result.message, kind: "info" }); await load();
     } catch (error) { setFlash({ text: error.message, kind: "error" }); }
   }
@@ -94,12 +78,8 @@ export default function SuperAdmin() {
     </section>
 
     <h3>Administrator accounts and roles</h3>
-    <p className="muted">Admins are report managers and sign in with their NEMSU Google account. They do not get a separate app password. Keep at least one super administrator configured in SUPER_ADMIN_EMAILS.</p>
-    <form className="inline" onSubmit={createAdmin}>
-      <input aria-label="Admin full name" required minLength={2} maxLength={120} placeholder="Admin full name" value={adminName} onChange={(event) => setAdminName(event.target.value)} />
-      <input aria-label="Admin NEMSU email" type="email" required maxLength={255} placeholder="admin@nemsu.edu.ph" value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} />
-      <button className="btn small" type="submit">Create admin account</button>
-    </form>
+    <p className="muted">Admins manage reports and use the password assigned during account creation on the private admin sign-in page. Keep at least one super administrator configured in SUPER_ADMIN_EMAILS.</p>
+    <button className="btn" type="button" onClick={() => setShowAdminForm(true)}>Create admin account</button>
     <div className="table-wrap"><table className="data-table">
       <thead><tr><th>Name</th><th>Email</th><th>Department</th><th>Access</th><th>Update access</th><th>Admin account</th></tr></thead>
       <tbody>{users.map((person) => <tr key={person.id}>
@@ -125,21 +105,23 @@ export default function SuperAdmin() {
       <label><input type="checkbox" checked={provider.enabled} onChange={(event) => setProvider(provider, event.target.checked)} /> Enabled</label>
     </article>)}</div>
 
-    <h3>Departments and offices</h3>
-    <form className="inline" onSubmit={addDepartment}>
-      <input aria-label="Department name" required minLength={2} maxLength={120} placeholder="Department" value={departmentName} onChange={(event) => setDepartmentName(event.target.value)} />
-      <input aria-label="Office name" maxLength={160} placeholder="Office (optional)" value={office} onChange={(event) => setOffice(event.target.value)} />
-      <button className="btn small" type="submit">Add</button>
-    </form>
-    {data.departments.length ? <ul>{data.departments.map((department) => <li key={department.id}>
-      {department.name}{department.office ? ` — ${department.office}` : ""} <button className="btn small danger" type="button" onClick={() => removeDepartment(department)}>Remove</button>
-    </li>)}</ul> : <p className="muted">No departments have been added.</p>}
-
     <h3>Privileged activity</h3>
     {data.activity.length ? <div className="table-wrap"><table className="data-table">
       <thead><tr><th>Time</th><th>Administrator</th><th>Action</th><th>Account</th><th>Details</th></tr></thead>
       <tbody>{data.activity.map((entry) => <tr key={entry.id}><td>{entry.created_at}</td><td>{entry.actor_email}</td>
         <td>{entry.action.replaceAll("_", " ")}</td><td>{entry.target_email || "—"}</td><td>{entry.details || "—"}</td></tr>)}</tbody>
     </table></div> : <p className="muted">No privileged changes have been recorded yet.</p>}
+    {showAdminForm && <div className="system-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowAdminForm(false); }}>
+      <section className="system-modal" role="dialog" aria-modal="true" aria-labelledby="create-admin-title">
+        <h3 id="create-admin-title">Create admin account</h3>
+        <p className="muted">Choose a unique password with at least 10 characters. It will be stored as a secure hash.</p>
+        <form className="system-admin-form" onSubmit={createAdmin}>
+          <label>Full name<input required minLength={2} maxLength={120} autoComplete="name" value={adminName} onChange={(event) => setAdminName(event.target.value)} /></label>
+          <label>NEMSU email<input type="email" required maxLength={255} autoComplete="email" placeholder="admin@nemsu.edu.ph" value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} /></label>
+          <label>Admin password<input type="password" required minLength={10} maxLength={200} autoComplete="new-password" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} /></label>
+          <div className="system-modal-actions"><button className="btn ghost" type="button" onClick={() => setShowAdminForm(false)}>Cancel</button><button className="btn" type="submit">Create account</button></div>
+        </form>
+      </section>
+    </div>}
   </div>;
 }
