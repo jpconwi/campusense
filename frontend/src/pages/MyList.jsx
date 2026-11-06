@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, slug } from "../api.js";
+import { api, apiUrl, slug } from "../api.js";
 import RecordForm, { SuccessCard } from "../components/RecordForm.jsx";
 import { EmptyState, Loading, SearchBox, matches } from "../components/Ui.jsx";
 
@@ -7,26 +7,96 @@ const LONG_TEXT = ["description", "message", "purpose", "additional_info"];
 
 function WorkflowProgress({ row }) {
   const status = row.status || "Pending";
-  if (status === "Rejected") return <div className="workflow-rejected"><strong>Report not approved</strong><span>Please contact the report manager if you need more information.</span>
-    {row.admin_feedback && <p>{row.admin_feedback}</p>}</div>;
-  let current = status === "Resolved" ? 4 : status === "In Progress" ? 3 : status === "Under Review" ? 1 : 0;
-  if (row.assigned_admin_email) current = Math.max(current, 2);
+  if (status === "Rejected") return (
+    <div className="user-report-progress is-rejected" aria-label="Report rejected">
+      <span className="user-report-track" aria-hidden="true" />
+      <span className="user-report-step rejected"><span className="user-report-node">×</span><strong>Rejected</strong></span>
+      {row.admin_feedback && <p className="user-report-rejection-note">{row.admin_feedback}</p>}
+    </div>
+  );
+  const current = status === "Resolved" ? 3 : status === "In Progress" ? 2 : status === "Under Review" ? 1 : 0;
   const steps = [
-    "Report submitted",
-    "Admin reviewed",
-    row.assigned_admin_email ? `Forwarded to ${row.assigned_admin_email}` : "Waiting for department assignment",
-    "Work in progress",
-    "Problem repaired",
+    "Pending",
+    "Under review",
+    "In progress",
+    "Resolved",
   ];
-  return <div className="workflow-progress">
-    <ol>{steps.map((step, index) => {
-      const complete = index < current && (index !== 2 || Boolean(row.assigned_admin_email));
-      return <li key={step} className={complete ? "complete" : index === current ? "current" : ""}>
-      <span className="workflow-dot" aria-hidden="true" />{step}
-    </li>;
-    })}</ol>
-    {row.admin_feedback && <div className="workflow-update"><strong>Admin update</strong><p>{row.admin_feedback}</p></div>}
-  </div>;
+  return (
+    <div className="user-report-progress" aria-label={`Report status: ${status}`}>
+      <span className="user-report-track" aria-hidden="true">
+        <span style={{ width: `${(current / (steps.length - 1)) * 100}%` }} />
+      </span>
+      <ol>{steps.map((step, index) => {
+        const complete = index < current;
+        return <li key={step} className={complete ? "complete" : index === current ? "current" : ""}>
+          <span className="user-report-node" aria-hidden="true">{complete ? "✓" : ""}</span>
+          <span>{step}</span>
+        </li>;
+      })}</ol>
+      {row.admin_feedback && <p className="user-report-update"><strong>Admin update:</strong> {row.admin_feedback}</p>}
+    </div>
+  );
+}
+
+function UserReportDetails({ row, onClose }) {
+  const isConcern = row.record_kind === "concern";
+  const kind = isConcern ? "concerns" : "reports";
+  const reference = `${isConcern ? "NEMSAI-C-" : "NEMSAI-"}${String(row.id).padStart(4, "0")}`;
+  const photoUrl = row.image_filename ? apiUrl(`/api/uploads/${encodeURIComponent(row.image_filename)}`) : "";
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [onClose]);
+
+  return (
+    <div className="user-report-dialog-backdrop" onClick={onClose}>
+      <section className="user-report-dialog" role="dialog" aria-modal="true"
+               aria-labelledby="user-report-dialog-title" onClick={(event) => event.stopPropagation()}>
+        <header className="user-report-dialog-head">
+          <div><span>Report details</span><h3 id="user-report-dialog-title">{reference}</h3></div>
+          <button className="user-report-dialog-close" type="button" aria-label="Close report details" onClick={onClose}>×</button>
+        </header>
+        <div className="user-report-dialog-body">
+          <div className="user-report-detail-grid">
+            <div><span>Type</span><strong>{row.record_category || (isConcern ? "Concern" : "Problem")}</strong></div>
+            <div><span>Status</span><strong><span className={`badge s-${slug(row.status)}`}>{row.status || "Pending"}</span></strong></div>
+            <div><span>Submitted</span><strong>{row.created_at || "Not available"}</strong></div>
+            <div><span>Location</span><strong>{row.location || "Not provided"}</strong></div>
+            {row.room && <div><span>Room</span><strong>{row.room}</strong></div>}
+            {row.area && <div><span>Area</span><strong>{row.area}</strong></div>}
+          </div>
+          <section className="user-report-detail-section">
+            <h4>Your description</h4>
+            <p>{row.description || row.message || "No description provided."}</p>
+          </section>
+          {row.admin_feedback && <section className={`user-report-detail-section ${row.status === "Rejected" ? "is-rejected" : "is-update"}`}>
+            <h4>{row.status === "Rejected" ? "Reason from the administrator" : "Admin update"}</h4>
+            <p>{row.admin_feedback}</p>
+          </section>}
+          {photoUrl && <section className="user-report-detail-section">
+            <h4>Attached photo</h4>
+            <a href={photoUrl} target="_blank" rel="noopener noreferrer">
+              <img className="user-report-detail-photo" src={photoUrl} alt="Photo attached to your report" />
+              <span className="muted">Open full-size photo</span>
+            </a>
+          </section>}
+          <div className="user-report-dialog-actions">
+            <a className="btn small ghost" href={apiUrl(`/api/pdf/${kind}/${row.id}`)} target="_blank" rel="noopener noreferrer">Download PDF</a>
+            <button className="btn small" type="button" onClick={onClose}>Close details</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 /** My Concerns / My Reports / Feedback / Reservations (one page, four kinds). */
@@ -38,6 +108,7 @@ export default function MyList({ kind }) {
   const [q, setQ] = useState("");
   const [recordFilter, setRecordFilter] = useState("all");
   const [formKind, setFormKind] = useState("report");
+  const [selectedRecord, setSelectedRecord] = useState(null);
   const combined = kind === "reports";
 
   const load = useCallback(() => {
@@ -55,6 +126,18 @@ export default function MyList({ kind }) {
 
   useEffect(() => { setData(null); setOpen(false); setResult(null); setQ(""); load(); }, [load]);
   useEffect(() => { if (data) document.title = `${data.spec.title} | NEMSU`; }, [data]);
+  useEffect(() => {
+    if (!combined) return undefined;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    const timer = window.setInterval(load, 30_000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [combined, load]);
 
   if (error) return <div className="page"><p className="empty">{error}</p></div>;
   if (!data) return <Loading variant="form" />;
@@ -69,7 +152,7 @@ export default function MyList({ kind }) {
   return (
     <div className="page">
       <h2 className="page-title">{spec.title}</h2>
-      <p className="page-intro">{spec.intro}</p>
+      <p className="page-intro">{spec.intro}{combined && " Status updates refresh automatically."}</p>
 
       <p><button className="btn" type="button" onClick={() => setOpen((o) => !o)}>
         {open ? "Close form" : combined ? "New report" : `New ${spec.form}`}
@@ -96,7 +179,35 @@ export default function MyList({ kind }) {
         </select>
       </div>}
       {(allRows.length > 4 || q) && <SearchBox value={q} onChange={setQ} shown={rows.length} total={allRows.length} placeholder="Search your submissions..." />}
-      {rows.length ? (
+      {rows.length ? combined ? (
+        <section className="user-report-list" aria-label="Your reports">
+          {rows.map((r) => {
+            const isConcern = r.record_kind === "concern";
+            const reference = `${isConcern ? "NEMSAI-C-" : "NEMSAI-"}${String(r.id).padStart(4, "0")}`;
+            return (
+              <article className="user-report-card" key={`${r.record_kind}-${r.id}`}>
+                <header className="user-report-card-head">
+                  <div>
+                    <span className="user-report-reference">{reference}</span>
+                    <span className={`badge ${isConcern ? "s-pending" : "s-in-progress"}`}>{isConcern ? "Concern" : "Problem"}</span>
+                  </div>
+                  <span className={"badge s-" + slug(r.status)}>{r.status || "Pending"}</span>
+                </header>
+                <div className="user-report-summary">
+                  <strong>{r.record_category || (isConcern ? "Concern" : "Problem")}</strong>
+                  <span>{r.location || "Location not provided"}</span>
+                  <p>{r.description || "No description provided."}</p>
+                </div>
+                <WorkflowProgress row={r} />
+                <footer className="user-report-card-foot">
+                  <span>{r.created_at || ""}</span>
+                  <button className="btn small ghost" type="button" onClick={() => setSelectedRecord(r)}>View details</button>
+                </footer>
+              </article>
+            );
+          })}
+        </section>
+      ) : (
         <div className="table-wrap"><table className="data-table">
           <thead><tr>
             {combined && <th>Record type</th>}
@@ -116,7 +227,6 @@ export default function MyList({ kind }) {
                   : <td key={key} data-label={header} className={LONG_TEXT.includes(key) ? "desc" : undefined}>{r[key] || ""}</td>)}
                 {(combined ? data.image : spec.image) && <td data-label="Photo">{r.image_filename && <a href={`/api/uploads/${r.image_filename}`} target="_blank" rel="noopener noreferrer">View</a>}</td>}
                 {data.pdf && <td data-label="PDF"><a href={`/api/pdf/${combined ? r.record_kind === "concern" ? "concerns" : "reports" : kind}/${r.id}`} target="_blank" rel="noopener noreferrer">PDF</a></td>}
-                {combined && <td data-label="Progress and updates"><WorkflowProgress row={r} /></td>}
               </tr>
             ))}
           </tbody>
@@ -129,6 +239,7 @@ export default function MyList({ kind }) {
           You have not submitted anything here yet.
         </EmptyState>
       )}
+      {selectedRecord && <UserReportDetails row={selectedRecord} onClose={() => setSelectedRecord(null)} />}
     </div>
   );
 }
