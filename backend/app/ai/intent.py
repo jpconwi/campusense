@@ -706,7 +706,7 @@ def detect(db, question, role):
     nouns = list(dict.fromkeys(nouns))
     status = next((label for word, label in STATUS_WORDS if has(q, word)), None)
     list_words = has(q, "show", "list", "view", "how many", "all", "count", "display", "see")
-    if role == "admin":
+    if role in ("admin", "super_admin"):
         if (nouns and (status or list_words)) or (status and list_words):
             return {"intent": "records", "kinds": nouns or ["concerns", "reports"],
                     "status": status}

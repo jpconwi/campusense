@@ -345,7 +345,7 @@ def _form_reply(user, found):
     role = user.role
     kind = found["intent"]
 
-    if role == "admin":
+    if role in ("admin", "super_admin"):
         return response.message(texts.en("admin_forms"))
 
     if kind == "reservation_form" and role != "instructor":
@@ -362,7 +362,7 @@ def _form_reply(user, found):
 
 def _lost_item_reply(role, found):
     """Lost or found belongings: the campus report form, type 'Lost & Found'."""
-    if role == "admin":
+    if role in ("admin", "super_admin"):
         return response.message(texts.en("lost_admin"))
     text = texts.en("lost_found" if found["kind"] == "found" else "lost_lost")
     return response.form("report_form", text, found.get("prefill"))
@@ -704,7 +704,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if name == "faculty_absence":
         if role == "instructor":
             return response.form("faculty_form", texts.en("form_faculty"))
-        if role == "admin":
+        if role in ("admin", "super_admin"):
             return response.message(texts.en("faculty_admin"))
         return response.message(texts.en("faculty_student"))
 

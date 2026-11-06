@@ -184,7 +184,7 @@ function groupNav(nav, role) {
   for (const item of nav) {
     const path = item.path.split("?", 1)[0];
     // NEMSAI Assistant sits with the overview for admins
-    const name = path === "/ai" && role === "admin" ? "Overview" : GROUPS[path] || "More";
+    const name = path === "/ai" && role?.includes("admin") ? "Overview" : GROUPS[path] || "More";
     let g = out.find((x) => x.name === name);
     if (!g) { g = { name, items: [] }; out.push(g); }
     g.items.push(item);

@@ -49,6 +49,14 @@ NAV = {
         ("Campus Reservations", "/admin/reservations"), ("Rooms", "/admin/rooms"),
         ("Campus", "/admin/campus"), ("Announcements", "/admin/announcements"),
     ],
+    "super_admin": [
+        ("Dashboard", "/admin"), ("NEMSAI Assistant", "/ai"), ("Users", "/admin/users"),
+        ("Help Messages", "/admin/help-messages"), ("Manage Reports", "/admin/reports?status=Pending"),
+        ("Faculty Reports", "/admin/faculty"), ("Feedback & Suggestions", "/admin/feedback"),
+        ("Campus Reservations", "/admin/reservations"), ("Rooms", "/admin/rooms"),
+        ("Campus", "/admin/campus"), ("Announcements", "/admin/announcements"),
+        ("System Control", "/admin/system"),
+    ],
 }
 
 
@@ -58,13 +66,13 @@ class CurrentUser:
     id: int
     name: str
     email: str
-    role: Optional[str]            # student / instructor / admin / None
+    role: Optional[str]            # student / instructor / admin / super_admin / None
     created_at: str
     last_login: str
 
     @property
     def is_admin(self):
-        return self.role == "admin"
+        return self.role in ("admin", "super_admin")
 
     def public(self):
         return {"id": self.id, "name": self.name, "email": self.email, "role": self.role,
@@ -111,6 +119,10 @@ def is_admin_email(email):
     return (email or "").strip().lower() in config.admin_emails()
 
 
+def is_super_admin_email(email):
+    return (email or "").strip().lower() in config.super_admin_emails()
+
+
 # ------------------------------------------------------------ current user
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> Optional[CurrentUser]:
     """Load the user from the database using the user id kept in the session."""
@@ -128,9 +140,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> Optiona
         row = user_service.get_user(db, user_id)
         if row is not None and row.is_active:
             role = row.role
-            if is_admin_email(row.email):
+            if is_super_admin_email(row.email):
+                role = "super_admin"
+            elif is_admin_email(row.email):
                 role = "admin"
-            elif role == "admin":
+            elif role == "super_admin":
+                role = "admin"       # elevated access must remain in the deployment allowlist
+            elif role != "admin":
                 role = None                   # no longer on the allowlist
             user = CurrentUser(
                 id=row.id, name=row.name, email=row.email, role=role,
@@ -169,7 +185,13 @@ def role_required(*roles):
 def admin_required(user=Depends(get_current_user)) -> CurrentUser:
     """Anyone who is not a signed-in admin gets a plain 404, so the admin API
     cannot even be confirmed by guessing."""
-    if user is None or user.role != "admin":
+    if user is None or user.role not in ("admin", "super_admin"):
+        raise HTTPException(404, "That page was not found.")
+    return user
+
+
+def super_admin_required(user=Depends(get_current_user)) -> CurrentUser:
+    if user is None or user.role != "super_admin":
         raise HTTPException(404, "That page was not found.")
     return user
 

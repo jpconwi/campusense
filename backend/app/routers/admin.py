@@ -18,8 +18,10 @@ from sqlalchemy import select
 
 from app import config
 from app.database import get_db
-from app.models import User, UserDailyActivity, UserPresence
-from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_email)
+from app.models import (AIProviderSetting, AdminActivityLog, CampusDepartment, User,
+                        UserDailyActivity, UserPresence)
+from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_email,
+                          super_admin_required)
 from app.services import (announcement_service, campus_service, chart_service, common, concern_service, faculty_service,
                           photo_report_service, registration_help_service, report_service, reservation_service,
                           room_service, user_service)
@@ -172,7 +174,8 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
         "statuses": common.TABLE_STATUSES[kind],
         "columns": [[h, k] for h, k, _ in common.COLUMNS[kind]],
         "rows": rows,
-        "assignees": sorted(config.admin_emails()) if kind == "reports" else [],
+        "assignees": sorted(config.admin_emails() | {name for (name,) in db.query(CampusDepartment.name).all()})
+                     if kind == "reports" else [],
     }
 
 
@@ -208,8 +211,9 @@ def assign_report(report_id: int, body: ReportAssignmentBody, db: Session = Depe
     if row is None:
         raise ValidationError("Report not found.")
     email = (body.assigned_admin_email or "").strip().lower() or None
-    if email is not None and email not in config.admin_emails():
-        raise ValidationError("Choose an administrator from the list.")
+    departments = {name for (name,) in db.query(CampusDepartment.name).all()}
+    if email is not None and email not in config.admin_emails() and email not in departments:
+        raise ValidationError("Choose an administrator or department from the list.")
     row.assigned_admin_email = email
     row.updated_at = common.now()
     db.commit()
@@ -350,6 +354,107 @@ def user_delete(user_id: int, me: CurrentUser = Depends(admin_required),
     if user_id == me.id or not user_service.soft_delete_user(db, user_id):
         raise ValidationError("That account cannot be deleted.")
     return {"success": True, "message": "Account disabled and scheduled for permanent deletion in 7 days."}
+
+
+@router.get("/system")
+def system_overview(_me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+    """System-wide analytics, AI integration health, and privileged action history."""
+    from app.model import systemAi
+    rows = db.scalars(select(AdminActivityLog).order_by(AdminActivityLog.created_at.desc()).limit(100)).all()
+    departments = [{"id": r.id, "name": r.name, "office": r.office}
+                   for r in db.scalars(select(CampusDepartment).order_by(CampusDepartment.name)).all()]
+    return {
+        "role_counts": [[role, user_service.count_role(db, role)]
+                        for role in ("student", "instructor", "admin", "super_admin")],
+        "record_counts": [[label, common.count_rows(db, table)] for label, table in (
+            ("Reports", "reports"), ("Concerns", "concerns"), ("Reservations", "reservations"),
+            ("Feedback", "feedback"))],
+        "analytics": chart_service.dashboard_charts(db),
+        "ai_providers": systemAi.chain_status(),
+        "departments": departments,
+        "activity": [{"id": r.id, "actor_email": r.actor_email, "action": r.action,
+                      "target_email": r.target_email, "details": r.details,
+                      "created_at": r.created_at.strftime("%Y-%m-%d %I:%M:%S %p")} for r in rows],
+    }
+
+
+class AccessRoleBody(BaseModel):
+    role: str = ""
+
+
+@router.post("/system/users/{user_id}/role")
+def system_user_role(user_id: int, body: AccessRoleBody, me: CurrentUser = Depends(super_admin_required),
+                     db: Session = Depends(get_db)):
+    if user_id == me.id:
+        raise ValidationError("You cannot change your own access level.")
+    target = user_service.get_user(db, user_id)
+    if target is None or not user_service.super_admin_set_role(db, user_id, body.role):
+        raise ValidationError("Choose an approved account and a valid role.")
+    db.add(AdminActivityLog(actor_email=me.email, action="role_changed", target_email=target.email,
+                            details=f"Role set to {body.role}", created_at=common.now()))
+    db.commit()
+    return {"success": True, "message": f"{target.email} is now {body.role.replace('_', ' ')}."}
+
+
+class DepartmentBody(BaseModel):
+    name: str = ""
+    office: str = ""
+
+
+@router.post("/system/departments")
+def add_department(body: DepartmentBody, me: CurrentUser = Depends(super_admin_required),
+                   db: Session = Depends(get_db)):
+    name = body.name.strip()[:120]
+    office = body.office.strip()[:160] or None
+    if len(name) < 2:
+        raise ValidationError("Enter a department name.")
+    exists = db.scalars(select(CampusDepartment).where(CampusDepartment.name.ilike(name))).first()
+    if exists:
+        raise ValidationError("That department is already listed.")
+    row = CampusDepartment(name=name, office=office)
+    db.add(row)
+    db.flush()
+    db.add(AdminActivityLog(actor_email=me.email, action="department_added", target_email=None,
+                            details=f"Added {name}" + (f" ({office})" if office else ""), created_at=common.now()))
+    db.commit()
+    return {"success": True, "message": "Department added."}
+
+
+@router.delete("/system/departments/{department_id}")
+def delete_department(department_id: int, me: CurrentUser = Depends(super_admin_required),
+                      db: Session = Depends(get_db)):
+    row = db.get(CampusDepartment, department_id)
+    if row is None:
+        raise ValidationError("Department not found.")
+    name = row.name
+    db.delete(row)
+    db.add(AdminActivityLog(actor_email=me.email, action="department_removed", details=f"Removed {name}",
+                            created_at=common.now()))
+    db.commit()
+    return {"success": True, "message": "Department removed."}
+
+
+class ProviderBody(BaseModel):
+    enabled: bool = True
+
+
+@router.post("/system/ai-provider/{provider}")
+def update_ai_provider(provider: str, body: ProviderBody, me: CurrentUser = Depends(super_admin_required),
+                       db: Session = Depends(get_db)):
+    from app.model import systemAi
+    if provider not in systemAi.PROVIDER_ORDER:
+        raise ValidationError("Unknown AI provider.")
+    setting = db.get(AIProviderSetting, provider)
+    if setting is None:
+        setting = AIProviderSetting(provider=provider, enabled=body.enabled)
+        db.add(setting)
+    else:
+        setting.enabled = body.enabled
+    db.add(AdminActivityLog(actor_email=me.email, action="ai_provider_enabled" if body.enabled else "ai_provider_disabled",
+                            details=provider, created_at=common.now()))
+    db.commit()
+    systemAi.set_provider_enabled(provider, body.enabled)
+    return {"success": True, "message": f"{provider} {'enabled' if body.enabled else 'disabled'}."}
 
 
 @router.get("/help-messages")

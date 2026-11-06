@@ -329,7 +329,7 @@ export default function AdminList({ kind }) {
               </aside>
             </div>
             <div className="report-card-actions">
-              <div><label>Assigned administrator</label><AssignmentForm row={r} assignees={assignees} onChanged={load} /></div>
+              <div><label>Assigned administrator or department</label><AssignmentForm row={r} assignees={assignees} onChanged={load} /></div>
               <div><label>Update status</label><StatusForm kind={kind} row={r} statuses={statuses} onChanged={load} /></div>
               <DeleteRecordButton row={r} onChanged={load} />
               {r.source === "photo" && <button type="button" className="btn small ghost" aria-expanded={open === r.id}

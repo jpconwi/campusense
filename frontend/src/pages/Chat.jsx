@@ -342,8 +342,8 @@ export default function Chat() {
     }
   }
 
-  const canPhoto = user.role !== "admin";
-  const extra = user.role === "admin"
+  const canPhoto = !["admin", "super_admin"].includes(user.role);
+  const extra = ["admin", "super_admin"].includes(user.role)
     ? ["Show pending reports", "Show pending concerns"] : ["Show my pending concerns"];
   const CARDS = [
     ...(user.role === "instructor" ? [["Reserve a facility", RESERVE_QUICK]] : []),

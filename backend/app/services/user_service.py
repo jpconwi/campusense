@@ -10,6 +10,7 @@ from datetime import timedelta
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from app import config
 from app.models import (ChatMessage, ChatSession, Concern, Feedback, PhotoDraft, Report,
                         Reservation, User)
 from app.services.common import ValidationError, now
@@ -83,17 +84,18 @@ def login_user(db: Session, google_id, name, email, is_admin):
 
     if existing is None:
         user = User(google_id=google_id, name=name, email=email,
-                    role="admin" if is_admin else None, created_at=stamp, last_login=stamp)
+                    role=("super_admin" if email.lower() in config.super_admin_emails() else "admin") if is_admin else None,
+                    created_at=stamp, last_login=stamp)
         db.add(user)
         db.commit()
         return user
 
     # The admin allowlist is the only source of the admin role.
     role = existing.role
-    if is_admin:
+    if email.lower() in config.super_admin_emails():
+        role = "super_admin"
+    elif is_admin:
         role = "admin"
-    elif role == "admin":
-        role = None          # removed from ADMIN_EMAILS -> must choose again
 
     existing.google_id, existing.name, existing.email = google_id, name, email
     existing.role, existing.last_login = role, stamp
@@ -108,12 +110,14 @@ def login_admin_password(db: Session, email):
     existing = get_by_email(db, email)
     if existing is None:
         name = email.split("@")[0].replace(".", " ").title()
-        user = User(google_id="local-admin:" + email, name=name, email=email, role="admin",
+        role = "super_admin" if email.lower() in config.super_admin_emails() else "admin"
+        user = User(google_id="local-admin:" + email, name=name, email=email, role=role,
                     created_at=stamp, last_login=stamp)
         db.add(user)
         db.commit()
         return user
-    existing.role, existing.last_login = "admin", stamp
+    existing.role = "super_admin" if email.lower() in config.super_admin_emails() else "admin"
+    existing.last_login = stamp
     db.commit()
     return existing
 
@@ -134,16 +138,30 @@ def admin_set_role(db: Session, user_id, role):
     if role not in ("student", "instructor"):
         return False
     user = db.get(User, user_id)
-    if user is None or user.role == "admin" or user.approval_status != "Approved" or user.deleted_at:
+    if user is None or user.role in ("admin", "super_admin") or user.approval_status != "Approved" or user.deleted_at:
         return False
     user.role = role
     db.commit()
     return True
 
 
+def super_admin_set_role(db: Session, user_id, role):
+    if role not in ("student", "instructor", "admin", "super_admin"):
+        return False
+    user = db.get(User, user_id)
+    if user is None or user.approval_status != "Approved" or user.deleted_at:
+        return False
+    if role == "super_admin" and user.email.lower() not in config.super_admin_emails():
+        return False
+    user.role = role
+    user.is_active = True
+    db.commit()
+    return True
+
+
 def set_active(db: Session, user_id, active):
     user = db.get(User, user_id)
-    if user is None or user.role == "admin" or user.approval_status == "Pending" or user.deleted_at:
+    if user is None or user.role in ("admin", "super_admin") or user.approval_status == "Pending" or user.deleted_at:
         return False
     user.is_active = bool(active)
     db.commit()
@@ -187,7 +205,7 @@ def reject_student_registration(db: Session, user_id):
 
 def soft_delete_user(db: Session, user_id):
     user = db.get(User, user_id)
-    if user is None or user.role == "admin" or user.deleted_at:
+    if user is None or user.role in ("admin", "super_admin") or user.deleted_at:
         return False
     stamp = now()
     user.is_active = False

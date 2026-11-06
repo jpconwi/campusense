@@ -22,7 +22,7 @@ from starlette.concurrency import run_in_threadpool
 from app import config
 from app.database import SessionLocal, get_db
 from app.security import (NAV, authenticated_only, csrf_protect, ensure_csrf_token,
-                          get_current_user, is_admin_email, is_nemsu_email)
+                          get_current_user, is_admin_email, is_nemsu_email, is_super_admin_email)
 from app.services import (registration_help_service, registration_verification_service,
                           room_service, user_service)
 from app.services.common import ValidationError, clean_text
@@ -64,7 +64,7 @@ def _to_login(request: Request, code):
 def _landing(role):
     if role is None:
         return "/select-role"
-    return "/admin" if role == "admin" else "/"   # students/instructors land on their dashboard (Home)
+    return "/admin" if role in ("admin", "super_admin") else "/"   # students/instructors land on Home
 
 
 # --------------------------------------------------------------- who am I
@@ -132,7 +132,8 @@ def _finish_login(info, allow_personal_registration=False):
         user = user_service.login_user(db, info["sub"], name, email, is_admin)
         if not user.is_active:
             return "deactivated", None, None
-        role = "admin" if is_admin_email(user.email) else (None if user.role == "admin" else user.role)
+        role = ("super_admin" if is_super_admin_email(user.email) else
+                "admin" if is_admin_email(user.email) else user.role)
         return "ok", user.id, role
 
 

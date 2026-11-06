@@ -156,6 +156,13 @@ def admin_password():
 def admin_emails():
     """Return the set of authorized administrator emails (lower-case)."""
     raw = os.getenv("ADMIN_EMAILS", "")
+    admins = {email.strip().lower() for email in raw.split(",") if email.strip()}
+    return admins | super_admin_emails()
+
+
+def super_admin_emails():
+    """Bootstrap super administrators from the deployment environment."""
+    raw = os.getenv("SUPER_ADMIN_EMAILS", "")
     return {email.strip().lower() for email in raw.split(",") if email.strip()}
 
 

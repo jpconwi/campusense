@@ -9,6 +9,7 @@ import AdminHelpMessages from "./pages/AdminHelpMessages.jsx";
 import AdminList from "./pages/AdminList.jsx";
 import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminUsers from "./pages/AdminUsers.jsx";
+import SuperAdmin from "./pages/SuperAdmin.jsx";
 import Chat from "./pages/Chat.jsx";
 import Faculty from "./pages/Faculty.jsx";
 import Home from "./pages/Home.jsx";
@@ -25,7 +26,8 @@ function Guard({ roles, children }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   if (user.role === null) return <Navigate to="/select-role" replace />;
-  if (roles && !roles.includes(user.role)) {
+  const allowed = roles?.includes("admin") && user.role === "super_admin";
+  if (roles && !roles.includes(user.role) && !allowed) {
     // admin pages look like they do not exist; other pages go back home
     return roles.includes("admin") ? <NotFound /> : <Navigate to="/" replace />;
   }
@@ -59,6 +61,7 @@ export default function App() {
 
         <Route path="/admin" element={page(<AdminDashboard />, ["admin"])} />
         <Route path="/admin/users" element={page(<AdminUsers />, ["admin"])} />
+        <Route path="/admin/system" element={page(<SuperAdmin />, ["super_admin"])} />
         <Route path="/admin/online-users" element={<Navigate to="/admin/users?view=online" replace />} />
         <Route path="/admin/help-messages" element={page(<AdminHelpMessages />, ["admin"])} />
         <Route path="/admin/concerns" element={<Navigate to="/admin/reports?type=concern" replace />} />

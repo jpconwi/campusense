@@ -122,7 +122,7 @@ export default function AdminUsers() {
           {user.verification_ai_note && <details className="admin-user-review"><summary>View AI review</summary><small className="registration-review-note">{user.verification_ai_note}</small></details>}
         </div>
         <div className="admin-user-actions">
-          {user.deleted_at ? <small>Permanent deletion: {user.purge_after}</small> : user.role !== 'admin' && user.id !== me.id && <>
+          {user.deleted_at ? <small>Permanent deletion: {user.purge_after}</small> : !['admin', 'super_admin'].includes(user.role) && user.id !== me.id && <>
             {user.approval_status === 'Pending' ? <>
               <button className="btn small" type="button" onClick={() => decide(user, 'approve')}>Approve {user.registration_type === 'instructor' ? 'instructor' : 'student'}</button>
               <button className="btn small danger" type="button" onClick={() => decide(user, 'reject')}>Reject</button>

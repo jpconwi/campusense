@@ -31,6 +31,7 @@ def init_db():
     """Create the tables if they do not exist yet, then seed campus information."""
     from app import models  # noqa: F401  (registers the tables)
     Base.metadata.create_all(engine)
+    _allow_super_admin_role()
     _add_student_registration_columns()
     _add_help_message_category()
     _widen_campus_info_columns()
@@ -41,8 +42,22 @@ def init_db():
     _add_report_assignment_column()
     from app.services import campus_service, sentiment_service
     with SessionLocal() as db:
+        from app.model import systemAi
+        from app.models import AIProviderSetting
+        for setting in db.query(AIProviderSetting).all():
+            systemAi.set_provider_enabled(setting.provider, setting.enabled)
         campus_service.seed_if_empty(db)
         sentiment_service.backfill(db)
+
+
+def _allow_super_admin_role():
+    """Widen the existing PostgreSQL role check while keeping old databases usable."""
+    if engine.dialect.name != "postgresql":
+        return
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check"))
+        conn.execute(text("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('student','instructor','admin','super_admin'))"))
 
 
 def _widen_campus_info_columns():

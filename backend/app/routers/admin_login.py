@@ -31,7 +31,7 @@ def _check_secret(secret):
 def login_page_check(secret: str, user=Depends(get_current_user)):
     """The React login page calls this first, so a wrong secret shows the normal 404 page."""
     _check_secret(secret)
-    return {"ok": True, "already_admin": bool(user is not None and user.role == "admin")}
+    return {"ok": True, "already_admin": bool(user is not None and user.role in ("admin", "super_admin"))}
 
 
 class LoginBody(BaseModel):

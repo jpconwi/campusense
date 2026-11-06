@@ -72,6 +72,7 @@ VISION_PROVIDER_TIMEOUT = 8        # Preserve time for a fallback when one visio
 _cooldown_until = {}                # provider -> time.monotonic() when it may be tried again
 _dead = {}                          # (provider key, model) -> until when the model is skipped
 _hf_client = None
+_provider_enabled = {}
 
 
 # ------------------------------------------------------------ settings
@@ -86,7 +87,7 @@ def _models(provider):
     return configured + [m for m in DEFAULT_MODELS[provider] if m not in configured]
 
 
-def is_configured(provider):
+def has_credentials(provider):
     if provider == "huggingface":
         return bool(config.HUGGINGFACE_API_KEY)
     if provider == "cloudflare":
@@ -94,13 +95,25 @@ def is_configured(provider):
     return bool(getattr(config, f"{provider.upper()}_API_KEY", None))
 
 
+def is_configured(provider):
+    return _provider_enabled.get(provider, True) and has_credentials(provider)
+
+
 def chain_status():
     """For the admin page / start-up log. Never contains a key."""
     now = time.monotonic()
-    return [{"order": i + 1, "provider": p, "name": LABELS[p], "configured": is_configured(p),
+    return [{"order": i + 1, "provider": p, "name": LABELS[p], "enabled": _provider_enabled.get(p, True),
+             "configured": is_configured(p), "has_credentials": has_credentials(p),
              "models": _models(p),
              "cooling_down": _cooldown_until.get(p, 0) > now}
             for i, p in enumerate(PROVIDER_ORDER)]
+
+
+def set_provider_enabled(provider, enabled):
+    if provider not in PROVIDER_ORDER:
+        return False
+    _provider_enabled[provider] = bool(enabled)
+    return True
 
 
 def describe_chain():

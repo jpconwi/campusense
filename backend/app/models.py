@@ -24,7 +24,7 @@ def _now():
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = (CheckConstraint("role IN ('student','instructor','admin')", name="users_role_check"),)
+    __table_args__ = (CheckConstraint("role IN ('student','instructor','admin','super_admin')", name="users_role_check"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     google_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
@@ -92,6 +92,30 @@ class AdminCredential(Base):
     email: Mapped[str] = mapped_column(String(255), primary_key=True)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
+
+
+class AdminActivityLog(Base):
+    """Audit trail for privileged account and system-control changes."""
+    __tablename__ = "admin_activity_logs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    actor_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(80), nullable=False)
+    target_email: Mapped[Optional[str]] = mapped_column(String(255))
+    details: Mapped[Optional[str]] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False, index=True)
+
+
+class CampusDepartment(Base):
+    __tablename__ = "campus_departments"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    office: Mapped[Optional[str]] = mapped_column(String(160))
+
+
+class AIProviderSetting(Base):
+    __tablename__ = "ai_provider_settings"
+    provider: Mapped[str] = mapped_column(String(40), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 
 class Concern(Base):

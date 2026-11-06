@@ -17,10 +17,10 @@ export default function Home() {
 
   useEffect(() => { document.title = "Home | NEMSU"; }, []);
   useEffect(() => {
-    if (user.role !== "admin") api("/api/home").then((d) => setCounts(d.counts)).catch(() => setCounts({ concerns: 0, reports: 0, reservations: 0 }));
+    if (!user.role?.includes("admin")) api("/api/home").then((d) => setCounts(d.counts)).catch(() => setCounts({ concerns: 0, reports: 0, reservations: 0 }));
   }, [user.role]);
   useEffect(() => {
-    if (user.role === "admin") return;
+    if (user.role?.includes("admin")) return;
     let alive = true;
     const load = () => api("/api/announcements").then((d) => { if (alive) setAnnouncements(d.rows || []); }).catch(() => {});
     load();
@@ -28,7 +28,7 @@ export default function Home() {
     return () => { alive = false; window.clearInterval(timer); };
   }, [user.role]);
 
-  if (user.role === "admin") return <Navigate to="/admin" replace />;
+  if (user.role?.includes("admin")) return <Navigate to="/admin" replace />;
 
   const instructor = user.role === "instructor";
   const tiles = [

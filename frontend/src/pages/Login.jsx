@@ -22,7 +22,7 @@ const MESSAGES = {
 export function landingFor(user) {
   if (!user) return "/login";
   if (user.role === null) return "/select-role";
-  return user.role === "admin" ? "/admin" : "/";   // students + instructors -> dashboard (Home)
+  return ["admin", "super_admin"].includes(user.role) ? "/admin" : "/";   // students + instructors -> Home
 }
 
 export default function Login() {
