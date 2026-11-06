@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, apiUrl, slug } from "../api.js";
 import { useAuth } from "../auth.jsx";
-import { EmptyState, Loading, SearchBox, matches } from "../components/Ui.jsx";
+import { EmptyState, Icon, Loading, PATHS, SearchBox, matches } from "../components/Ui.jsx";
 
 const LONG_TEXT = ["description", "message", "purpose", "additional_info"];
 
@@ -261,6 +261,57 @@ function PhotoDetail({ row, onChanged }) {
   );
 }
 
+const shortText = (text, limit = 110) => {
+  const value = String(text || "").trim();
+  return value.length > limit ? value.slice(0, limit - 1) + "…" : value;
+};
+
+/**
+ * Everything an admin needs for one record, rendered only after the row is opened.
+ * Photo reports keep the richer verification view; every other record shows its fields.
+ */
+function RecordDetail({ row, apiKind, assignees, statuses, onChanged }) {
+  const photoReport = apiKind === "reports" && row.source === "photo";
+  return (
+    <div className="report-detail">
+      {photoReport ? <PhotoDetail row={row} onChanged={onChanged} /> : (
+        <div className="report-detail-body">
+          <section className="report-detail-main">
+            <h4>What was reported</h4>
+            <p className="report-card-description">{row.description || "No description provided."}</p>
+            <div className="report-card-meta">
+              <span><b>Location</b>{row.location || "Not provided"}</span>
+              {row.area && <span><b>Area</b>{row.area}</span>}
+              {row.room && <span><b>Room</b>{row.room}</span>}
+              {row.noticed_when && <span><b>When noticed</b>{row.noticed_when}</span>}
+              {row.observed_cause && <span><b>Cause mentioned</b>{row.observed_cause}</span>}
+            </div>
+          </section>
+          <aside className="report-card-reporter">
+            <b>Submitted by</b>
+            <strong>{row.reporter_name || "Unknown"}</strong>
+            {row.reporter_email && <a href={`mailto:${row.reporter_email}`}>{row.reporter_email}</a>}
+            {row.submitter_role && <small>{row.submitter_role}</small>}
+            {row.image_filename && <ReportPhoto filename={row.image_filename} />}
+          </aside>
+        </div>
+      )}
+      <div className="report-card-actions">
+        <div><label>Assigned administrator or department</label>
+          <AssignmentForm row={row} kind={apiKind} assignees={assignees} onChanged={onChanged} /></div>
+        <div><label>Update status</label>
+          <StatusForm kind={apiKind} row={row} statuses={statuses} onChanged={onChanged} /></div>
+        <div className="report-actions-end">
+          <a className="btn small ghost" href={`/api/pdf/${apiKind}/${row.id}`} target="_blank" rel="noopener noreferrer">Download PDF</a>
+          <DeleteRecordButton row={row} onChanged={onChanged} />
+        </div>
+      </div>
+      <AdminUpdateForm row={row} kind={apiKind} onChanged={onChanged} />
+      {row.admin_feedback && <p className="report-last-update">Last update sent to the reporter: {row.admin_feedback}</p>}
+    </div>
+  );
+}
+
 /** Concerns / Reports / Feedback / Reservations for admins. */
 export default function AdminList({ kind }) {
   const [params, setParams] = useSearchParams();
@@ -271,7 +322,7 @@ export default function AdminList({ kind }) {
   const priorityRelevant = kind === "reports" && typeFilter !== "concern";
   const activeUrgent = priorityRelevant ? urgent : "";
   const [data, setData] = useState(null);
-  const [open, setOpen] = useState(null);                 // id of the report whose details are shown
+  const [open, setOpen] = useState(null);                 // "<kind>-<id>" of the record whose details are shown
   const [q, setQ] = useState("");                         // search box
 
   const load = useCallback(() => {
@@ -327,46 +378,70 @@ export default function AdminList({ kind }) {
                    placeholder={`Search ${spec.title.toLowerCase()}...`} />
       )}
       {rows.length ? kind === "reports" ? (
-        <section className="report-card-list" aria-label="Reports and concerns">
-          {rows.map((r) => r.record_kind === "concern" ? <RecordCard key={`concern-${r.id}`} row={r}
-            columns={[["Type", "report_type"], ["Location", "location"], ["Room", "room"], ["Description", "description"]]}
-            kind="concerns" spec={{ pdf: true }} statuses={statuses} assignees={assignees} onChanged={load} /> : <article className={`report-card${r.urgent ? " is-urgent" : ""}`} key={`problem-${r.id}`}>
-            <div className="report-card-top">
-              <div><span className="report-number">NEMSAI-{String(r.id).padStart(4, "0")}</span><DateCell value={r.created_at} /></div>
-              <div className="report-card-badges"><span className={"badge s-" + slug(r.status)}>{r.status}</span><Flags r={r} />
-                {r.ai?.status === "analyzed" && <span className={`badge severity-${r.ai.severity || "unclear"}`}>NEMSAI severity: {(r.ai.severity || "unclear").toUpperCase()}</span>}
-              </div>
-            </div>
-            <div className="report-card-main">
-              <section>
-                <h3>{r.report_type || "Campus report"}</h3>
-                <p className="report-card-description">{r.description || "No description provided."}</p>
-                <div className="report-card-meta">
-                  <span><b>Location</b>{r.location || "Not provided"}</span>
-                  {r.area && <span><b>Area</b>{r.area}</span>}
-                  {r.room && <span><b>Room</b>{r.room}</span>}
-                  {r.noticed_when && <span><b>When noticed</b>{r.noticed_when}</span>}
-                </div>
-              </section>
-              <aside className="report-card-reporter">
-                <b>Submitted by</b><strong>{r.reporter_name || "Unknown"}</strong>
-                {r.reporter_email && <a href={`mailto:${r.reporter_email}`}>{r.reporter_email}</a>}
-                <small>{r.submitter_role || ""}</small>
-                {r.image_filename && <ReportPhoto filename={r.image_filename} />}
-                {spec.pdf && <a href={`/api/pdf/${kind}/${r.id}`} target="_blank" rel="noopener noreferrer">Download PDF</a>}
-              </aside>
-            </div>
-            <div className="report-card-actions">
-            <div><label>Assigned administrator or department</label><AssignmentForm row={r} kind="reports" assignees={assignees} onChanged={load} /></div>
-              <div><label>Update status</label><StatusForm kind={kind} row={r} statuses={statuses} onChanged={load} /></div>
-              <DeleteRecordButton row={r} onChanged={load} />
-              {r.source === "photo" && <button type="button" className="btn small ghost" aria-expanded={open === r.id}
-                onClick={() => setOpen(open === r.id ? null : r.id)}>{open === r.id ? "Hide NEMSAI details" : "View NEMSAI details"}</button>}
-            </div>
-            <AdminUpdateForm row={r} kind="reports" onChanged={load} />
-            {open === r.id && <div className="report-card-detail"><PhotoDetail row={r} onChanged={load} /></div>}
-          </article>)}
-        </section>
+        <>
+          <p className="report-list-note">{rows.length} {rows.length === 1 ? "record" : "records"} shown. Select a row to open its details.</p>
+          <div className="report-table-wrap">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th scope="col">Reference</th>
+                  <th scope="col">Submitted</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Location</th>
+                  <th scope="col">Reporter</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Flags</th>
+                  <th scope="col">Assigned</th>
+                  <th scope="col" aria-label="Details" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const isConcern = r.record_kind === "concern";
+                  const apiKind = isConcern ? "concerns" : "reports";
+                  const rowKey = `${apiKind}-${r.id}`;
+                  const expanded = open === rowKey;
+                  const reference = `${isConcern ? "NEMSAI-C-" : "NEMSAI-"}${String(r.id).padStart(4, "0")}`;
+                  return (
+                    <Fragment key={rowKey}>
+                      <tr className={`report-row${r.urgent ? " is-urgent" : ""}${expanded ? " is-open" : ""}`}
+                          onClick={() => setOpen(expanded ? null : rowKey)}>
+                        <td className="report-ref"><strong>{reference}</strong></td>
+                        <td className="report-when"><DateCell value={r.created_at} /></td>
+                        <td className="report-type">
+                          <strong>{r.report_type || (isConcern ? "Concern" : "Campus report")}</strong>
+                          <small className="report-snippet">{shortText(r.description) || "No description provided."}</small>
+                        </td>
+                        <td className="report-where">{r.location || "Not provided"}
+                          {r.room && <small className="muted">{r.room}</small>}</td>
+                        <td className="report-who"><span>{r.reporter_name || "Unknown"}</span>
+                          {r.reporter_email && <small className="muted">{r.reporter_email}</small>}</td>
+                        <td><span className={"badge s-" + slug(r.status)}>{r.status}</span></td>
+                        <td className="report-flags"><Flags r={r} />
+                          {r.ai?.status === "analyzed" && <span className={`badge severity-${r.ai.severity || "unclear"}`}>{(r.ai.severity || "unclear").toUpperCase()}</span>}</td>
+                        <td className="report-assignee">{r.assigned_admin_email || <span className="muted">Unassigned</span>}</td>
+                        <td className="report-toggle-cell">
+                          <button type="button" className={`report-toggle${expanded ? " is-open" : ""}`} aria-expanded={expanded}
+                            aria-label={`${expanded ? "Hide" : "Show"} details for ${reference}`}
+                            onClick={(event) => { event.stopPropagation(); setOpen(expanded ? null : rowKey); }}>
+                            <Icon d={PATHS.arrow} size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                      {expanded && (
+                        <tr className="report-detail-row">
+                          <td colSpan={9}>
+                            <RecordDetail row={r} apiKind={apiKind} assignees={assignees} statuses={statuses} onChanged={load} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       ) : (
         <section className="record-card-list" aria-label={spec.title}>
           {rows.map((row) => <RecordCard key={row.id} row={row} columns={columns} kind={kind}
