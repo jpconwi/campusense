@@ -32,14 +32,14 @@ function StatusForm({ kind, row, statuses, onChanged }) {
   );
 }
 
-function AssignmentForm({ row, assignees, onChanged }) {
+function AssignmentForm({ row, kind, assignees, onChanged }) {
   const { setFlash } = useAuth();
   const [value, setValue] = useState(row.assigned_admin_email || "");
   useEffect(() => setValue(row.assigned_admin_email || ""), [row.assigned_admin_email]);
   async function save(e) {
     e.preventDefault();
     try {
-      const r = await api(`/api/admin/reports/${row.id}/assign`, {
+      const r = await api(`/api/admin/records/${kind}/${row.id}/assign`, {
         method: "POST", json: { assigned_admin_email: value || null },
       });
       setFlash({ text: r.message, kind: "info" });
@@ -50,13 +50,37 @@ function AssignmentForm({ row, assignees, onChanged }) {
   }
   return (
     <form className="inline" onSubmit={save} style={{ marginTop: 6 }}>
-      <select aria-label={`Assign report ${row.id} to administrator`} value={value} onChange={(e) => setValue(e.target.value)}>
-        <option value="">Unassigned</option>
-        {assignees.map((email) => <option key={email} value={email}>{email}</option>)}
-      </select>
+      <input aria-label={`Assign report ${row.id} to a department or administrator`} list={`assignees-${kind}-${row.id}`}
+        value={value} onChange={(e) => setValue(e.target.value)} placeholder="Department or admin email" />
+      <datalist id={`assignees-${kind}-${row.id}`}>
+        {assignees.map((email) => <option key={email} value={email} />)}
+      </datalist>
+      {row.assigned_admin_email && <button className="btn small ghost" type="button" onClick={() => setValue("")}>Clear</button>}
       <button className="btn small" type="submit" disabled={value === (row.assigned_admin_email || "")}>Assign</button>
     </form>
   );
+}
+
+function AdminUpdateForm({ row, kind, onChanged }) {
+  const { setFlash } = useAuth();
+  const [message, setMessage] = useState(row.admin_feedback || "");
+  useEffect(() => setMessage(row.admin_feedback || ""), [row.admin_feedback]);
+  async function save(event) {
+    event.preventDefault();
+    try {
+      const result = await api(`/api/admin/records/${kind}/${row.id}/feedback`, {
+        method: "POST", json: { message },
+      });
+      setFlash({ text: result.message, kind: "info" });
+      onChanged();
+    } catch (error) { setFlash({ text: error.message, kind: "error" }); }
+  }
+  return <form className="admin-update-form" onSubmit={save}>
+    <label htmlFor={`admin-update-${kind}-${row.id}`}>Update for reporter</label>
+    <textarea id={`admin-update-${kind}-${row.id}`} rows={2} maxLength={2000} value={message}
+      onChange={(event) => setMessage(event.target.value)} placeholder="Share a status update or resolution details." />
+    <button className="btn small" type="submit">Send update</button>
+  </form>;
 }
 
 function DeleteRecordButton({ row, onChanged }) {
@@ -88,14 +112,14 @@ function DateCell({ value }) {
   return <span>{date}{time.length > 0 && <><br /><small className="muted">{time.join(" ")}</small></>}</span>;
 }
 
-function RecordCard({ row, columns, kind, spec, statuses, onChanged }) {
+function RecordCard({ row, columns, kind, spec, statuses, assignees = [], onChanged }) {
   const nameKey = ["reporter_name", "name", "requester_name"].find((key) => row[key] !== undefined);
   const emailKey = ["reporter_email", "email", "requester_email"].find((key) => row[key] !== undefined);
   const details = columns.filter(([, key]) => !["id", "created_at", "status", "assigned_admin_email",
     nameKey, emailKey, "submitter_role"].includes(key) && row[key]);
   return <article className={`record-card${row.record_kind === "concern" ? " report-concern-card" : ""}`}>
     <div className="record-card-head">
-      <div><strong>{row.record_kind === "concern" ? `Concern #${row.id}` : `#${row.id}`}</strong><DateCell value={row.created_at} /></div>
+      <div><strong>{row.record_kind === "concern" ? `NEMSAI-C-${String(row.id).padStart(4, "0")}` : `NEMSAI-${String(row.id).padStart(4, "0")}`}</strong><DateCell value={row.created_at} /></div>
       <span className={"badge s-" + slug(row.status)}>{row.status}</span>
     </div>
     <div className="record-card-person">
@@ -124,6 +148,10 @@ function RecordCard({ row, columns, kind, spec, statuses, onChanged }) {
         <span>{row[key]}</span>
       </div>)}
     </div>
+    {(kind === "concerns" || kind === "reports") && <div className="report-workflow-controls">
+      <div><label>Assigned department or administrator</label><AssignmentForm row={row} kind={kind} assignees={assignees} onChanged={onChanged} /></div>
+      <AdminUpdateForm row={row} kind={kind} onChanged={onChanged} />
+    </div>}
     <div className="record-card-links">
       {row.image_filename && <ReportPhoto filename={row.image_filename} />}
       {spec.pdf && <a href={`/api/pdf/${kind}/${row.id}`} target="_blank" rel="noopener noreferrer">Download PDF</a>}
@@ -302,9 +330,9 @@ export default function AdminList({ kind }) {
         <section className="report-card-list" aria-label="Reports and concerns">
           {rows.map((r) => r.record_kind === "concern" ? <RecordCard key={`concern-${r.id}`} row={r}
             columns={[["Type", "report_type"], ["Location", "location"], ["Room", "room"], ["Description", "description"]]}
-            kind="concerns" spec={{ pdf: true }} statuses={statuses} onChanged={load} /> : <article className={`report-card${r.urgent ? " is-urgent" : ""}`} key={`problem-${r.id}`}>
+            kind="concerns" spec={{ pdf: true }} statuses={statuses} assignees={assignees} onChanged={load} /> : <article className={`report-card${r.urgent ? " is-urgent" : ""}`} key={`problem-${r.id}`}>
             <div className="report-card-top">
-              <div><span className="report-number">Report #{r.id}</span><DateCell value={r.created_at} /></div>
+              <div><span className="report-number">NEMSAI-{String(r.id).padStart(4, "0")}</span><DateCell value={r.created_at} /></div>
               <div className="report-card-badges"><span className={"badge s-" + slug(r.status)}>{r.status}</span><Flags r={r} />
                 {r.ai?.status === "analyzed" && <span className={`badge severity-${r.ai.severity || "unclear"}`}>NEMSAI severity: {(r.ai.severity || "unclear").toUpperCase()}</span>}
               </div>
@@ -329,19 +357,20 @@ export default function AdminList({ kind }) {
               </aside>
             </div>
             <div className="report-card-actions">
-              <div><label>Assigned administrator or department</label><AssignmentForm row={r} assignees={assignees} onChanged={load} /></div>
+            <div><label>Assigned administrator or department</label><AssignmentForm row={r} kind="reports" assignees={assignees} onChanged={load} /></div>
               <div><label>Update status</label><StatusForm kind={kind} row={r} statuses={statuses} onChanged={load} /></div>
               <DeleteRecordButton row={r} onChanged={load} />
               {r.source === "photo" && <button type="button" className="btn small ghost" aria-expanded={open === r.id}
                 onClick={() => setOpen(open === r.id ? null : r.id)}>{open === r.id ? "Hide NEMSAI details" : "View NEMSAI details"}</button>}
             </div>
+            <AdminUpdateForm row={r} kind="reports" onChanged={load} />
             {open === r.id && <div className="report-card-detail"><PhotoDetail row={r} onChanged={load} /></div>}
           </article>)}
         </section>
       ) : (
         <section className="record-card-list" aria-label={spec.title}>
           {rows.map((row) => <RecordCard key={row.id} row={row} columns={columns} kind={kind}
-            spec={spec} statuses={statuses} onChanged={load} />)}
+            spec={spec} statuses={statuses} assignees={assignees} onChanged={load} />)}
         </section>
       ) : q && allRows.length ? (
         <EmptyState title="No matches">Nothing matches "{q}". Try fewer or different words.</EmptyState>

@@ -149,6 +149,8 @@ class Concern(Base):
     observed_cause: Mapped[Optional[str]] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
+    assigned_admin_email: Mapped[Optional[str]] = mapped_column(String(255), index=True)
+    admin_feedback: Mapped[Optional[str]] = mapped_column(Text)
 
 
 class Report(Base):
@@ -178,6 +180,7 @@ class Report(Base):
     noticed_when: Mapped[Optional[str]] = mapped_column(String(120))
     observed_cause: Mapped[Optional[str]] = mapped_column(String(500))
     assigned_admin_email: Mapped[Optional[str]] = mapped_column(String(255), index=True)
+    admin_feedback: Mapped[Optional[str]] = mapped_column(Text)
     verification: Mapped[Optional[str]] = mapped_column(String(20))   # Unverified | Confirmed | Not confirmed
     verification_note: Mapped[Optional[str]] = mapped_column(String(500))
     verified_by: Mapped[Optional[str]] = mapped_column(String(255))

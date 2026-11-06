@@ -581,6 +581,24 @@ h2.page-title { letter-spacing: -.01em; }
 .system-admin-form input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
 .system-admin-form input:focus { outline: 3px solid rgba(36,107,180,.18); border-color: var(--blue); }
 .system-modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 4px; }
+.report-workflow-controls { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(300px, 1.2fr); gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+.report-workflow-controls > div { display: grid; align-content: start; gap: 5px; }
+.admin-update-form { display: grid; gap: 6px; }
+.admin-update-form label { color: var(--muted); font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .035em; }
+.admin-update-form textarea { width: 100%; min-height: 70px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+.admin-update-form .btn { justify-self: start; }
+.workflow-progress { min-width: 230px; }
+.workflow-progress ol { display: grid; gap: 7px; list-style: none; padding: 2px 0; }
+.workflow-progress li { display: flex; align-items: flex-start; gap: 7px; color: var(--muted); font-size: .84rem; line-height: 1.3; }
+.workflow-progress li.complete { color: #176b48; }
+.workflow-progress li.current { color: var(--blue-deep); font-weight: 700; }
+.workflow-dot { width: 10px; height: 10px; flex: none; margin-top: 2px; border: 2px solid #aab7c5; border-radius: 50%; background: #fff; }
+.workflow-progress li.complete .workflow-dot { border-color: #25835d; background: #25835d; }
+.workflow-progress li.current .workflow-dot { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(36,107,180,.14); }
+.workflow-update, .workflow-rejected { display: grid; gap: 3px; margin-top: 8px; padding: 9px 11px; border-left: 3px solid var(--blue); border-radius: 6px; background: var(--blue-soft); font-size: .88rem; }
+.workflow-update strong, .workflow-rejected strong { color: var(--blue-deep); }
+.workflow-rejected { border-color: var(--error); background: #fff3f3; }
+.workflow-rejected strong { color: var(--error); }
 .record-card-head, .admin-user-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .record-card-head > div:first-child { display: grid; gap: 3px; }
 .record-card-head > div:first-child > strong { color: var(--blue-deep); }
@@ -617,6 +635,7 @@ h2.page-title { letter-spacing: -.01em; }
   .report-card-badges { justify-content: flex-start; }
   .report-card-actions { align-items: stretch; flex-direction: column; }
   .report-card-actions > div, .report-card-actions form.inline, .report-card-actions form.inline select { width: 100%; max-width: none; }
+  .report-workflow-controls { grid-template-columns: 1fr; }
   .record-card, .admin-user-card { padding: 14px; }
   .admin-user-card-head { flex-direction: column; }
   .admin-user-card-badges { justify-content: flex-start; }

@@ -5,6 +5,30 @@ import { EmptyState, Loading, SearchBox, matches } from "../components/Ui.jsx";
 
 const LONG_TEXT = ["description", "message", "purpose", "additional_info"];
 
+function WorkflowProgress({ row }) {
+  const status = row.status || "Pending";
+  if (status === "Rejected") return <div className="workflow-rejected"><strong>Report not approved</strong><span>Please contact the report manager if you need more information.</span>
+    {row.admin_feedback && <p>{row.admin_feedback}</p>}</div>;
+  let current = status === "Resolved" ? 4 : status === "In Progress" ? 3 : status === "Under Review" ? 1 : 0;
+  if (row.assigned_admin_email) current = Math.max(current, 2);
+  const steps = [
+    "Report submitted",
+    "Admin reviewed",
+    row.assigned_admin_email ? `Forwarded to ${row.assigned_admin_email}` : "Waiting for department assignment",
+    "Work in progress",
+    "Problem repaired",
+  ];
+  return <div className="workflow-progress">
+    <ol>{steps.map((step, index) => {
+      const complete = index < current && (index !== 2 || Boolean(row.assigned_admin_email));
+      return <li key={step} className={complete ? "complete" : index === current ? "current" : ""}>
+      <span className="workflow-dot" aria-hidden="true" />{step}
+    </li>;
+    })}</ol>
+    {row.admin_feedback && <div className="workflow-update"><strong>Admin update</strong><p>{row.admin_feedback}</p></div>}
+  </div>;
+}
+
 /** My Concerns / My Reports / Feedback / Reservations (one page, four kinds). */
 export default function MyList({ kind }) {
   const [data, setData] = useState(null);
@@ -79,6 +103,7 @@ export default function MyList({ kind }) {
             {columns.map(([header]) => <th key={header}>{header}</th>)}
             {(combined ? data.image : spec.image) && <th>Photo</th>}
             {data.pdf && <th>PDF</th>}
+            {combined && <th>Progress and updates</th>}
           </tr></thead>
           <tbody>
             {rows.map((r) => (
@@ -86,9 +111,12 @@ export default function MyList({ kind }) {
                 {combined && <td data-label="Record type"><span className={`badge ${r.record_kind === "concern" ? "s-pending" : "s-in-progress"}`}>{r.record_kind === "concern" ? "Concern" : "Problem"}</span></td>}
                 {columns.map(([header, key]) => key === "status"
                   ? <td key={key} data-label={header}><span className={"badge s-" + slug(r[key])}>{r[key]}</span></td>
+                  : combined && key === "id"
+                    ? <td key={key} data-label={header}>{r.record_kind === "concern" ? `NEMSAI-C-${String(r[key]).padStart(4, "0")}` : `NEMSAI-${String(r[key]).padStart(4, "0")}`}</td>
                   : <td key={key} data-label={header} className={LONG_TEXT.includes(key) ? "desc" : undefined}>{r[key] || ""}</td>)}
                 {(combined ? data.image : spec.image) && <td data-label="Photo">{r.image_filename && <a href={`/api/uploads/${r.image_filename}`} target="_blank" rel="noopener noreferrer">View</a>}</td>}
                 {data.pdf && <td data-label="PDF"><a href={`/api/pdf/${combined ? r.record_kind === "concern" ? "concerns" : "reports" : kind}/${r.id}`} target="_blank" rel="noopener noreferrer">PDF</a></td>}
+                {combined && <td data-label="Progress and updates"><WorkflowProgress row={r} /></td>}
               </tr>
             ))}
           </tbody>

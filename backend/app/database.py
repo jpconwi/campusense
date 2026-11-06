@@ -185,14 +185,19 @@ def _add_photo_draft_session_column():
 
 
 def _add_report_assignment_column():
-    """Add the optional report owner to existing PostgreSQL and SQLite databases."""
+    """Add report assignment and reporter-facing admin update fields."""
     from sqlalchemy import inspect, text
-    columns = {column["name"] for column in inspect(engine).get_columns("reports")}
-    if "assigned_admin_email" in columns:
-        return
+    tables = {"reports": {column["name"] for column in inspect(engine).get_columns("reports")},
+              "concerns": {column["name"] for column in inspect(engine).get_columns("concerns")}}
     with engine.begin() as conn:
+        for table in ("reports", "concerns"):
+            for column, sql_type in (("assigned_admin_email", "VARCHAR(255)"), ("admin_feedback", "TEXT")):
+                if column in tables[table]:
+                    continue
+                if engine.dialect.name == "postgresql":
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {sql_type}"))
+                else:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
         if engine.dialect.name == "postgresql":
-            conn.execute(text("ALTER TABLE reports ADD COLUMN IF NOT EXISTS assigned_admin_email VARCHAR(255)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_reports_assigned_admin_email ON reports (assigned_admin_email)"))
-        else:
-            conn.execute(text("ALTER TABLE reports ADD COLUMN assigned_admin_email VARCHAR(255)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_concerns_assigned_admin_email ON concerns (assigned_admin_email)"))

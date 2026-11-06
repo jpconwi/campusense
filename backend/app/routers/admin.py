@@ -177,7 +177,7 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
         "columns": [[h, k] for h, k, _ in common.COLUMNS[kind]],
         "rows": rows,
         "assignees": sorted(config.admin_emails() | {name for (name,) in db.query(CampusDepartment.name).all()})
-                     if kind == "reports" else [],
+                     if kind in ("reports", "concerns") else [],
     }
 
 
@@ -206,6 +206,47 @@ class VerifyBody(BaseModel):
 
 class ReportAssignmentBody(BaseModel):
     assigned_admin_email: Optional[str] = None
+
+
+@router.post("/records/{kind}/{row_id}/assign")
+def assign_record(kind: str, row_id: int, body: ReportAssignmentBody,
+                  db: Session = Depends(get_db)):
+    if kind not in ("reports", "concerns"):
+        raise HTTPException(404, "That page was not found.")
+    row = db.get(common.MODELS[kind], row_id)
+    if row is None:
+        raise ValidationError("Report not found.")
+    requested = (body.assigned_admin_email or "").strip()
+    if not requested:
+        row.assigned_admin_email = None
+    elif requested.lower() in config.admin_emails():
+        row.assigned_admin_email = requested.lower()
+    else:
+        if "@" in requested:
+            raise ValidationError("Choose a configured administrator email or enter a department name.")
+        row.assigned_admin_email = common.clean_text(requested, "Department", 120)
+    row.updated_at = common.now()
+    db.commit()
+    return {"success": True, "message": "Report assignment updated."}
+
+
+class AdminFeedbackBody(BaseModel):
+    message: str = ""
+
+
+@router.post("/records/{kind}/{row_id}/feedback")
+def update_reporter_feedback(kind: str, row_id: int, body: AdminFeedbackBody,
+                             db: Session = Depends(get_db)):
+    if kind not in ("reports", "concerns"):
+        raise HTTPException(404, "That page was not found.")
+    message = common.clean_text(body.message, "Update", 2000, required=False)
+    row = db.get(common.MODELS[kind], row_id)
+    if row is None:
+        raise ValidationError("Report not found.")
+    row.admin_feedback = message or None
+    row.updated_at = common.now()
+    db.commit()
+    return {"success": True, "message": "Reporter update saved."}
 
 
 @router.post("/reports/{report_id}/assign")

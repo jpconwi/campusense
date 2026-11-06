@@ -252,4 +252,4 @@ def for_admin(row):
 def for_student(row):
     """Rows shown to the student who sent them: no administrator notes, no raw AI data."""
     return {k: v for k, v in row.items()
-            if k not in ("ai_analysis", "verification_note", "verified_by", "verified_at", "ai_provider", "assigned_admin_email")}
+            if k not in ("ai_analysis", "verification_note", "verified_by", "verified_at", "ai_provider")}
