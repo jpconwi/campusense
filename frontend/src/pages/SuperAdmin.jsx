@@ -11,10 +11,17 @@ export default function SuperAdmin() {
   const [office, setOffice] = useState("");
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
+  const [loadError, setLoadError] = useState("");
   const load = useCallback(async () => {
-    const [system, people] = await Promise.all([api("/api/admin/system"), api("/api/admin/users")]);
-    setData(system);
-    setUsers(people.rows || []);
+    setLoadError("");
+    try {
+      const [system, people] = await Promise.all([api("/api/admin/system"), api("/api/admin/users")]);
+      setData(system);
+      setUsers(Array.isArray(people.rows) ? people.rows : []);
+    } catch (error) {
+      setLoadError(error.message || "Could not load system control.");
+      throw error;
+    }
   }, []);
   useEffect(() => { document.title = "System Control | NEMSU"; load().catch(() => {}); }, [load]);
 
@@ -68,6 +75,7 @@ export default function SuperAdmin() {
     } catch (error) { setFlash({ text: error.message, kind: "error" }); }
   }
 
+  if (!data && loadError) return <div className="page"><h2 className="page-title">System Control</h2><p role="alert" className="error">{loadError}</p><button className="btn" type="button" onClick={() => load().catch(() => {})}>Try again</button></div>;
   if (!data) return <Loading label="Loading system control..." wide={1200} />;
   return <div className="page">
     <h2 className="page-title">System Control</h2>
@@ -96,7 +104,7 @@ export default function SuperAdmin() {
       <thead><tr><th>Name</th><th>Email</th><th>Department</th><th>Access</th><th>Update access</th><th>Admin account</th></tr></thead>
       <tbody>{users.map((person) => <tr key={person.id}>
         <td>{person.name}</td><td>{person.email}</td><td>{person.department || "—"}</td>
-        <td>{person.role.replaceAll("_", " ")}</td>
+        <td>{(person.role || "No role").replaceAll("_", " ")}</td>
         <td>{person.id === me.id || person.is_allowlisted_admin || person.deleted_at || person.approval_status !== "Approved"
           ? <span className="muted">{person.is_allowlisted_admin ? "Protected by deployment settings" : person.id === me.id ? "Your own account" : "Account must be approved and active"}</span> :
           <select aria-label={`Access for ${person.email}`} value={person.role || ""} onChange={(event) => setRole(person, event.target.value)}>
