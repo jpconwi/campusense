@@ -66,6 +66,36 @@ COURSE_GATE_MESSAGE = ("Before I answer this general question, is it connected t
 COURSE_SCOPE_REFUSAL = ("I can help with NEMSU and campus matters, but I can't answer unrelated "
                         "general questions. I can help if this is for an NEMSU course, class, or project.")
 
+_DISTRESS_TERMS = (
+    "depress", "depressed", "depression", "hopeless", "lonely", "alone", "overwhelmed",
+    "anxious", "anxiety", "panic attack", "cant cope", "can't cope", "i feel bad",
+    "i feel down", "im sad", "i am sad", "i feel sad", "crying", "gusto ko umiyak",
+    "malungkot", "nahihirapan ako", "kapoy na kaayo", "gikapoy na ko",
+)
+_SELF_HARM_TERMS = (
+    "suicid", "kill myself", "end my life", "hurt myself", "harm myself",
+    "self harm", "self-harm", "better off dead",
+)
+
+
+def _emotional_support_reply(question):
+    """Keep a disclosure of emotional distress outside the campus-topic gate."""
+    q = normalize(question)
+    if any(term in q for term in _SELF_HARM_TERMS):
+        return response.message(
+            "I’m really sorry you’re facing this. Are you in immediate danger or might you hurt "
+            "yourself right now? If yes, please contact local emergency services or go to the "
+            "nearest emergency department, and tell someone you trust who can stay with you."
+        )
+    if any(term in q for term in _DISTRESS_TERMS):
+        if intents.has(q, "not depressed", "not sad", "not lonely", "not anxious"):
+            return None
+        return response.message(
+            "I’m sorry you’re feeling this way. You don’t need a school-related reason to talk "
+            "about it. Want to tell me what’s been weighing on you? Are you feeling safe right now?"
+        )
+    return None
+
 
 _CAMPUS_WORDS = sorted({w for k in CAMPUS_KEYWORDS for w in normalize(k).split() if len(w) >= 5})
 _EXPLICIT_CAMPUS_CONTEXT = (
@@ -488,6 +518,9 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     role = user.role if user else "student"
     found = intents.detect(db, question, role)
     name = found["intent"]
+    support_reply = _emotional_support_reply(question)
+    if support_reply:
+        return support_reply
     needs_course_gate = (name in ("general", "general_tutor", "learn_program")
                          and (not _has_explicit_campus_context(question, conversation)
                               or _is_food_business_question(question)))
