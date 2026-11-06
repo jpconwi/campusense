@@ -324,6 +324,19 @@ export default function AdminList({ kind }) {
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(null);                 // "<kind>-<id>" of the record whose details are shown
   const [q, setQ] = useState("");                         // search box
+  useEffect(() => {
+    if (!open) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setOpen(null);
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
 
   const load = useCallback(() => {
     const q = new URLSearchParams();
@@ -339,6 +352,10 @@ export default function AdminList({ kind }) {
   const assignees = data.assignees || [];
   const typeRows = allRows.filter((r) => kind !== "reports" || typeFilter === "all" || r.record_kind === typeFilter);
   const rows = typeRows.filter((r) => matches(r, q));
+  const openedRecord = kind === "reports" ? rows.find((r) => {
+    const apiKind = r.record_kind === "concern" ? "concerns" : "reports";
+    return open === `${apiKind}-${r.id}`;
+  }) : null;
   const base = `/admin/${kind}`;
   const filterHref = ({ nextStatus = "", nextUrgent = "" } = {}) => {
     const next = new URLSearchParams();
@@ -428,19 +445,34 @@ export default function AdminList({ kind }) {
                           </button>
                         </td>
                       </tr>
-                      {expanded && (
-                        <tr className="report-detail-row">
-                          <td colSpan={9}>
-                            <RecordDetail row={r} apiKind={apiKind} assignees={assignees} statuses={statuses} onChanged={load} />
-                          </td>
-                        </tr>
-                      )}
                     </Fragment>
                   );
                 })}
               </tbody>
             </table>
           </div>
+          {openedRecord && (() => {
+            const apiKind = openedRecord.record_kind === "concern" ? "concerns" : "reports";
+            const reference = `${apiKind === "concerns" ? "NEMSAI-C-" : "NEMSAI-"}${String(openedRecord.id).padStart(4, "0")}`;
+            return (
+              <div className="report-dialog-backdrop" onClick={() => setOpen(null)}>
+                <section className="report-dialog" role="dialog" aria-modal="true" aria-labelledby="report-dialog-title"
+                         onClick={(event) => event.stopPropagation()}>
+                  <header className="report-dialog-header">
+                    <div>
+                      <span className="report-dialog-eyebrow">Record details</span>
+                      <h3 id="report-dialog-title">{reference}</h3>
+                    </div>
+                    <button type="button" className="report-dialog-close" onClick={() => setOpen(null)}
+                            aria-label="Close report details" autoFocus>×</button>
+                  </header>
+                  <div className="report-dialog-content">
+                    <RecordDetail row={openedRecord} apiKind={apiKind} assignees={assignees} statuses={statuses} onChanged={load} />
+                  </div>
+                </section>
+              </div>
+            );
+          })()}
         </>
       ) : (
         <section className="record-card-list" aria-label={spec.title}>
