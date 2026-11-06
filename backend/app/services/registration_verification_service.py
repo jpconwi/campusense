@@ -100,7 +100,37 @@ def _label(value):
             "unclear": "unclear"}[value]
 
 
-def review_documents(id_front, id_back, cor):
+def _normalise_name(value):
+    return " ".join(re.findall(r"[A-Za-z]+", str(value or ""), flags=re.UNICODE)).casefold()
+
+
+def _normalise_student_id(value):
+    return re.sub(r"[^A-Za-z0-9]", "", str(value or "")).casefold()
+
+
+def _identity_matches(image, expected_name, expected_student_id):
+    if image is None:
+        return False, "Document identity could not be read; administrator must inspect it manually."
+    detected = extract_student_identity(image)
+    detected_name = _normalise_name(detected.get("full_name"))
+    expected_name_normalized = _normalise_name(expected_name)
+    detected_id = _normalise_student_id(detected.get("student_id"))
+    expected_id = _normalise_student_id(expected_student_id)
+    if not detected_name or not detected_id:
+        return False, "Student name or ID was not readable; administrator must inspect the document manually."
+    name_matches = detected_name == expected_name_normalized
+    id_matches = detected_id == expected_id
+    if not name_matches or not id_matches:
+        mismatches = []
+        if not name_matches:
+            mismatches.append("name")
+        if not id_matches:
+            mismatches.append("student ID")
+        return False, "Document " + " and ".join(mismatches) + " did not match the registration details; administrator review is required."
+    return True, "Document name and student ID match the registration details."
+
+
+def review_documents(id_front, id_back, cor, expected_name="", expected_student_id=""):
     """Return a visual review note and conservative auto-approval eligibility."""
     images, labels = [], []
     references = (
@@ -174,4 +204,14 @@ def review_documents(id_front, id_back, cor):
     has_id = bool(id_front)
     has_cor = bool(cor)
     auto_approve = (id_matches if has_id else True) and (cor_matches if has_cor else True)
+    identity_image = id_front or cor
+    identity_matches, identity_note = _identity_matches(identity_image, expected_name, expected_student_id)
+    if not expected_name or not expected_student_id:
+        identity_matches = False
+        identity_note = "Expected registration identity was unavailable; administrator must inspect the document manually."
+    # Registration identity is the gate for activation. Visual screening remains
+    # useful context for administrators, but a matching submitted name and ID
+    # should not depend on optional reference-template files.
+    auto_approve = identity_matches
+    notes.append(identity_note)
     return " ".join(notes), auto_approve

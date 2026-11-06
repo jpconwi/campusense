@@ -82,6 +82,8 @@ export default function IdScanner({ kind = "id-front", file, onChange, required 
   const frameRef = useRef(null);
   const uploadRef = useRef(null);
   const openerRef = useRef(null);
+  const clearFramesRef = useRef(0);
+  const capturingRef = useRef(false);
 
   // preview URL for the chosen file
   useEffect(() => {
@@ -118,6 +120,28 @@ export default function IdScanner({ kind = "id-front", file, onChange, required 
       if (openerRef.current) openerRef.current.focus();
     };
   }, [open]);
+
+  // Capture hands-free after the framed image stays bright and sharp for a few checks.
+  useEffect(() => {
+    if (!open || !ready) return undefined;
+    clearFramesRef.current = 0;
+    capturingRef.current = false;
+    const timer = window.setInterval(() => {
+      const video = videoRef.current;
+      if (!video || !video.videoWidth || capturingRef.current) return;
+      const sample = document.createElement("canvas");
+      sample.width = 240;
+      sample.height = Math.max(1, Math.round(video.videoHeight / video.videoWidth * sample.width));
+      sample.getContext("2d").drawImage(video, 0, 0, sample.width, sample.height);
+      if (quality(sample).length === 0) clearFramesRef.current += 1;
+      else clearFramesRef.current = 0;
+      if (clearFramesRef.current >= 3) {
+        capturingRef.current = true;
+        shoot();
+      }
+    }, 700);
+    return () => window.clearInterval(timer);
+  }, [open, ready]);
 
   const accept = useCallback((f) => {
     setError("");
@@ -233,7 +257,7 @@ export default function IdScanner({ kind = "id-front", file, onChange, required 
             <div className="ids-frame" ref={frameRef}>
               <i /><i /><i /><i />
               {ready && <span className="ids-sweep" aria-hidden="true" />}
-              <p className="ids-hint">{K.hint}</p>
+              <p className="ids-hint">{K.hint} · Hold steady; clear scans capture automatically</p>
             </div>
           </div>
           <div className="ids-bottom">

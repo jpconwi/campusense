@@ -209,6 +209,7 @@ async def student_registration(request: Request, full_name: str = Form(...),
             (id_scan["data"], id_scan["content_type"]) if id_scan else None,
             (id_back_scan["data"], id_back_scan["content_type"]) if id_back_scan else None,
             (cor_scan["data"], cor_scan["content_type"]) if cor_scan else None,
+            name, school_id,
         )
 
     # Keep the existing primary document slot compatible with earlier pending accounts.
