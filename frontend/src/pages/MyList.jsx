@@ -7,14 +7,16 @@ const LONG_TEXT = ["description", "message", "purpose", "additional_info"];
 
 function WorkflowProgress({ row }) {
   const status = row.status || "Pending";
-  if (status === "Rejected") return (
+  const normalizedStatus = status.trim().toLowerCase();
+  if (normalizedStatus === "rejected") return (
     <div className="user-report-progress is-rejected" aria-label="Report rejected">
       <span className="user-report-track" aria-hidden="true" />
       <span className="user-report-step rejected"><span className="user-report-node">×</span><strong>Rejected</strong></span>
       {row.admin_feedback && <p className="user-report-rejection-note">{row.admin_feedback}</p>}
     </div>
   );
-  const current = status === "Resolved" ? 3 : status === "In Progress" ? 2 : status === "Under Review" ? 1 : 0;
+  const isResolved = normalizedStatus === "resolved";
+  const current = isResolved ? 3 : normalizedStatus === "in progress" ? 2 : normalizedStatus === "under review" ? 1 : 0;
   const steps = [
     "Pending",
     "Under review",
@@ -27,7 +29,7 @@ function WorkflowProgress({ row }) {
         <span style={{ width: `${(current / (steps.length - 1)) * 100}%` }} />
       </span>
       <ol>{steps.map((step, index) => {
-        const complete = index < current;
+        const complete = index < current || (isResolved && index === current);
         return <li key={step} className={complete ? "complete" : index === current ? "current" : ""}>
           <span className="user-report-node" aria-hidden="true">{complete ? "✓" : ""}</span>
           <span>{step}</span>
