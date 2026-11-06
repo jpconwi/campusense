@@ -27,8 +27,9 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
     catch { return first.values; }
   });
   const [destination, setDestination] = useState(() => {
-    try { return sessionStorage.getItem(`photo-destination-${first.draft_id}`) || first.analysis?.destination || "report"; }
-    catch { return first.analysis?.destination || "report"; }
+    const fallback = first.analysis?.status === "unavailable" ? "concern" : first.analysis?.destination || "report";
+    try { return sessionStorage.getItem(`photo-destination-${first.draft_id}`) || fallback; }
+    catch { return fallback; }
   });
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -131,7 +132,9 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
         <option value="concern">Concern — a campus facility or service problem</option>
         <option value="report">Problem &mdash; an incident or safety/security issue</option>
       </select>
-      <p className="muted">NEMSAI suggests: {a.destination === "concern" ? "Concern" : "Problem"}. You can change this.</p>
+      <p className="muted">{a.status === "unavailable"
+        ? "NEMSAI couldn't classify this photo. Choose the type that best fits; an administrator will review it."
+        : <>NEMSAI suggests: {a.destination === "concern" ? "Concern" : "Problem"}. You can change this.</>}</p>
 
       {a.urgent && (
         <div className="urgent-note" role="alert">

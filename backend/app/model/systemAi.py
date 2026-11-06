@@ -67,6 +67,7 @@ DEFAULT_VISION_MODELS = {
 VISION_MAX_TOKENS = 900
 VISION_REASONING_TOKENS = 700      # Keep photo checks concise and reduce reasoning latency
 VISION_TOTAL_TIMEOUT = 24          # A failed photo check should not hold the chat for a minute
+VISION_PROVIDER_TIMEOUT = 8        # Preserve time for a fallback when one vision provider stalls
 
 _cooldown_until = {}                # provider -> time.monotonic() when it may be tried again
 _dead = {}                          # (provider key, model) -> until when the model is skipped
@@ -452,10 +453,13 @@ def ask_vision(system_prompt, user_text, image_b64, mime="image/jpeg"):
         key = provider + ":vision"
         if not is_configured(provider) or _cooldown_until.get(key, 0) > time.monotonic():
             continue
-        answer, model = _try_provider(provider, messages, deadline, models=_vision_models(provider),
+        provider_deadline = min(deadline, time.monotonic() + VISION_PROVIDER_TIMEOUT)
+        answer, model = _try_provider(provider, messages, provider_deadline, models=_vision_models(provider),
                                       callers=callers, key=key, vision=True)
         if answer:
             if provider != VISION_PROVIDER_ORDER[0]:
                 print(f"AI: photo analysed by {LABELS[provider]} ({model})")
             return answer, provider, model
+        if time.monotonic() >= provider_deadline and provider_deadline < deadline:
+            _cooldown_until[key] = time.monotonic() + COOLDOWN_AFTER_FAILURE
     return None, None, None
