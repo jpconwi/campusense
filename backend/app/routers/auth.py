@@ -12,6 +12,7 @@ Flow:  React "Continue with Google" button  ->  GET /api/auth/google
 from authlib.integrations.starlette_client import OAuth, OAuthError
 import re
 import time
+import hashlib
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
@@ -53,6 +54,44 @@ async def _read_registration_scan(upload: UploadFile, label: str):
         raise ValidationError(f"Choose or capture a valid JPG, PNG, or WEBP {label} image.")
     filename = re.sub(r"[^A-Za-z0-9._-]", "_", upload.filename.replace("\\", "/").rsplit("/", 1)[-1])[:200]
     return {"data": data, "content_type": content_type, "filename": filename}
+
+
+async def _read_face_photo(upload: UploadFile):
+    """Validate and re-encode the applicant selfie, removing EXIF/device metadata."""
+    if upload is None or not upload.filename:
+        raise ValidationError("Capture or choose a selfie for face review.")
+    raw = await upload.read(5 * 1024 * 1024 + 1)
+    if len(raw) > 5 * 1024 * 1024:
+        raise HTTPException(413, "The selfie must be 5 MB or smaller.")
+    signatures = (raw.startswith(b"\xff\xd8\xff"), raw.startswith(b"\x89PNG\r\n\x1a\n"),
+                  len(raw) >= 12 and raw[:4] == b"RIFF" and raw[8:12] == b"WEBP")
+    if not any(signatures):
+        raise ValidationError("Choose or capture a valid JPG, PNG, or WEBP selfie.")
+    try:
+        import io
+        from PIL import Image, ImageOps
+        with Image.open(io.BytesIO(raw)) as source:
+            image = ImageOps.exif_transpose(source).convert("RGB")
+            image.thumbnail((1600, 1600))
+            output = io.BytesIO()
+            image.save(output, format="JPEG", quality=88, optimize=True)
+        return {"data": output.getvalue(), "content_type": "image/jpeg", "filename": "selfie.jpg",
+                "source_digest": hashlib.sha256(raw).hexdigest()}
+    except Exception as exc:
+        raise ValidationError("The selfie image could not be read. Try another photo.") from exc
+
+
+def _make_face_scan_pdf(front, left, right):
+    """Create one sanitized, three-page PDF containing the guided face captures."""
+    import io
+    from PIL import Image
+    pages = []
+    for image in (front, left, right):
+        with Image.open(io.BytesIO(image["data"])) as source:
+            pages.append(source.convert("RGB").copy())
+    output = io.BytesIO()
+    pages[0].save(output, format="PDF", save_all=True, append_images=pages[1:], resolution=120)
+    return output.getvalue()
 
 
 def _to_login(request: Request, code):
@@ -159,6 +198,7 @@ async def callback(request: Request):
         request.session["student_registration"] = registration  # legacy student-form session key
         request.session["personal_registration_started_at"] = int(time.time())
         request.session["student_registration_started_at"] = request.session["personal_registration_started_at"]
+        request.session["face_scan_steps"] = []
         return RedirectResponse("/register", status_code=302)
     if result != "ok":
         return _to_login(request, {
@@ -171,9 +211,45 @@ async def callback(request: Request):
     return RedirectResponse(_landing(role), status_code=302)
 
 
+@router.post("/face-guidance")
+async def personal_face_guidance(request: Request, stage: str = Form(...),
+                                frame: UploadFile = File(...), manual: str = Form("false"),
+                                consent: str = Form("")):
+    identity = request.session.get("personal_registration")
+    started = request.session.get("personal_registration_started_at", 0)
+    if (not identity or identity.get("email", "").rsplit("@", 1)[-1].lower() != "gmail.com"
+            or time.time() - int(started) > 15 * 60):
+        raise HTTPException(401, "Your registration session expired. Start again with personal Gmail.")
+    if consent.lower() != "true":
+        raise ValidationError("Face scan AI consent is required before camera analysis.")
+    order = ("front", "left", "right")
+    steps = list(request.session.get("face_scan_steps") or [])
+    if stage not in order or len(steps) >= len(order) or stage != order[len(steps)]:
+        raise ValidationError("Complete the face scan in front, left, then right order.")
+    scan = await _read_registration_scan(frame, "face scan frame")
+    if manual.lower() == "true":
+        steps.append({"stage": stage, "verified": False,
+                      "digest": hashlib.sha256(scan["data"]).hexdigest()})
+        request.session["face_scan_steps"] = steps
+        return {"ready": True, "available": False,
+                "instruction": "Saved for administrator review. Continue to the next pose."}
+    result = await run_in_threadpool(registration_verification_service.face_pose_guidance,
+                                     (scan["data"], scan["content_type"]), stage)
+    if result.get("state") == "ready":
+        steps.append({"stage": stage, "verified": True,
+                      "digest": hashlib.sha256(scan["data"]).hexdigest()})
+        request.session["face_scan_steps"] = steps
+        return {**result, "ready": True}
+    return {**result, "ready": False}
+
+
 @router.post("/student-registration")
 async def student_registration(request: Request, full_name: str = Form(...),
                                student_id: str = Form(...),
+                               face_photo_front: UploadFile = File(...),
+                               face_photo_left: UploadFile = File(...),
+                               face_photo_right: UploadFile = File(...),
+                               face_photo_consent: str = Form(""),
                                school_id_document: UploadFile = File(None),
                                school_id_back_document: UploadFile = File(None),
                                cor_document: UploadFile = File(None),
@@ -189,6 +265,20 @@ async def student_registration(request: Request, full_name: str = Form(...),
     email = identity.get("email", "")
     if email.rsplit("@", 1)[-1].lower() != "gmail.com":
         raise HTTPException(400, "Student registration requires a verified personal Gmail account.")
+    if face_photo_consent.lower() != "true":
+        raise ValidationError("Consent is required to store your selfie for administrator face review.")
+    face_steps = request.session.get("face_scan_steps") or []
+    if [s.get("stage") for s in face_steps] != ["front", "left", "right"]:
+        raise ValidationError("Complete the guided face scan before submitting.")
+    face_front = await _read_face_photo(face_photo_front)
+    face_left = await _read_face_photo(face_photo_left)
+    face_right = await _read_face_photo(face_photo_right)
+    if [face_front["source_digest"], face_left["source_digest"], face_right["source_digest"]] != [
+        step.get("digest") for step in face_steps
+    ]:
+        raise ValidationError("The submitted face scan images must be the same images captured in the guided steps.")
+    face_pdf = _make_face_scan_pdf(face_front, face_left, face_right)
+    face_verified = all(s.get("verified") for s in face_steps)
 
     name = clean_text(full_name, "Full name", 120)
     school_id = clean_text(student_id, "School ID", 50)
@@ -212,6 +302,8 @@ async def student_registration(request: Request, full_name: str = Form(...),
             (cor_scan["data"], cor_scan["content_type"]) if cor_scan else None,
             name, school_id,
         )
+    ai_note = (ai_note or "") + (" AI verified all three face poses." if face_verified else
+                                  " Face poses were captured, but AI verification was unavailable; administrator review is required.")
 
     # Keep the existing primary document slot compatible with earlier pending accounts.
     primary = id_scan or cor_scan
@@ -225,13 +317,20 @@ async def student_registration(request: Request, full_name: str = Form(...),
         id_back_document=id_back_scan["data"] if id_back_scan else None,
         id_back_content_type=id_back_scan["content_type"] if id_back_scan else None,
         id_back_filename=id_back_scan["filename"] if id_back_scan else None,
-        ai_note=ai_note, auto_approve=auto_approve)
+        ai_note=ai_note, auto_approve=auto_approve,
+        face_image=face_front["data"], face_image_content_type=face_front["content_type"],
+        face_image_filename=face_front["filename"], face_scan_pdf=face_pdf,
+        face_verified=face_verified)
     request.session.clear()
-    if auto_approve:
+    if auto_approve and face_verified:
         return {"success": True, "approval_status": "Approved",
-                "message": "Your document passed the visual screening and your student account is active. Sign in to continue."}
+                "message": "Your documents matched the reference and the guided face scan passed. Your account is active; you can sign in now."}
+    if not auto_approve:
+        pending_message = "Your face scan is saved as a PDF. Your ID or COR needs administrator approval before you can sign in."
+    else:
+        pending_message = "Your documents matched, but AI pose verification was incomplete. An administrator must review your face scan before approving the account."
     return {"success": True, "approval_status": "Pending",
-            "message": "Your documents need manual admin review. Your account will remain pending until it is approved."}
+            "message": pending_message}
 
 
 @router.post("/student-registration/extract")
@@ -257,6 +356,10 @@ async def extract_student_registration_fields(request: Request, consent: str = F
 @router.post("/instructor-registration")
 async def instructor_registration(request: Request, full_name: str = Form(...),
                                   instructor_id: str = Form(...), department: str = Form(...),
+                                  face_photo_front: UploadFile = File(...),
+                                  face_photo_left: UploadFile = File(...),
+                                  face_photo_right: UploadFile = File(...),
+                                  face_photo_consent: str = Form(""),
                                   db: Session = Depends(get_db)):
     """Submit personal-Gmail instructor details for administrator review."""
     identity = request.session.get("personal_registration")
@@ -267,6 +370,20 @@ async def instructor_registration(request: Request, full_name: str = Form(...),
     email = identity.get("email", "")
     if email.rsplit("@", 1)[-1].lower() != "gmail.com":
         raise HTTPException(400, "Instructor registration requires a verified personal Gmail account.")
+    if face_photo_consent.lower() != "true":
+        raise ValidationError("Consent is required to store your selfie for administrator face review.")
+    face_steps = request.session.get("face_scan_steps") or []
+    if [s.get("stage") for s in face_steps] != ["front", "left", "right"]:
+        raise ValidationError("Complete the guided face scan before submitting.")
+    face_front = await _read_face_photo(face_photo_front)
+    face_left = await _read_face_photo(face_photo_left)
+    face_right = await _read_face_photo(face_photo_right)
+    if [face_front["source_digest"], face_left["source_digest"], face_right["source_digest"]] != [
+        step.get("digest") for step in face_steps
+    ]:
+        raise ValidationError("The submitted face scan images must be the same images captured in the guided steps.")
+    face_pdf = _make_face_scan_pdf(face_front, face_left, face_right)
+    face_verified = all(s.get("verified") for s in face_steps)
 
     name = clean_text(full_name, "Full name", 120)
     employee_id = clean_text(instructor_id, "Instructor ID number", 50)
@@ -279,7 +396,10 @@ async def instructor_registration(request: Request, full_name: str = Form(...),
         raise ValidationError("Enter your department.")
 
     user_service.submit_instructor_registration(
-        db, identity["google_id"], name, email, employee_id, unit)
+        db, identity["google_id"], name, email, employee_id, unit,
+        face_image=face_front["data"], face_image_content_type=face_front["content_type"],
+        face_image_filename=face_front["filename"], face_scan_pdf=face_pdf,
+        face_verified=face_verified)
     request.session.clear()
     return {"success": True,
             "message": "Your instructor registration is pending admin review. You can sign in after it is approved."}

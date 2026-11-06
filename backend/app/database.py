@@ -93,6 +93,12 @@ def _add_student_registration_columns():
         "verification_id_back_content_type": "VARCHAR(100)",
         "verification_id_back_filename": "VARCHAR(255)",
         "verification_ai_note": "TEXT",
+        "face_image": binary_type,
+        "face_image_content_type": "VARCHAR(100)",
+        "face_image_filename": "VARCHAR(255)",
+        "face_scan_pdf": binary_type,
+        "face_scan_pdf_filename": "VARCHAR(255)",
+        "face_review_status": "VARCHAR(20) NOT NULL DEFAULT 'Not required'",
         "deleted_at": "TIMESTAMP",
         "purge_after": "TIMESTAMP",
     }

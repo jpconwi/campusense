@@ -3,9 +3,10 @@ import { Link } from "react-router-dom";
 import { api } from "../api.js";
 import { Donut, HBars, Trend } from "../components/Charts.jsx";
 import { Icon, Loading, PATHS } from "../components/Ui.jsx";
+import { useAuth } from "../auth.jsx";
 
 // where a stat card leads to, and how it looks
-function statInfo(label) {
+function statInfo(label, superAdmin) {
   const l = label.toLowerCase();
   const pending = l.includes("pending") ? "?status=Pending" : "";
   if (l.includes("urgent") || l.includes("hazard")) return { to: "/admin/reports?urgent=1", icon: PATHS.alert, tone: "red" };
@@ -13,24 +14,27 @@ function statInfo(label) {
   if (l.includes("report") && l.includes("faculty")) return { to: "/admin/faculty", icon: PATHS.faculty, tone: "blue" };
   if (l.includes("report")) return { to: "/admin/reports" + (l.includes("resolved") ? "?status=Resolved" : pending), icon: PATHS.report, tone: l.includes("resolved") ? "green" : pending ? "amber" : "teal" };
   if (l.includes("feedback")) return { to: "/admin/feedback", icon: PATHS.feedback, tone: "violet" };
-  if (l.includes("reservation")) return { to: "/admin/reservations", icon: PATHS.reserve, tone: "green" };
-  if (l.includes("student") || l.includes("instructor")) return { to: "/admin/users", icon: PATHS.users, tone: "slate" };
+  if (l.includes("reservation")) return { to: superAdmin ? "/admin/reservations" : "/admin", icon: PATHS.reserve, tone: "green" };
+  if (l.includes("student") || l.includes("instructor")) return { to: superAdmin ? "/admin/users" : "/admin", icon: PATHS.users, tone: "slate" };
   return { to: "/admin", icon: PATHS.dashboard, tone: "blue" };
 }
 
 const short = (text, n = 90) => (text && text.length > n ? text.slice(0, n - 1) + "…" : text || "");
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
+  const superAdmin = user?.role === "super_admin";
   const [d, setD] = useState(null);
   const [activity, setActivity] = useState(null);
   useEffect(() => { document.title = "Admin Dashboard | NEMSU"; api("/api/admin/dashboard").then(setD).catch(() => {}); }, []);
   useEffect(() => {
+    if (!superAdmin) return undefined;
     let alive = true;
     const load = () => api("/api/admin/user-activity").then((data) => { if (alive) setActivity(data); }).catch(() => {});
     load();
     const timer = window.setInterval(load, 30_000);
     return () => { alive = false; window.clearInterval(timer); };
-  }, []);
+  }, [superAdmin]);
   if (!d) return <Loading variant="dashboard" label="Loading the dashboard..." />;
   const c = d.charts;
   const stat = (name) => (d.stats.find(([label]) => label === name) || [0, 0])[1];
@@ -63,7 +67,7 @@ export default function AdminDashboard() {
 
       <div className="stat-grid">
         {d.stats.map(([label, number]) => {
-          const info = statInfo(label);
+          const info = statInfo(label, superAdmin);
           return (
             <Link className={`stat2 tone-${info.tone}`} to={info.to} key={label}>
               <span className="stat-ico"><Icon d={info.icon} size={20} /></span>
@@ -74,14 +78,14 @@ export default function AdminDashboard() {
         })}
       </div>
 
-      <section className="card user-activity-card">
+      {superAdmin && <section className="card user-activity-card">
         <div className="user-activity-heading">
           <div><h3>User activity</h3><p className="muted">Active minutes while the website or mobile app is open in the foreground.</p></div>
           {activity && <strong>{activity.online_count} online now</strong>}
         </div>
         <p className="muted">See who is online, recent activity, and the top three most active users.</p>
         <Link className="btn small" to="/admin/users?view=online">Open online users</Link>
-      </section>
+      </section>}
 
       {d.urgent_reports && d.urgent_reports.length > 0 && (
         <div className="card urgent-card">

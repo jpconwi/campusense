@@ -147,10 +147,12 @@ def clean_time(value, label):
 
 
 # ------------------------------------------------------- serialisation
-def row_to_dict(obj):
+def row_to_dict(obj, exclude=()):
     """ORM row -> plain dict. Dates/times become the same text the old app used."""
     data = {}
     for column in obj.__table__.columns:
+        if column.key in exclude:
+            continue
         value = getattr(obj, column.key)
         if isinstance(value, datetime):
             value = value.strftime("%Y-%m-%d %I:%M:%S %p")

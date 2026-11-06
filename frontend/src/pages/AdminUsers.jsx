@@ -67,6 +67,14 @@ export default function AdminUsers() {
     load();
   }
 
+  async function reviewFace(user, status) {
+    try {
+      const result = await api(`/api/admin/users/${user.id}/face-review`, { method: "POST", json: { status } });
+      setFlash({ text: result.message, kind: "info" });
+    } catch (err) { setFlash({ text: err.message, kind: "error" }); }
+    load();
+  }
+
   async function softDelete(user) {
     if (!window.confirm(`Disable ${user.name}'s account now? It will be permanently deleted after 7 days.`)) return;
     try {
@@ -120,11 +128,24 @@ export default function AdminUsers() {
             {!user.has_verification_document && !user.has_cor_document && !user.has_id_back_document && <span>None uploaded</span>}
           </div>
           {user.verification_ai_note && <details className="admin-user-review"><summary>View AI review</summary><small className="registration-review-note">{user.verification_ai_note}</small></details>}
+          {user.has_face_image && <div className="admin-user-review">
+            <b>Face scan: {user.face_review_status === "AI Pose Passed" ? "AI pose passed; identity not matched by AI" : user.face_review_status || "Pending"}</b>
+            <div className="admin-user-document-links">
+              <a href={`${API_BASE}/api/admin/users/${user.id}/face-image`} target="_blank" rel="noreferrer">View selfie</a>
+              {user.has_face_scan_pdf && <a href={`${API_BASE}/api/admin/users/${user.id}/face-scan-pdf`} target="_blank" rel="noreferrer">View three-pose PDF</a>}
+              {user.approval_status === "Pending" && user.face_review_status !== "Verified" &&
+                <button className="btn small" type="button" onClick={() => reviewFace(user, "Verified")}>Confirm identity</button>}
+              {user.approval_status === "Pending" && user.face_review_status !== "Rejected" &&
+                <button className="btn small danger" type="button" onClick={() => reviewFace(user, "Rejected")}>Reject face</button>}
+            </div>
+          </div>}
         </div>
         <div className="admin-user-actions">
           {user.deleted_at ? <small>Permanent deletion: {user.purge_after}</small> : !['admin', 'super_admin'].includes(user.role) && user.id !== me.id && <>
             {user.approval_status === 'Pending' ? <>
-              <button className="btn small" type="button" onClick={() => decide(user, 'approve')}>Approve {user.registration_type === 'instructor' ? 'instructor' : 'student'}</button>
+              <button className="btn small" type="button"
+                disabled={user.has_face_image && !["Verified", "AI Pose Passed"].includes(user.face_review_status)}
+                onClick={() => decide(user, 'approve')}>Approve {user.registration_type === 'instructor' ? 'instructor' : 'student'}</button>
               <button className="btn small danger" type="button" onClick={() => decide(user, 'reject')}>Reject</button>
             </> : <>
               {user.approval_status === 'Approved' && <RoleForm user={user} onChanged={load} />}

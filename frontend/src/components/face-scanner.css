@@ -1,0 +1,15 @@
+.face-scan { margin: 18px 0; padding: 16px; border: 1px solid #d9dcf0; border-radius: 16px; background: #fbfbff; }
+.face-scan h3 { margin: 0 0 6px; color: #100c78; }
+.face-scan-stage { position: relative; width: min(72vw, 310px); aspect-ratio: 1; margin: 16px auto; overflow: hidden; border-radius: 50%; background: #151f36; box-shadow: 0 0 0 5px #d9dcf0; }
+.face-scan-stage video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.face-scan-stage.idle { display: grid; place-items: center; color: white; }
+.face-scan-stage.idle video { display: none; }
+.face-scan-stage.idle span { font-weight: 700; }
+.face-scan-circle { position: absolute; inset: 9%; border: 3px solid #00e68a; border-radius: 50%; box-shadow: 0 0 0 100vmax rgba(8, 14, 30, .12); pointer-events: none; }
+.face-scan-step { text-align: center; margin: 8px 0; }
+.face-scan-instruction { min-height: 1.5em; text-align: center; font-weight: 700; color: #100c78; }
+.face-scan-thumbs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.face-scan-thumbs > div { min-height: 92px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 1px dashed #c9cdef; border-radius: 12px; color: #5a5f8a; text-transform: capitalize; }
+.face-scan-thumbs > div.captured { border-style: solid; border-color: #00b86e; color: #04784a; }
+.face-scan-thumbs img { width: 62px; height: 62px; object-fit: cover; border-radius: 50%; }
+.face-scan-thumbs small { text-align: center; }

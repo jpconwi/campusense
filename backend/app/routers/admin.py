@@ -21,7 +21,7 @@ from app.database import get_db
 from app.models import (AIProviderSetting, AdminActivityLog, CampusDepartment, User,
                         UserDailyActivity, UserPresence)
 from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_email,
-                          super_admin_required)
+                          is_nemsu_email, super_admin_required)
 from app.services import (announcement_service, campus_service, chart_service, common, concern_service, faculty_service,
                           photo_report_service, registration_help_service, report_service, reservation_service,
                           room_service, user_service)
@@ -52,7 +52,7 @@ def _without_sentiment(rows):
 
 # --------------------------------------------------------- AI provider chain
 @router.get("/ai-status")
-def ai_status():
+def ai_status(_me: CurrentUser = Depends(super_admin_required)):
     """Which AI providers are set up, in the order they are tried. Never shows keys."""
     from app.model import systemAi
     return {"providers": systemAi.chain_status()}
@@ -90,7 +90,7 @@ def dashboard(db: Session = Depends(get_db)):
 
 
 @router.get("/user-activity")
-def user_activity(db: Session = Depends(get_db)):
+def user_activity(_me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     """Recent foreground activity for active student and instructor accounts."""
     now = datetime.utcnow().replace(microsecond=0)
     today = now.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=8))).date()
@@ -133,8 +133,10 @@ def user_activity(db: Session = Depends(get_db)):
 # -------------------------------------------------------- record lists
 @router.get("/records/{kind}")
 def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = None,
-            db: Session = Depends(get_db)):
+            me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     if kind not in SECTIONS:
+        raise HTTPException(404, "That page was not found.")
+    if kind == "reservations" and me.role != "super_admin":
         raise HTTPException(404, "That page was not found.")
     if status and status not in common.TABLE_STATUSES[kind]:
         status = None
@@ -184,8 +186,11 @@ class StatusBody(BaseModel):
 
 
 @router.post("/records/{kind}/{row_id}/status")
-def change_status(kind: str, row_id: int, body: StatusBody, db: Session = Depends(get_db)):
+def change_status(kind: str, row_id: int, body: StatusBody, me: CurrentUser = Depends(admin_required),
+                  db: Session = Depends(get_db)):
     if kind not in SECTIONS:
+        raise HTTPException(404, "That page was not found.")
+    if kind == "reservations" and me.role != "super_admin":
         raise HTTPException(404, "That page was not found.")
     if kind == "reservations":
         reservation_service.change_status(db, row_id, body.status)
@@ -255,22 +260,26 @@ def faculty_available(record_id: int, db: Session = Depends(get_db)):
 
 # --------------------------------------------------------------- users
 @router.get("/users")
-def users(db: Session = Depends(get_db)):
+def users(_me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     rows = user_service.list_users(db)
     for r in rows:
         r.pop("google_id", None)                 # not needed by the browser
         r.pop("verification_document", None)     # served only by the admin-only file route
         r.pop("verification_cor_document", None)
         r.pop("verification_id_back_document", None)
+        r.pop("face_image", None)
+        r.pop("face_scan_pdf", None)
         r["has_verification_document"] = bool(r.get("verification_filename"))
         r["has_cor_document"] = bool(r.get("verification_cor_filename"))
         r["has_id_back_document"] = bool(r.get("verification_id_back_filename"))
+        r["has_face_image"] = bool(r.get("face_image_filename"))
+        r["has_face_scan_pdf"] = bool(r.get("face_scan_pdf_filename"))
         r["is_allowlisted_admin"] = is_admin_email(r["email"])
     return {"rows": rows}
 
 
 @router.get("/users/{user_id}/verification-document")
-def user_verification_document(user_id: int, db: Session = Depends(get_db)):
+def user_verification_document(user_id: int, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     row = user_service.get_user(db, user_id)
     if row is None or not row.verification_document or not row.verification_content_type:
         raise HTTPException(404, "Verification document not found.")
@@ -282,7 +291,7 @@ def user_verification_document(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/users/{user_id}/verification-document/cor")
-def user_cor_document(user_id: int, db: Session = Depends(get_db)):
+def user_cor_document(user_id: int, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     row = user_service.get_user(db, user_id)
     if row is None or not row.verification_cor_document or not row.verification_cor_content_type:
         raise HTTPException(404, "COR scan not found.")
@@ -293,7 +302,7 @@ def user_cor_document(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/users/{user_id}/verification-document/id-back")
-def user_id_back_document(user_id: int, db: Session = Depends(get_db)):
+def user_id_back_document(user_id: int, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     row = user_service.get_user(db, user_id)
     if row is None or not row.verification_id_back_document or not row.verification_id_back_content_type:
         raise HTTPException(404, "ID back scan not found.")
@@ -303,8 +312,47 @@ def user_id_back_document(user_id: int, db: Session = Depends(get_db)):
                              "Cache-Control": "no-store"})
 
 
+@router.get("/users/{user_id}/face-image")
+def user_face_image(user_id: int, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+    row = user_service.get_user(db, user_id)
+    if row is None or not row.face_image or not row.face_image_content_type:
+        raise HTTPException(404, "Selfie not found.")
+    filename = row.face_image_filename or "applicant-selfie.jpg"
+    return Response(row.face_image, media_type=row.face_image_content_type,
+                    headers={"Content-Disposition": f'inline; filename="{filename}"',
+                             "Cache-Control": "no-store"})
+
+
+@router.get("/users/{user_id}/face-scan-pdf")
+def user_face_scan_pdf(user_id: int, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+    row = user_service.get_user(db, user_id)
+    if row is None or not row.face_scan_pdf:
+        raise HTTPException(404, "Face scan PDF not found.")
+    filename = row.face_scan_pdf_filename or "face-scan.pdf"
+    return Response(row.face_scan_pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{filename}"',
+                             "Cache-Control": "no-store"})
+
+
+class FaceReviewBody(BaseModel):
+    status: str = ""
+
+
+@router.post("/users/{user_id}/face-review")
+def user_face_review(user_id: int, body: FaceReviewBody, _me: CurrentUser = Depends(super_admin_required),
+                     db: Session = Depends(get_db)):
+    if body.status not in ("Verified", "Rejected"):
+        raise ValidationError("Choose Verified or Rejected.")
+    row = user_service.get_user(db, user_id)
+    if row is None or row.approval_status != "Pending" or not row.face_image:
+        raise ValidationError("That pending account has no selfie to review.")
+    row.face_review_status = body.status
+    db.commit()
+    return {"success": True, "message": f"Selfie marked {body.status.lower()}."}
+
+
 @router.post("/users/{user_id}/approve")
-def approve_user_registration(user_id: int, me: CurrentUser = Depends(admin_required),
+def approve_user_registration(user_id: int, me: CurrentUser = Depends(super_admin_required),
                               db: Session = Depends(get_db)):
     if user_id == me.id or not user_service.approve_personal_registration(db, user_id):
         raise ValidationError("That personal-Gmail registration is not pending or is missing required details.")
@@ -312,7 +360,7 @@ def approve_user_registration(user_id: int, me: CurrentUser = Depends(admin_requ
 
 
 @router.post("/users/{user_id}/reject")
-def reject_user_registration(user_id: int, me: CurrentUser = Depends(admin_required),
+def reject_user_registration(user_id: int, me: CurrentUser = Depends(super_admin_required),
                              db: Session = Depends(get_db)):
     if user_id == me.id or not user_service.reject_student_registration(db, user_id):
         raise ValidationError("That student registration is not pending.")
@@ -328,7 +376,7 @@ class ActiveBody(BaseModel):
 
 
 @router.post("/users/{user_id}/role")
-def user_role(user_id: int, body: RoleBody, me: CurrentUser = Depends(admin_required),
+def user_role(user_id: int, body: RoleBody, me: CurrentUser = Depends(super_admin_required),
               db: Session = Depends(get_db)):
     if user_id == me.id:
         raise ValidationError("You cannot change your own role.")
@@ -338,7 +386,7 @@ def user_role(user_id: int, body: RoleBody, me: CurrentUser = Depends(admin_requ
 
 
 @router.post("/users/{user_id}/active")
-def user_active(user_id: int, body: ActiveBody, me: CurrentUser = Depends(admin_required),
+def user_active(user_id: int, body: ActiveBody, me: CurrentUser = Depends(super_admin_required),
                 db: Session = Depends(get_db)):
     if user_id == me.id:
         raise ValidationError("You cannot deactivate yourself.")
@@ -349,7 +397,7 @@ def user_active(user_id: int, body: ActiveBody, me: CurrentUser = Depends(admin_
 
 
 @router.delete("/users/{user_id}")
-def user_delete(user_id: int, me: CurrentUser = Depends(admin_required),
+def user_delete(user_id: int, me: CurrentUser = Depends(super_admin_required),
                 db: Session = Depends(get_db)):
     if user_id == me.id or not user_service.soft_delete_user(db, user_id):
         raise ValidationError("That account cannot be deleted.")
@@ -394,6 +442,47 @@ def system_user_role(user_id: int, body: AccessRoleBody, me: CurrentUser = Depen
                             details=f"Role set to {body.role}", created_at=common.now()))
     db.commit()
     return {"success": True, "message": f"{target.email} is now {body.role.replace('_', ' ')}."}
+
+
+class CreateAdminBody(BaseModel):
+    name: str = ""
+    email: str = ""
+
+
+@router.post("/system/admins")
+def create_admin_account(body: CreateAdminBody, me: CurrentUser = Depends(super_admin_required),
+                         db: Session = Depends(get_db)):
+    name = common.clean_text(body.name, "Name", 120)
+    email = body.email.strip().lower()
+    if (len(email) > 255 or any(character.isspace() for character in email)
+            or email.count("@") != 1 or not is_nemsu_email(email)):
+        raise ValidationError(f"Enter an email address at @{config.ALLOWED_DOMAIN}.")
+    if user_service.get_by_email(db, email):
+        raise ValidationError("An account already exists for that email.")
+    row = User(google_id="admin-provisioned:" + email, name=name, email=email, role="admin",
+               approval_status="Approved", registration_type="admin", is_active=True,
+               created_at=common.now(), last_login=common.now())
+    db.add(row)
+    db.flush()
+    db.add(AdminActivityLog(actor_email=me.email, action="admin_account_created", target_email=email,
+                            details="Created report-manager account; Google sign-in required.", created_at=common.now()))
+    db.commit()
+    return {"success": True, "message": f"Admin account created for {email}. They can sign in with their NEMSU Google account; no separate app password is created."}
+
+
+@router.delete("/system/admins/{user_id}")
+def delete_admin_account(user_id: int, me: CurrentUser = Depends(super_admin_required),
+                         db: Session = Depends(get_db)):
+    target = user_service.get_user(db, user_id)
+    if (target is None or target.role != "admin" or target.id == me.id
+            or is_admin_email(target.email)
+            or not user_service.soft_delete_admin_account(db, user_id)):
+        raise ValidationError("That administrator is protected, missing, or cannot be deleted.")
+    db.add(AdminActivityLog(actor_email=me.email, action="admin_account_deleted", target_email=target.email,
+                            details="Account disabled; scheduled for deletion after the retention period.",
+                            created_at=common.now()))
+    db.commit()
+    return {"success": True, "message": f"Admin account {target.email} disabled and scheduled for deletion."}
 
 
 class DepartmentBody(BaseModel):
@@ -459,13 +548,14 @@ def update_ai_provider(provider: str, body: ProviderBody, me: CurrentUser = Depe
 
 @router.get("/help-messages")
 @router.get("/registration-help", include_in_schema=False)
-def registration_help_inbox(db: Session = Depends(get_db)):
+def registration_help_inbox(_me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     return {"rows": registration_help_service.list_messages(db)}
 
 
 @router.post("/help-messages/{message_id}/resolve")
 @router.post("/registration-help/{message_id}/resolve", include_in_schema=False)
-def registration_help_resolve(message_id: int, db: Session = Depends(get_db)):
+def registration_help_resolve(message_id: int, _me: CurrentUser = Depends(super_admin_required),
+                              db: Session = Depends(get_db)):
     if not registration_help_service.resolve_message(db, message_id):
         raise ValidationError("That message is missing or already resolved.")
     return {"success": True, "message": "Applicant message marked as resolved."}
@@ -480,37 +570,37 @@ CAMPUS_FIELDS = [["topic", "Topic", True], ["keywords", "Keywords (use ; between
 
 
 @router.get("/rooms")
-def rooms(db: Session = Depends(get_db)):
+def rooms(_me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     return {"title": "Rooms", "fields": ROOM_FIELDS, "rows": room_service.list_rooms(db),
             "empty": "No rooms yet. Add the real rooms so the AI never has to guess."}
 
 
 @router.post("/rooms")
-def rooms_add(body: dict, db: Session = Depends(get_db)):
+def rooms_add(body: dict, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     room_service.add_room(db, _strings(body))
     return {"success": True, "message": "Room added."}
 
 
 @router.delete("/rooms/{row_id}")
-def rooms_delete(row_id: int, db: Session = Depends(get_db)):
+def rooms_delete(row_id: int, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     room_service.delete_room(db, row_id)
     return {"success": True, "message": "Room deleted."}
 
 
 @router.get("/campus")
-def campus(db: Session = Depends(get_db)):
+def campus(_me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     return {"title": "Campus Information", "fields": CAMPUS_FIELDS,
             "rows": campus_service.list_info(db), "empty": "No campus information yet."}
 
 
 @router.post("/campus")
-def campus_add(body: dict, db: Session = Depends(get_db)):
+def campus_add(body: dict, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     campus_service.add_info(db, _strings(body))
     return {"success": True, "message": "Campus information added."}
 
 
 @router.delete("/campus/{row_id}")
-def campus_delete(row_id: int, db: Session = Depends(get_db)):
+def campus_delete(row_id: int, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     campus_service.delete_info(db, row_id)
     return {"success": True, "message": "Campus information deleted."}
 

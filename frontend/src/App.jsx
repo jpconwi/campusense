@@ -29,7 +29,7 @@ function Guard({ roles, children }) {
   const allowed = roles?.includes("admin") && user.role === "super_admin";
   if (roles && !roles.includes(user.role) && !allowed) {
     // admin pages look like they do not exist; other pages go back home
-    return roles.includes("admin") ? <NotFound /> : <Navigate to="/" replace />;
+    return roles.some((role) => ["admin", "super_admin"].includes(role)) ? <NotFound /> : <Navigate to="/" replace />;
   }
   return children;
 }
@@ -60,18 +60,19 @@ export default function App() {
         <Route path="/faculty" element={page(<Faculty />, ["instructor"])} />
 
         <Route path="/admin" element={page(<AdminDashboard />, ["admin"])} />
-        <Route path="/admin/users" element={page(<AdminUsers />, ["admin"])} />
+        <Route path="/admin/users" element={page(<AdminUsers />, ["super_admin"])} />
         <Route path="/admin/system" element={page(<SuperAdmin />, ["super_admin"])} />
         <Route path="/admin/online-users" element={<Navigate to="/admin/users?view=online" replace />} />
-        <Route path="/admin/help-messages" element={page(<AdminHelpMessages />, ["admin"])} />
+        <Route path="/admin/help-messages" element={page(<AdminHelpMessages />, ["super_admin"])} />
         <Route path="/admin/concerns" element={<Navigate to="/admin/reports?type=concern" replace />} />
         <Route path="/admin/faculty" element={page(<AdminFaculty />, ["admin"])} />
-        <Route path="/admin/rooms" element={page(<AdminDataset kind="rooms" />, ["admin"])} />
-        <Route path="/admin/campus" element={page(<AdminDataset kind="campus" />, ["admin"])} />
+        <Route path="/admin/rooms" element={page(<AdminDataset kind="rooms" />, ["super_admin"])} />
+        <Route path="/admin/campus" element={page(<AdminDataset kind="campus" />, ["super_admin"])} />
         <Route path="/admin/announcements" element={page(<AdminDataset kind="announcements" />, ["admin"])} />
-        {["reports", "feedback", "reservations"].map((k) => (
+        {["reports", "feedback"].map((k) => (
           <Route key={k} path={`/admin/${k}`} element={page(<AdminList kind={k} />, ["admin"])} />
         ))}
+        <Route path="/admin/reservations" element={page(<AdminList kind="reservations" />, ["super_admin"])} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

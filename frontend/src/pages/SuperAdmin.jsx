@@ -9,6 +9,8 @@ export default function SuperAdmin() {
   const [users, setUsers] = useState([]);
   const [departmentName, setDepartmentName] = useState("");
   const [office, setOffice] = useState("");
+  const [adminName, setAdminName] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
   const load = useCallback(async () => {
     const [system, people] = await Promise.all([api("/api/admin/system"), api("/api/admin/users")]);
     setData(system);
@@ -21,6 +23,23 @@ export default function SuperAdmin() {
       const result = await api(`/api/admin/system/users/${person.id}/role`, { method: "POST", json: { role } });
       setFlash({ text: result.message, kind: "info" });
       await load();
+    } catch (error) { setFlash({ text: error.message, kind: "error" }); }
+  }
+
+  async function createAdmin(event) {
+    event.preventDefault();
+    try {
+      const result = await api("/api/admin/system/admins", { method: "POST", json: { name: adminName, email: adminEmail } });
+      setFlash({ text: result.message, kind: "info" });
+      setAdminName(""); setAdminEmail(""); await load();
+    } catch (error) { setFlash({ text: error.message, kind: "error" }); }
+  }
+
+  async function deleteAdmin(person) {
+    if (!window.confirm(`Disable the report-manager account for ${person.email}?`)) return;
+    try {
+      const result = await api(`/api/admin/system/admins/${person.id}`, { method: "DELETE" });
+      setFlash({ text: result.message, kind: "info" }); await load();
     } catch (error) { setFlash({ text: error.message, kind: "error" }); }
   }
 
@@ -67,9 +86,14 @@ export default function SuperAdmin() {
     </section>
 
     <h3>Administrator accounts and roles</h3>
-    <p className="muted">Approved users can be assigned administrator access. Keep at least one super administrator configured in SUPER_ADMIN_EMAILS.</p>
+    <p className="muted">Admins are report managers and sign in with their NEMSU Google account. They do not get a separate app password. Keep at least one super administrator configured in SUPER_ADMIN_EMAILS.</p>
+    <form className="inline" onSubmit={createAdmin}>
+      <input aria-label="Admin full name" required minLength={2} maxLength={120} placeholder="Admin full name" value={adminName} onChange={(event) => setAdminName(event.target.value)} />
+      <input aria-label="Admin NEMSU email" type="email" required maxLength={255} placeholder="admin@nemsu.edu.ph" value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} />
+      <button className="btn small" type="submit">Create admin account</button>
+    </form>
     <div className="table-wrap"><table className="data-table">
-      <thead><tr><th>Name</th><th>Email</th><th>Department</th><th>Access</th><th>Update access</th></tr></thead>
+      <thead><tr><th>Name</th><th>Email</th><th>Department</th><th>Access</th><th>Update access</th><th>Admin account</th></tr></thead>
       <tbody>{users.map((person) => <tr key={person.id}>
         <td>{person.name}</td><td>{person.email}</td><td>{person.department || "—"}</td>
         <td>{person.role.replaceAll("_", " ")}</td>
@@ -80,6 +104,9 @@ export default function SuperAdmin() {
             <option value="student">student</option><option value="instructor">instructor</option>
             <option value="admin">admin</option>
           </select>}</td>
+        <td>{person.role === "admin" && !person.is_allowlisted_admin && person.id !== me.id && !person.deleted_at
+          ? <button className="btn small danger" type="button" onClick={() => deleteAdmin(person)}>Delete admin</button>
+          : person.role === "admin" ? <span className="muted">Configured account</span> : "—"}</td>
       </tr>)}</tbody>
     </table></div>
 

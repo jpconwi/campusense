@@ -8,7 +8,7 @@ NOT stored here: passwords (admin password hashes live in admin_credentials), OA
 from datetime import timedelta
 
 from sqlalchemy import delete, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from app import config
 from app.models import (ChatMessage, ChatSession, Concern, Feedback, PhotoDraft, Report,
@@ -32,10 +32,13 @@ def submit_student_registration(db: Session, google_id, full_name, email, studen
                                 document, content_type, filename, document_kind="school_id",
                                 cor_document=None, cor_content_type=None, cor_filename=None,
                                 id_back_document=None, id_back_content_type=None,
-                                id_back_filename=None, ai_note=None, auto_approve=False):
-    """Create a student account; activate only after the visual screen passes."""
+                                id_back_filename=None, ai_note=None, auto_approve=False,
+                                face_image=None, face_image_content_type=None, face_image_filename=None,
+                                face_scan_pdf=None, face_verified=False):
+    """Create a student account; activate only after document and guided-face checks pass."""
     if get_by_google_id(db, google_id) or get_by_email(db, email):
         raise ValidationError("An account already exists for this Google email. Sign in to check its status.")
+    auto_approve = bool(auto_approve and face_verified)
     stamp = now()
     user = User(google_id=google_id, name=full_name, email=email,
                 role="student" if auto_approve else None,
@@ -49,6 +52,10 @@ def submit_student_registration(db: Session, google_id, full_name, email, studen
                 verification_id_back_document=id_back_document,
                 verification_id_back_content_type=id_back_content_type,
                 verification_id_back_filename=id_back_filename,
+                face_image=face_image, face_image_content_type=face_image_content_type,
+                face_image_filename=face_image_filename, face_scan_pdf=face_scan_pdf,
+                face_scan_pdf_filename="face-scan.pdf" if face_scan_pdf else None,
+                face_review_status="AI Pose Passed" if face_verified else "Pending",
                 verification_ai_note=ai_note, is_active=bool(auto_approve),
                 created_at=stamp, last_login=stamp)
     db.add(user)
@@ -60,14 +67,21 @@ def submit_student_registration(db: Session, google_id, full_name, email, studen
     return user
 
 
-def submit_instructor_registration(db: Session, google_id, full_name, email, instructor_id, department):
+def submit_instructor_registration(db: Session, google_id, full_name, email, instructor_id, department,
+                                   face_image=None, face_image_content_type=None, face_image_filename=None,
+                                   face_scan_pdf=None, face_verified=False):
     """Create an inactive personal-Gmail instructor application for admin review."""
     if get_by_google_id(db, google_id) or get_by_email(db, email):
         raise ValidationError("An account already exists for this Google email. Sign in to check its status.")
     stamp = now()
     user = User(google_id=google_id, name=full_name, email=email, role=None,
                 approval_status="Pending", registration_type="instructor", student_id=instructor_id,
-                department=department, is_active=False, created_at=stamp, last_login=stamp)
+                department=department, face_image=face_image,
+                face_image_content_type=face_image_content_type,
+                face_image_filename=face_image_filename, face_scan_pdf=face_scan_pdf,
+                face_scan_pdf_filename="face-scan.pdf" if face_scan_pdf else None,
+                face_review_status="AI Pose Passed" if face_verified else "Pending",
+                is_active=False, created_at=stamp, last_login=stamp)
     db.add(user)
     try:
         db.commit()
@@ -170,7 +184,9 @@ def set_active(db: Session, user_id, active):
 
 def approve_personal_registration(db: Session, user_id):
     user = db.get(User, user_id)
-    if user is None or user.approval_status != "Pending" or user.deleted_at:
+    if (user is None or user.approval_status != "Pending" or user.deleted_at
+            or (user.face_review_status != "Not required"
+                and (not user.face_image or user.face_review_status not in ("Verified", "AI Pose Passed")))):
         return False
     if user.registration_type == "instructor":
         if not user.student_id or not user.department:
@@ -216,6 +232,20 @@ def soft_delete_user(db: Session, user_id):
     return True
 
 
+def soft_delete_admin_account(db: Session, user_id):
+    """Disable a super-admin-managed report-manager account for scheduled purge."""
+    user = db.get(User, user_id)
+    if user is None or user.role != "admin" or user.deleted_at:
+        return False
+    stamp = now()
+    user.is_active = False
+    user.approval_status = "Deleted"
+    user.deleted_at = stamp
+    user.purge_after = stamp + timedelta(days=7)
+    db.commit()
+    return True
+
+
 def purge_deleted_safely():
     """Permanently remove accounts and their user-owned records after seven days."""
     from app.database import SessionLocal
@@ -241,8 +271,13 @@ def purge_deleted_safely():
 
 def list_users(db: Session):
     from app.services.common import row_to_dict
-    users = db.execute(select(User).order_by(User.created_at.desc(), User.id.desc())).scalars()
-    return [row_to_dict(u) for u in users]
+    private_images = ("verification_document", "verification_cor_document", "verification_id_back_document",
+                      "face_image", "face_scan_pdf")
+    columns = [getattr(User, column.key) for column in User.__table__.columns
+               if column.key not in private_images]
+    users = db.execute(select(User).options(load_only(*columns))
+                       .order_by(User.created_at.desc(), User.id.desc())).scalars()
+    return [row_to_dict(u, exclude=private_images) for u in users]
 
 
 def count_role(db: Session, role):
