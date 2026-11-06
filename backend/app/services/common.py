@@ -153,7 +153,7 @@ def row_to_dict(obj):
         elif isinstance(value, date):
             value = value.strftime("%Y-%m-%d")
         elif isinstance(value, time):
-            value = value.strftime("%H:%M")
+            value = value.strftime("%I:%M %p")
         data[column.key] = value
     return data
 

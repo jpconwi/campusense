@@ -191,6 +191,8 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
       <>
         <label>{f.label}{f.required ? " *" : ""}</label>
         {control(f)}
+        {kind === "reservation" && (f.name === "start_time" || f.name === "end_time") &&
+          <small className="muted">Choose the time using the clock. Saved times display with AM or PM.</small>}
         {f.list && <datalist id="facility-list">{facilities.map((n) => <option key={n} value={n} />)}</datalist>}
       </>
     );
