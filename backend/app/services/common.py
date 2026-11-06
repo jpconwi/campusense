@@ -5,6 +5,7 @@ reservation services: statuses, validation, and generic queries.
 
 import re
 from datetime import date, datetime, time
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -73,7 +74,10 @@ class ValidationError(Exception):
 
 # ---------------------------------------------------------- validation
 def now():
-    return datetime.now().replace(microsecond=0)
+    # Store submission timestamps in campus local time, regardless of the
+    # server's configured timezone. Keep the database value naive for the
+    # existing DateTime columns, but retain second-level precision.
+    return datetime.now(ZoneInfo("Asia/Manila")).replace(tzinfo=None, microsecond=0)
 
 
 def assigned_report_admin(report_type):
@@ -149,7 +153,7 @@ def row_to_dict(obj):
     for column in obj.__table__.columns:
         value = getattr(obj, column.key)
         if isinstance(value, datetime):
-            value = value.strftime("%Y-%m-%d %H:%M:%S")
+            value = value.strftime("%Y-%m-%d %I:%M:%S %p")
         elif isinstance(value, date):
             value = value.strftime("%Y-%m-%d")
         elif isinstance(value, time):
