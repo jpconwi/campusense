@@ -518,6 +518,19 @@ def asks_location(q):
 
 def detect(db, question, role):
     """Return a dict: {"intent": ..., plus extra data}."""
+    # Check faculty availability against the original wording before campus
+    # vocabulary correction can alter a staff member's name.
+    raw_q = normalize(question)
+    raw_tokens = raw_q.split()
+    raw_availability = ("available", "availability", "present today", "is present",
+                        "at school today", "in school today", "working today", "work today",
+                        "here today", "absent today")
+    raw_first_person = bool(raw_tokens) and raw_tokens[0] in ("i", "im", "ill", "ive")
+    if not raw_first_person and has(raw_q, *raw_availability):
+        target = _faculty_target(db, raw_q)
+        if target:
+            return {"intent": "faculty_availability", "name": target}
+
     # Clean high-confidence typos against the official campus vocabulary before
     # classifying intent; keep `question` unchanged for form fields and replies.
     q = normalize(preprocessing.correct_question(db, question))
