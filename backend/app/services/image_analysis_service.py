@@ -282,12 +282,8 @@ def analyze(image_path, description="", location="", noticed_when="", observed_c
     analysis = sanitize(raw, bool(description))
     analysis["status"] = "analyzed"
     analysis["model"] = model
-    try:
-        from app.services.apify_price_service import lookup_and_ground
-        lookup_and_ground(analysis, location)
-    except Exception as error:
-        # Price lookup is optional and must never block web or mobile report submission.
-        print("APIFY PRICE LOOKUP ERROR:", repr(error)[:240])
+    # Keep the student response on the vision result. Current-price search plus a
+    # second model call is optional enrichment and must not block photo reporting.
     _apply_safety_net(analysis, description)
     analysis.update(meta)
     return analysis, provider

@@ -65,7 +65,8 @@ DEFAULT_VISION_MODELS = {
     "openrouter": ["openrouter/free", "google/gemma-4-31b-it:free", "nvidia/nemotron-nano-12b-v2-vl:free"],
 }
 VISION_MAX_TOKENS = 900
-VISION_REASONING_TOKENS = 2500      # Qwen3.x on Groq and Gemini 3.x think first; leave room for the answer
+VISION_REASONING_TOKENS = 700      # Keep photo checks concise and reduce reasoning latency
+VISION_TOTAL_TIMEOUT = 24          # A failed photo check should not hold the chat for a minute
 
 _cooldown_until = {}                # provider -> time.monotonic() when it may be tried again
 _dead = {}                          # (provider key, model) -> until when the model is skipped
@@ -446,7 +447,7 @@ def ask_vision(system_prompt, user_text, image_b64, mime="image/jpeg"):
     messages = [{"role": "system", "content": system_prompt},
                 {"role": "user", "content": content}]
     callers = _vision_callers()
-    deadline = time.monotonic() + TOTAL_TIMEOUT
+    deadline = time.monotonic() + VISION_TOTAL_TIMEOUT
     for provider in VISION_PROVIDER_ORDER:
         key = provider + ":vision"
         if not is_configured(provider) or _cooldown_until.get(key, 0) > time.monotonic():
