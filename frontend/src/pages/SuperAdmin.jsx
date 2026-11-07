@@ -111,6 +111,16 @@ export default function SuperAdmin() {
       <tbody>{data.activity.map((entry) => <tr key={entry.id}><td>{entry.created_at}</td><td>{entry.actor_email}</td>
         <td>{entry.action.replaceAll("_", " ")}</td><td>{entry.target_email || "—"}</td><td>{entry.details || "—"}</td></tr>)}</tbody>
     </table></div> : <p className="muted">No privileged changes have been recorded yet.</p>}
+    <h3>Faculty reports and reservation reviews</h3>
+    <p className="muted">Review status, assigned administrator, and decision notes for the latest submissions.</p>
+    {data.review_audit?.length ? <div className="table-wrap"><table className="data-table">
+      <thead><tr><th>Type</th><th>Reference</th><th>Submitted</th><th>Requester</th><th>Status</th><th>Handled by</th><th>Reviewed</th><th>Note</th></tr></thead>
+      <tbody>{data.review_audit.map((entry) => <tr key={`${entry.kind}-${entry.id}`}>
+        <td>{entry.kind}</td><td>#{String(entry.id).padStart(4, "0")}</td><td>{entry.submitted_at || "—"}</td>
+        <td>{entry.requester || "—"}</td><td><span className={`badge s-${String(entry.status || "").toLowerCase().replaceAll(" ", "-")}`}>{entry.status || "Pending"}</span></td>
+        <td>{entry.handler || <span className="muted">Awaiting review</span>}</td><td>{entry.reviewed_at || "—"}</td><td>{entry.note || "—"}</td>
+      </tr>)}</tbody>
+    </table></div> : <p className="muted">No faculty reports or reservation requests have been submitted.</p>}
     {showAdminForm && <div className="system-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowAdminForm(false); }}>
       <section className="system-modal" role="dialog" aria-modal="true" aria-labelledby="create-admin-title">
         <h3 id="create-admin-title">Create admin account</h3>

@@ -19,7 +19,7 @@ from sqlalchemy import select
 from app import config
 from app.database import get_db
 from app.models import (AIProviderSetting, AdminActivityLog, CampusDepartment, User,
-                        UserDailyActivity, UserPresence)
+                        UserDailyActivity, UserPresence, FacultyReport, Reservation)
 from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_email,
                           is_nemsu_email, super_admin_required)
 from app.services import (announcement_service, campus_service, chart_service, common, concern_service, faculty_service,
@@ -557,6 +557,18 @@ def system_overview(_me: CurrentUser = Depends(super_admin_required), db: Sessio
     """System-wide analytics, AI integration health, and privileged action history."""
     from app.model import systemAi
     rows = db.scalars(select(AdminActivityLog).order_by(AdminActivityLog.created_at.desc()).limit(100)).all()
+    review_audit = []
+    for row in db.scalars(select(FacultyReport).order_by(FacultyReport.submitted_at.desc()).limit(100)).all():
+        review_audit.append({"kind": "Faculty report", "id": row.id, "submitted_at": row.submitted_at,
+                             "requester": row.instructor, "handler": row.reviewed_by,
+                             "status": row.review_status, "reviewed_at": row.reviewed_at,
+                             "note": row.review_note})
+    for row in db.scalars(select(Reservation).order_by(Reservation.created_at.desc()).limit(100)).all():
+        review_audit.append({"kind": "Reservation", "id": row.id, "submitted_at": row.created_at,
+                             "requester": row.requester_name, "handler": row.reviewed_by,
+                             "status": row.status, "reviewed_at": row.reviewed_at,
+                             "note": row.review_note})
+    review_audit.sort(key=lambda item: item["submitted_at"] or datetime.min, reverse=True)
     departments = [{"id": r.id, "name": r.name, "office": r.office}
                    for r in db.scalars(select(CampusDepartment).order_by(CampusDepartment.name)).all()]
     return {
@@ -571,6 +583,9 @@ def system_overview(_me: CurrentUser = Depends(super_admin_required), db: Sessio
         "activity": [{"id": r.id, "actor_email": r.actor_email, "action": r.action,
                       "target_email": r.target_email, "details": r.details,
                       "created_at": r.created_at.strftime("%Y-%m-%d %I:%M:%S %p")} for r in rows],
+        "review_audit": [{**r, "submitted_at": r["submitted_at"].strftime("%Y-%m-%d %I:%M:%S %p") if r["submitted_at"] else "",
+                          "reviewed_at": r["reviewed_at"].strftime("%Y-%m-%d %I:%M:%S %p") if r["reviewed_at"] else ""}
+                         for r in review_audit],
     }
 
 
