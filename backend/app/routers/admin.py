@@ -61,7 +61,7 @@ def _account_review_rows(db):
     """Registration accounts (student/instructor) for the first-level check queue."""
     rows = []
     for r in user_service.list_users(db):
-        if r.get("registration_type") not in ("student", "instructor"):
+        if r.get("deleted_at") or r.get("registration_type") not in ("student", "instructor"):
             continue
         r.pop("google_id", None)
         r["is_nemsu"] = is_nemsu_email(r["email"])
