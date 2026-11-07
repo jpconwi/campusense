@@ -109,7 +109,7 @@ function AccountDetail({ row, onChanged }) {
         <span><b>School ID</b>{row.student_id || "-"}</span>
         <span><b>Department</b>{row.department || "-"}</span>
         <span><b>Submitted</b>{row.created_at}</span>
-        <span><b>Face review</b>{row.face_review_status || "Not required"}</span>
+        <span><b>Face review</b>{row.face_review_status === "AI Pose Passed" ? "Selfie framing passed" : row.face_review_status || "Not required"}</span>
       </div>
 
       <section className="account-docs">
@@ -124,7 +124,7 @@ function AccountDetail({ row, onChanged }) {
         </div>
         {row.has_face_scan_pdf && (
           <a className="account-pdf-link" href={apiUrl(`${base}/face-scan-pdf`)} target="_blank" rel="noreferrer">
-            Open the three-pose face scan PDF
+            Open the selfie PDF
           </a>
         )}
         {!row.has_verification_document && !row.has_cor_document && !row.has_id_back_document && !row.has_face_image &&

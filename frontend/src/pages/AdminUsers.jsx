@@ -129,10 +129,10 @@ export default function AdminUsers() {
           </div>
           {user.verification_ai_note && <details className="admin-user-review"><summary>View AI review</summary><small className="registration-review-note">{user.verification_ai_note}</small></details>}
           {user.has_face_image && <div className="admin-user-review">
-            <b>Face scan: {user.face_review_status === "AI Pose Passed" ? "AI pose passed; identity not matched by AI" : user.face_review_status || "Pending"}</b>
+            <b>Face scan: {user.face_review_status === "AI Pose Passed" ? "Selfie framing passed; identity not matched by AI" : user.face_review_status || "Pending"}</b>
             <div className="admin-user-document-links">
               <a href={`${API_BASE}/api/admin/users/${user.id}/face-image`} target="_blank" rel="noreferrer">View selfie</a>
-              {user.has_face_scan_pdf && <a href={`${API_BASE}/api/admin/users/${user.id}/face-scan-pdf`} target="_blank" rel="noreferrer">View three-pose PDF</a>}
+              {user.has_face_scan_pdf && <a href={`${API_BASE}/api/admin/users/${user.id}/face-scan-pdf`} target="_blank" rel="noreferrer">View selfie PDF</a>}
               {user.approval_status === "Pending" && user.face_review_status !== "Verified" &&
                 <button className="btn small" type="button" onClick={() => reviewFace(user, "Verified")}>Confirm identity</button>}
               {user.approval_status === "Pending" && user.face_review_status !== "Rejected" &&

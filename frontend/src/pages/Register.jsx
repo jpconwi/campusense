@@ -66,12 +66,10 @@ export default function Register() {
     setError("");
     const form = new FormData();
     form.append("full_name", fullName);
-    if (!faceFiles?.front || !faceFiles?.left || !faceFiles?.right) return setError("Complete all three face scan poses.");
-    if (Object.values(faceFiles).some((file) => file.size > 5 * 1024 * 1024)) return setError("Each face scan image must be 5 MB or smaller.");
+    if (!faceFiles?.front) return setError("Complete the front-facing selfie scan.");
+    if (faceFiles.front.size > 5 * 1024 * 1024) return setError("The selfie must be 5 MB or smaller.");
     if (!faceConsent) return setError("Consent is required to store your selfie for administrator review.");
     form.append("face_photo_front", faceFiles.front);
-    form.append("face_photo_left", faceFiles.left);
-    form.append("face_photo_right", faceFiles.right);
     form.append("face_photo_consent", "true");
     if (registrationType === "instructor") {
       if (studentId.trim().length < 3) return setError("Enter your instructor ID number.");
@@ -149,7 +147,7 @@ export default function Register() {
                   </label>
                   <label className="registration-consent">
                     <input type="checkbox" checked={faceConsent} required onChange={(e) => setFaceConsent(e.target.checked)} />
-                    <span>I consent to the configured AI provider checking only face position and head pose during capture. My three captured views will be saved with my account in one PDF for review. The AI does not identify me or compare my face to my ID. Administrators review any application that does not pass the document reference check.</span>
+                    <span>I consent to the configured AI provider checking only face visibility and framing during capture. One front-facing selfie will be saved with my account for administrator review. The AI does not identify me or compare my face to my ID. Administrators review any application that does not pass the document reference check.</span>
                   </label>
                   <FaceScanner onComplete={setFaceFiles} disabled={busy || !faceConsent} />
                   {registrationType === "instructor" ? (

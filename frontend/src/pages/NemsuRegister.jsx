@@ -30,16 +30,14 @@ export default function NemsuRegister() {
   async function submit(event) {
     event.preventDefault();
     setError("");
-    if (!faceFiles?.front || !faceFiles?.left || !faceFiles?.right) return setError("Complete all three face scan poses.");
-    if (Object.values(faceFiles).some((file) => file.size > 5 * 1024 * 1024)) return setError("Each face scan image must be 5 MB or smaller.");
+    if (!faceFiles?.front) return setError("Complete the front-facing selfie scan.");
+    if (faceFiles.front.size > 5 * 1024 * 1024) return setError("The selfie must be 5 MB or smaller.");
     if (!faceConsent) return setError("Consent is required to store your selfie for administrator review.");
     if (fullName.trim().length < 3) return setError("Enter your full name.");
     const form = new FormData();
     form.append("full_name", fullName);
     form.append("role", role);
     form.append("face_photo_front", faceFiles.front);
-    form.append("face_photo_left", faceFiles.left);
-    form.append("face_photo_right", faceFiles.right);
     form.append("face_photo_consent", "true");
     setBusy(true);
     try {
@@ -80,7 +78,7 @@ export default function NemsuRegister() {
               </label>
               <label className="registration-consent">
                 <input type="checkbox" checked={faceConsent} required onChange={(event) => setFaceConsent(event.target.checked)} />
-                <span>I consent to the configured AI provider checking only face position and head pose during capture. My three captured views are saved with my account in one PDF for administrator review. The AI does not identify me or compare my face to any document.</span>
+                <span>I consent to the configured AI provider checking only face visibility and framing during capture. One front-facing selfie is saved with my account for administrator review. The AI does not identify me or compare my face to any document.</span>
               </label>
               <FaceScanner onComplete={setFaceFiles} disabled={busy || !faceConsent} />
               <button className="btn" type="submit" disabled={busy}>

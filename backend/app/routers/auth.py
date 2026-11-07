@@ -81,16 +81,14 @@ async def _read_face_photo(upload: UploadFile):
         raise ValidationError("The selfie image could not be read. Try another photo.") from exc
 
 
-def _make_face_scan_pdf(front, left, right):
-    """Create one sanitized, three-page PDF containing the guided face captures."""
+def _make_face_scan_pdf(front):
+    """Create a sanitized, single-page PDF containing the front-facing selfie."""
     import io
     from PIL import Image
-    pages = []
-    for image in (front, left, right):
-        with Image.open(io.BytesIO(image["data"])) as source:
-            pages.append(source.convert("RGB").copy())
+    with Image.open(io.BytesIO(front["data"])) as source:
+        page = source.convert("RGB").copy()
     output = io.BytesIO()
-    pages[0].save(output, format="PDF", save_all=True, append_images=pages[1:], resolution=120)
+    page.save(output, format="PDF", resolution=120)
     return output.getvalue()
 
 
@@ -227,8 +225,8 @@ async def callback(request: Request):
 
 
 @router.post("/face-guidance")
-async def personal_face_guidance(request: Request, stage: str = Form(...),
-                                frame: UploadFile = File(...), manual: str = Form("false"),
+async def personal_face_guidance(request: Request, frame: UploadFile = File(...),
+                                manual: str = Form("false"),
                                 consent: str = Form("")):
     identity = request.session.get("personal_registration") or request.session.get("nemsu_registration")
     started = (request.session.get("personal_registration_started_at")
@@ -237,21 +235,20 @@ async def personal_face_guidance(request: Request, stage: str = Form(...),
         raise HTTPException(401, "Your registration session expired. Start again with Google.")
     if consent.lower() != "true":
         raise ValidationError("Face scan AI consent is required before camera analysis.")
-    order = ("front", "left", "right")
     steps = list(request.session.get("face_scan_steps") or [])
-    if stage not in order or len(steps) >= len(order) or stage != order[len(steps)]:
-        raise ValidationError("Complete the face scan in front, left, then right order.")
+    if steps:
+        raise ValidationError("The front-facing selfie has already been captured.")
     scan = await _read_registration_scan(frame, "face scan frame")
     if manual.lower() == "true":
-        steps.append({"stage": stage, "verified": False,
+        steps.append({"stage": "front", "verified": False,
                       "digest": hashlib.sha256(scan["data"]).hexdigest()})
         request.session["face_scan_steps"] = steps
         return {"ready": True, "available": False,
-                "instruction": "Saved for administrator review. Continue to the next pose."}
-    result = await run_in_threadpool(registration_verification_service.face_pose_guidance,
-                                     (scan["data"], scan["content_type"]), stage)
+                "instruction": "Selfie saved for administrator review."}
+    result = await run_in_threadpool(registration_verification_service.face_selfie_guidance,
+                                     (scan["data"], scan["content_type"]))
     if result.get("state") == "ready":
-        steps.append({"stage": stage, "verified": True,
+        steps.append({"stage": "front", "verified": True,
                       "digest": hashlib.sha256(scan["data"]).hexdigest()})
         request.session["face_scan_steps"] = steps
         return {**result, "ready": True}
@@ -262,8 +259,6 @@ async def personal_face_guidance(request: Request, stage: str = Form(...),
 async def student_registration(request: Request, full_name: str = Form(...),
                                student_id: str = Form(...),
                                face_photo_front: UploadFile = File(...),
-                               face_photo_left: UploadFile = File(...),
-                               face_photo_right: UploadFile = File(...),
                                face_photo_consent: str = Form(""),
                                school_id_document: UploadFile = File(None),
                                school_id_back_document: UploadFile = File(None),
@@ -283,17 +278,13 @@ async def student_registration(request: Request, full_name: str = Form(...),
     if face_photo_consent.lower() != "true":
         raise ValidationError("Consent is required to store your selfie for administrator face review.")
     face_steps = request.session.get("face_scan_steps") or []
-    if [s.get("stage") for s in face_steps] != ["front", "left", "right"]:
-        raise ValidationError("Complete the guided face scan before submitting.")
+    if [s.get("stage") for s in face_steps] != ["front"]:
+        raise ValidationError("Capture the front-facing selfie before submitting.")
     face_front = await _read_face_photo(face_photo_front)
-    face_left = await _read_face_photo(face_photo_left)
-    face_right = await _read_face_photo(face_photo_right)
-    if [face_front["source_digest"], face_left["source_digest"], face_right["source_digest"]] != [
-        step.get("digest") for step in face_steps
-    ]:
-        raise ValidationError("The submitted face scan images must be the same images captured in the guided steps.")
-    face_pdf = _make_face_scan_pdf(face_front, face_left, face_right)
-    face_verified = all(s.get("verified") for s in face_steps)
+    if face_front["source_digest"] != face_steps[0].get("digest"):
+        raise ValidationError("The submitted selfie must be the same image captured in the guided scan.")
+    face_pdf = _make_face_scan_pdf(face_front)
+    face_verified = bool(face_steps[0].get("verified"))
 
     name = clean_text(full_name, "Full name", 120)
     school_id = clean_text(student_id, "School ID", 50)
@@ -317,8 +308,8 @@ async def student_registration(request: Request, full_name: str = Form(...),
             (cor_scan["data"], cor_scan["content_type"]) if cor_scan else None,
             name, school_id,
         )
-    ai_note = (ai_note or "") + (" AI verified all three face poses." if face_verified else
-                                  " Face poses were captured, but AI verification was unavailable; administrator review is required.")
+    ai_note = (ai_note or "") + (" AI verified the front-facing selfie framing." if face_verified else
+                                  " The selfie was captured, but automatic framing verification was unavailable; administrator review is required.")
 
     # Keep the existing primary document slot compatible with earlier pending accounts.
     primary = id_scan or cor_scan
@@ -339,11 +330,11 @@ async def student_registration(request: Request, full_name: str = Form(...),
     request.session.clear()
     if auto_approve and face_verified:
         return {"success": True, "approval_status": "Approved",
-                "message": "Your documents matched the reference and the guided face scan passed. Your account is active; you can sign in now."}
+                "message": "Your documents matched the reference and the selfie framing check passed. Your account is active; you can sign in now."}
     if not auto_approve:
         pending_message = "Your face scan is saved as a PDF. Your ID or COR needs administrator approval before you can sign in."
     else:
-        pending_message = "Your documents matched, but AI pose verification was incomplete. An administrator must review your face scan before approving the account."
+        pending_message = "Your documents matched, but automatic selfie framing verification was unavailable. An administrator must review your selfie before approving the account."
     return {"success": True, "approval_status": "Pending",
             "message": pending_message}
 
@@ -372,8 +363,6 @@ async def extract_student_registration_fields(request: Request, consent: str = F
 async def instructor_registration(request: Request, full_name: str = Form(...),
                                   instructor_id: str = Form(...), department: str = Form(...),
                                   face_photo_front: UploadFile = File(...),
-                                  face_photo_left: UploadFile = File(...),
-                                  face_photo_right: UploadFile = File(...),
                                   face_photo_consent: str = Form(""),
                                   db: Session = Depends(get_db)):
     """Submit personal-Gmail instructor details for administrator review."""
@@ -388,17 +377,13 @@ async def instructor_registration(request: Request, full_name: str = Form(...),
     if face_photo_consent.lower() != "true":
         raise ValidationError("Consent is required to store your selfie for administrator face review.")
     face_steps = request.session.get("face_scan_steps") or []
-    if [s.get("stage") for s in face_steps] != ["front", "left", "right"]:
-        raise ValidationError("Complete the guided face scan before submitting.")
+    if [s.get("stage") for s in face_steps] != ["front"]:
+        raise ValidationError("Capture the front-facing selfie before submitting.")
     face_front = await _read_face_photo(face_photo_front)
-    face_left = await _read_face_photo(face_photo_left)
-    face_right = await _read_face_photo(face_photo_right)
-    if [face_front["source_digest"], face_left["source_digest"], face_right["source_digest"]] != [
-        step.get("digest") for step in face_steps
-    ]:
-        raise ValidationError("The submitted face scan images must be the same images captured in the guided steps.")
-    face_pdf = _make_face_scan_pdf(face_front, face_left, face_right)
-    face_verified = all(s.get("verified") for s in face_steps)
+    if face_front["source_digest"] != face_steps[0].get("digest"):
+        raise ValidationError("The submitted selfie must be the same image captured in the guided scan.")
+    face_pdf = _make_face_scan_pdf(face_front)
+    face_verified = bool(face_steps[0].get("verified"))
 
     name = clean_text(full_name, "Full name", 120)
     employee_id = clean_text(instructor_id, "Instructor ID number", 50)
@@ -432,8 +417,6 @@ def nemsu_registration_status(request: Request):
 @router.post("/nemsu-registration")
 async def nemsu_registration(request: Request, full_name: str = Form(...), role: str = Form(...),
                              face_photo_front: UploadFile = File(...),
-                             face_photo_left: UploadFile = File(...),
-                             face_photo_right: UploadFile = File(...),
                              face_photo_consent: str = Form(""),
                              db: Session = Depends(get_db)):
     """NEMSU students/instructors: complete the guided face scan, then sign in right
@@ -452,17 +435,13 @@ async def nemsu_registration(request: Request, full_name: str = Form(...), role:
     if face_photo_consent.lower() != "true":
         raise ValidationError("Consent is required to store your selfie for administrator face review.")
     face_steps = request.session.get("face_scan_steps") or []
-    if [s.get("stage") for s in face_steps] != ["front", "left", "right"]:
-        raise ValidationError("Complete the guided face scan before submitting.")
+    if [s.get("stage") for s in face_steps] != ["front"]:
+        raise ValidationError("Capture the front-facing selfie before submitting.")
     face_front = await _read_face_photo(face_photo_front)
-    face_left = await _read_face_photo(face_photo_left)
-    face_right = await _read_face_photo(face_photo_right)
-    if [face_front["source_digest"], face_left["source_digest"], face_right["source_digest"]] != [
-        step.get("digest") for step in face_steps
-    ]:
-        raise ValidationError("The submitted face scan images must be the same images captured in the guided steps.")
-    face_pdf = _make_face_scan_pdf(face_front, face_left, face_right)
-    face_verified = all(s.get("verified") for s in face_steps)
+    if face_front["source_digest"] != face_steps[0].get("digest"):
+        raise ValidationError("The submitted selfie must be the same image captured in the guided scan.")
+    face_pdf = _make_face_scan_pdf(face_front)
+    face_verified = bool(face_steps[0].get("verified"))
 
     name = clean_text(full_name, "Full name", 120)
     if len(name) < 3:

@@ -225,26 +225,27 @@ def review_documents(id_front, id_back, cor, expected_name="", expected_student_
     return " ".join(notes), auto_approve
 
 
-def face_pose_guidance(image, stage):
-    """Classify only face framing and requested head pose; never identify the person."""
-    if stage not in ("front", "left", "right") or not image:
-        return {"state": "unclear", "instruction": "Adjust your position and try again."}
+def face_selfie_guidance(image):
+    """Check only selfie framing and face visibility; never identify the person."""
+    if not image:
+        return {"state": "unclear", "instruction": "Center your face and try again."}
     try:
         encoded, mime = _image_for_ai(image[0])
-        requested = {"front": "face directly toward the camera",
-                     "left": "turn your own head slightly to your left",
-                     "right": "turn your own head slightly to your right"}[stage]
         system_prompt = (
             "You provide camera framing guidance for a registration selfie. Never identify the person, "
             "infer demographics, estimate age, compare identity, or judge authenticity. Assess only "
-            "whether exactly one face is visible, face distance/centering/light, and head direction. "
-            "Return exactly one JSON object with state from: ready, no_face, multiple_faces, too_far, "
-            "too_close, off_center, low_light, turn_left, turn_right, face_camera, unclear."
+            "whether exactly one face is visible, face distance, centering, lighting, and whether the "
+            "face is directed toward the camera. Return exactly one JSON object with state from: ready, "
+            "no_face, multiple_faces, too_far, too_close, off_center, low_light, face_camera, unclear."
         )
-        prompt = (f"Capture step: {stage}. The person should {requested}. If the face is centered, "
-                  "large enough, well lit, exactly one face is visible, and the requested pose is "
-                  "clear, return ready. Otherwise return the single most useful correction state. "
-                  "For left/right, refer to the person's own left/right. JSON only.")
+        prompt = ("Capture one front-facing registration selfie. If the face is centered, fully inside "
+                  "the circular guide, facial features are visible in normal indoor "
+                  "lighting, exactly one face is visible, and the head is directed toward the camera, "
+                  "return ready. Accept slight natural tilt, mild shadows, and small centering "
+                  "imperfections; do not require studio lighting or perfect alignment. Judge face "
+                  "direction rather than where the eyes look. "
+                  "Only return a correction for an obvious framing or visibility problem. "
+                  "Return JSON only.")
         answer, _provider, _model = systemAi.ask_vision(system_prompt, prompt, encoded, mime)
         if not answer:
             return {"state": "unavailable", "instruction": "AI guidance is unavailable. Capture for administrator review.",
@@ -254,21 +255,19 @@ def face_pose_guidance(image, stage):
         parsed = json.loads(text[start:end + 1]) if start >= 0 and end > start else {}
         state = str(parsed.get("state", "unclear")).strip().lower()
         allowed = {"ready", "no_face", "multiple_faces", "too_far", "too_close", "off_center",
-                   "low_light", "turn_left", "turn_right", "face_camera", "unclear"}
+                   "low_light", "face_camera", "unclear"}
         if state not in allowed:
             state = "unclear"
         instructions = {
-            "ready": "Good. Capturing this pose.", "no_face": "Place your face inside the circle.",
+            "ready": "Good. Capturing your selfie.", "no_face": "Place your face inside the circle.",
             "multiple_faces": "Make sure only your face is in the frame.",
             "too_far": "Move closer to the camera.", "too_close": "Move a little farther back.",
             "off_center": "Center your face inside the circle.", "low_light": "Move to a brighter place.",
-            "turn_left": "Turn your head slightly to your left.",
-            "turn_right": "Turn your head slightly to your right.",
             "face_camera": "Turn your face toward the camera.",
             "unclear": "Hold still and try again in better light.",
         }
         return {"state": state, "instruction": instructions[state], "available": bool(answer)}
     except Exception as exc:
-        print("FACE POSE GUIDANCE ERROR:", repr(exc)[:180])
+        print("FACE SELFIE GUIDANCE ERROR:", repr(exc)[:180])
         return {"state": "unavailable", "instruction": "AI guidance is unavailable. Capture for administrator review.",
                 "available": False}

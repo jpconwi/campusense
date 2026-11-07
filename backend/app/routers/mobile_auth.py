@@ -196,10 +196,8 @@ async def mobile_student_registration(
 async def mobile_nemsu_registration(
         id_token: str = Form(...), full_name: str = Form(...), role: str = Form(...),
         face_photo_front: UploadFile = File(None),
-        face_photo_left: UploadFile = File(None),
-        face_photo_right: UploadFile = File(None),
         db: Session = Depends(get_db)):
-    """NEMSU students/instructors: register with optional face captures, then sign in
+    """NEMSU students/instructors: register with an optional selfie, then sign in
     right away. The account enters the administrator's first-level check queue."""
     info = await _verified_claims(id_token)
     email = (info.get("email") or "").strip().lower()
@@ -212,11 +210,9 @@ async def mobile_nemsu_registration(
     if len(name) < 3:
         raise ValidationError("Enter your full name.")
     front = await _read_scan(face_photo_front, "face scan (front)")
-    left = await _read_scan(face_photo_left, "face scan (left)")
-    right = await _read_scan(face_photo_right, "face scan (right)")
     face_pdf = None
-    if front and left and right:
-        face_pdf = await run_in_threadpool(_make_face_scan_pdf, front, left, right)
+    if front:
+        face_pdf = await run_in_threadpool(_make_face_scan_pdf, front)
     user = user_service.submit_nemsu_registration(
         db, info["sub"], name, email, chosen,
         face_image=front["data"] if front else None,
