@@ -43,7 +43,8 @@ def create_faculty_report(db: Session, user, form):
 
     row = FacultyReport(instructor=user.name,                 # from the Google account
                         reason=reason, start_date=start_date, expected_return=expected_return,
-                        submitted_at=now(), status="Absent", instructor_email=user.email.lower())
+                        submitted_at=now(), status="Absent", review_status="Pending",
+                        instructor_email=user.email.lower())
     db.add(row)
     db.commit()
     data = _to_dict(row)
@@ -61,7 +62,8 @@ def mark_available_for_email(db: Session, email):
     """An instructor says 'I am back'. Only their own Absent records change."""
     rows = db.execute(select(FacultyReport).where(
         FacultyReport.instructor_email == email.lower(),
-        FacultyReport.status == "Absent")).scalars().all()
+        FacultyReport.status == "Absent",
+        FacultyReport.review_status == "Approved")).scalars().all()
     for row in rows:
         row.status = "Available"
     db.commit()
@@ -71,9 +73,24 @@ def mark_available_for_email(db: Session, email):
 def mark_available_by_id(db: Session, record_id):
     """Used by the admin dashboard."""
     row = db.get(FacultyReport, record_id)
-    if row is None or row.status != "Absent":
+    if row is None or row.status != "Absent" or row.review_status != "Approved":
         return False
     row.status = "Available"
+    db.commit()
+    return True
+
+
+def review_record(db: Session, record_id, reviewer_email, decision, note=""):
+    """Approve or reject a submitted faculty report before publishing availability."""
+    row = db.get(FacultyReport, record_id)
+    if row is None or row.review_status != "Pending":
+        return False
+    if decision not in ("Approved", "Rejected"):
+        raise ValidationError("Choose Approved or Rejected.")
+    row.review_status = decision
+    row.reviewed_by = (reviewer_email or "").strip().lower()
+    row.reviewed_at = now()
+    row.review_note = (note or "").strip()[:500] or None
     db.commit()
     return True
 
@@ -122,7 +139,8 @@ def find_current_records(db: Session, search_name):
     Best matching instructors, one (newest) record each.
     Returns a list of records. Empty list = no record.
     """
-    rows = list(reversed(load_records(db)))             # newest first
+    rows = [row for row in reversed(load_records(db))
+            if row.get("review_status", "Approved") == "Approved"]  # only approved reports inform availability
     ranked = [(match_rank(search_name, r["instructor"]), r) for r in rows]
     ranked = [(rank, r) for rank, r in ranked if rank > 0]
     if not ranked:

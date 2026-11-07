@@ -40,6 +40,7 @@ def init_db():
     _add_photo_concern_columns()
     _add_photo_draft_session_column()
     _add_report_assignment_column()
+    _add_faculty_reservation_review_columns()
     from app.services import campus_service, sentiment_service
     with SessionLocal() as db:
         from app.model import systemAi
@@ -205,3 +206,32 @@ def _add_report_assignment_column():
         if engine.dialect.name == "postgresql":
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_reports_assigned_admin_email ON reports (assigned_admin_email)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_concerns_assigned_admin_email ON concerns (assigned_admin_email)"))
+
+
+def _add_faculty_reservation_review_columns():
+    """Add reviewer audit fields; preserve old faculty reports as reviewed."""
+    from sqlalchemy import inspect, text
+    tables = {
+        table: {column["name"] for column in inspect(engine).get_columns(table)}
+        for table in ("faculty_reports", "reservations")
+    }
+    additions = {
+        "faculty_reports": {
+            "review_status": "VARCHAR(20) NOT NULL DEFAULT 'Approved'",
+            "reviewed_by": "VARCHAR(255)",
+            "reviewed_at": "TIMESTAMP",
+            "review_note": "VARCHAR(500)",
+        },
+        "reservations": {
+            "reviewed_by": "VARCHAR(255)",
+            "reviewed_at": "TIMESTAMP",
+            "review_note": "VARCHAR(500)",
+        },
+    }
+    with engine.begin() as conn:
+        for table, columns in additions.items():
+            for column, sql_type in columns.items():
+                if engine.dialect.name == "postgresql":
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {sql_type}"))
+                elif column not in tables[table]:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))

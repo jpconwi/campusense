@@ -160,8 +160,6 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
             me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     if kind not in SECTIONS:
         raise HTTPException(404, "That page was not found.")
-    if kind == "reservations" and me.role != "super_admin":
-        raise HTTPException(404, "That page was not found.")
     if status and status not in common.TABLE_STATUSES[kind]:
         status = None
     rows = common.list_rows(db, kind, status=status)
@@ -207,6 +205,7 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
 
 class StatusBody(BaseModel):
     status: str = ""
+    note: str = ""
 
 
 @router.post("/records/{kind}/{row_id}/status")
@@ -214,10 +213,13 @@ def change_status(kind: str, row_id: int, body: StatusBody, me: CurrentUser = De
                   db: Session = Depends(get_db)):
     if kind not in SECTIONS:
         raise HTTPException(404, "That page was not found.")
-    if kind == "reservations" and me.role != "super_admin":
-        raise HTTPException(404, "That page was not found.")
     if kind == "reservations":
-        reservation_service.change_status(db, row_id, body.status)
+        row = db.get(common.MODELS["reservations"], row_id)
+        previous = row.status if row else None
+        reservation_service.change_status(db, row_id, body.status, me.email, body.note)
+        _log_admin_action(db, me.email, "reservation_status_changed", row.requester_email,
+                          f"Reservation #{row_id} changed from {previous} to {body.status}."
+                          + (f" Note: {body.note.strip()[:350]}" if body.note.strip() else ""))
     elif not common.update_status(db, kind, row_id, body.status):
         raise ValidationError("Record not found.")
     return {"success": True, "message": f"Status of #{row_id} changed to {body.status}."}
@@ -314,15 +316,39 @@ def verify_photo_report(report_id: int, body: VerifyBody, me: CurrentUser = Depe
 
 # ------------------------------------------------------------- faculty
 @router.get("/faculty")
-def faculty(db: Session = Depends(get_db)):
+def faculty(_me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     return {"rows": list(reversed(faculty_service.load_records(db)))}
 
 
 @router.post("/faculty/{record_id}/available")
-def faculty_available(record_id: int, db: Session = Depends(get_db)):
+def faculty_available(record_id: int, me: CurrentUser = Depends(admin_required),
+                      db: Session = Depends(get_db)):
+    record = faculty_service.get_record(db, record_id)
     if not faculty_service.mark_available_by_id(db, record_id):
         raise ValidationError("Record not found or already available.")
+    _log_admin_action(db, me.email, "faculty_availability_changed", record.get("instructor_email"),
+                      f"Faculty report #{record_id} marked Available.")
     return {"success": True, "message": "Marked as available."}
+
+
+class FacultyReviewBody(BaseModel):
+    decision: str = ""
+    note: str = ""
+
+
+@router.post("/faculty/{record_id}/review")
+def review_faculty(record_id: int, body: FacultyReviewBody,
+                   me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
+    decision = body.decision.strip().title()
+    record = faculty_service.get_record(db, record_id)
+    if record is None or not faculty_service.review_record(
+            db, record_id, me.email, decision, body.note):
+        raise ValidationError("This faculty report is no longer awaiting review.")
+    _log_admin_action(db, me.email, "faculty_report_" + decision.lower(),
+                      record.get("instructor_email"),
+                      f"Faculty report #{record_id} {decision.lower()}."
+                      + (f" Note: {body.note.strip()[:350]}" if body.note.strip() else ""))
+    return {"success": True, "message": f"Faculty report {decision.lower()}."}
 
 
 # --------------------------------------------------------------- users

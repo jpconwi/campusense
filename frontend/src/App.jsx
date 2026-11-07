@@ -76,7 +76,7 @@ export default function App() {
         {["reports", "feedback"].map((k) => (
           <Route key={k} path={`/admin/${k}`} element={page(<AdminList kind={k} />, ["admin"])} />
         ))}
-        <Route path="/admin/reservations" element={page(<AdminList kind="reservations" />, ["super_admin"])} />
+        <Route path="/admin/reservations" element={page(<AdminList kind="reservations" />, ["admin"])} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

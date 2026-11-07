@@ -56,7 +56,7 @@ def create_reservation(db: Session, user, form):
     return common.get_row(db, "reservations", row.id)
 
 
-def change_status(db: Session, reservation_id, status):
+def change_status(db: Session, reservation_id, status, reviewer_email=None, note=""):
     """Admin only. Checks for overlaps before approving."""
     row = db.get(Reservation, reservation_id)
     if row is None:
@@ -68,3 +68,7 @@ def change_status(db: Session, reservation_id, status):
             raise ValidationError("Cannot approve: that time overlaps reservation "
                                   f"#{conflict['id']} which is already approved.")
     common.update_status(db, "reservations", reservation_id, status)
+    row.reviewed_by = (reviewer_email or "").strip().lower() or row.reviewed_by
+    row.reviewed_at = common.now()
+    row.review_note = (note or "").strip()[:500] or None
+    db.commit()

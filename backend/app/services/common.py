@@ -66,6 +66,8 @@ COLUMNS = {
         ("Facility", "facility", False), ("Purpose", "purpose", False),
         ("Date", "reservation_date", False), ("Time", "time_range", False),
         ("Additional info", "additional_info", False), ("Status", "status", False),
+        ("Reviewed by", "reviewed_by", True), ("Reviewed at", "reviewed_at", True),
+        ("Review note", "review_note", True),
     ],
 }
 

@@ -231,6 +231,9 @@ class Reservation(Base):
     end_time: Mapped[time] = mapped_column(Time, nullable=False)
     additional_info: Mapped[Optional[str]] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(30), default="Pending", nullable=False)
+    reviewed_by: Mapped[Optional[str]] = mapped_column(String(255))
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    review_note: Mapped[Optional[str]] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
 
@@ -247,6 +250,10 @@ class FacultyReport(Base):
     expected_return: Mapped[date] = mapped_column(Date, nullable=False)
     submitted_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     status: Mapped[str] = mapped_column(String(30), default="Absent", nullable=False)
+    review_status: Mapped[str] = mapped_column(String(20), default="Approved", nullable=False)
+    reviewed_by: Mapped[Optional[str]] = mapped_column(String(255))
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    review_note: Mapped[Optional[str]] = mapped_column(String(500))
     instructor_email: Mapped[str] = mapped_column(String(255), default="", nullable=False)
 
 

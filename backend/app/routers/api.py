@@ -321,8 +321,9 @@ def submit_faculty(
     row = faculty_service.create_faculty_report(db, user, form)
     return {
         "success": True,
-        "message": "Your faculty availability report has been submitted successfully.",
-        "id": row["display_id"], "instructor": row["instructor"], "status": row["status"],
+        "message": "Your faculty report was submitted and is pending administrator review.",
+        "id": row["display_id"], "instructor": row["instructor"], "status": row["review_status"],
+        "availability_status": row["status"],
         "submitted_at": row["submitted_at"], "expected_return": row["expected_return"],
         "pdf_url": f"/api/pdf/faculty/{row['id']}",
     }
