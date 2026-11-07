@@ -125,10 +125,6 @@ export default function FaceScanner({ onComplete, disabled = false }) {
             <p className={`face-scan-instruction ${poseState}`} role="status" aria-live="polite">
               {poseState === "checking" ? "Checking face position and visibility…" : instruction}
             </p>
-            <p className="face-scan-legend">
-              <span className="not-ready">Red: face or framing needs adjustment.</span>
-              <span className="is-ready">Green: clear, capturing automatically.</span>
-            </p>
           </>}
   </section>;
 }

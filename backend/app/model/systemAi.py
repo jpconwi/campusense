@@ -257,7 +257,7 @@ def _try_provider(provider, messages, deadline, models=None, callers=None, key=N
             if time.monotonic() >= deadline:
                 stop["why"] = "deadline"
                 return None
-            timeout = max(3, min(REQUEST_TIMEOUT, deadline - time.monotonic()))
+            timeout = max(0.5, min(REQUEST_TIMEOUT, deadline - time.monotonic()))
             try:
                 return _clean(callers[provider](model, messages, timeout)) or None
             except Exception as error:
@@ -412,17 +412,27 @@ def _vision_models(provider):
     return configured + [m for m in DEFAULT_VISION_MODELS[provider] if m not in configured]
 
 
-def _vision_callers():
+def _vision_callers(max_tokens=None):
     def hf(model, messages, timeout):
         global _hf_client
-        if _hf_client is None:
+        if max_tokens is None and timeout >= REQUEST_TIMEOUT:
+            if _hf_client is None:
+                from huggingface_hub import InferenceClient
+                _hf_client = InferenceClient(api_key=config.HUGGINGFACE_API_KEY, provider="auto",
+                                             timeout=REQUEST_TIMEOUT)
+            client = _hf_client
+            tokens = VISION_MAX_TOKENS
+        else:
             from huggingface_hub import InferenceClient
-            _hf_client = InferenceClient(api_key=config.HUGGINGFACE_API_KEY, provider="auto",
-                                         timeout=REQUEST_TIMEOUT)
-        return _hf_client.chat.completions.create(
-            model=model, messages=messages, max_tokens=VISION_MAX_TOKENS,
+            client = InferenceClient(api_key=config.HUGGINGFACE_API_KEY, provider="auto",
+                                     timeout=timeout)
+            tokens = max_tokens or VISION_MAX_TOKENS
+        return client.chat.completions.create(
+            model=model, messages=messages, max_tokens=tokens,
             temperature=0.1).choices[0].message.content
 
+    cloudflare_tokens = max_tokens or VISION_MAX_TOKENS
+    reasoning_tokens = max_tokens or VISION_REASONING_TOKENS
     def openai_style(url_of, key_name, extra=None, tokens=VISION_MAX_TOKENS):
         return lambda model, messages, timeout: _openai_style(
             url_of() if callable(url_of) else url_of, getattr(config, key_name), model, messages,
@@ -432,13 +442,14 @@ def _vision_callers():
         "huggingface": hf,
         "cloudflare": openai_style(
             lambda: f"https://api.cloudflare.com/client/v4/accounts/{config.CLOUDFLARE_ACCOUNT_ID}"
-                    "/ai/v1/chat/completions", "CLOUDFLARE_API_KEY"),
+                    "/ai/v1/chat/completions", "CLOUDFLARE_API_KEY", tokens=cloudflare_tokens),
         "groq": openai_style("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY",
-                             tokens=VISION_REASONING_TOKENS),
+                             tokens=reasoning_tokens),
         "google": openai_style("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-                               "GOOGLE_API_KEY", tokens=VISION_REASONING_TOKENS),
+                               "GOOGLE_API_KEY", tokens=reasoning_tokens),
         "openrouter": openai_style("https://openrouter.ai/api/v1/chat/completions",
-                                   "OPENROUTER_API_KEY", {"X-Title": "NEMSAI"}),
+                                   "OPENROUTER_API_KEY", {"X-Title": "NEMSAI"},
+                                   tokens=cloudflare_tokens),
     }
 
 
@@ -446,7 +457,8 @@ def vision_available():
     return any(is_configured(p) for p in VISION_PROVIDER_ORDER)
 
 
-def ask_vision(system_prompt, user_text, image_b64, mime="image/jpeg"):
+def ask_vision(system_prompt, user_text, image_b64, mime="image/jpeg", *,
+               total_timeout=None, provider_timeout=None, max_tokens=None):
     """Ask a vision-language model about one image or a list of (base64, MIME) images.
     Returns (answer, provider, model);
     (None, None, None) when no provider could answer (the caller then falls back to manual review)."""
@@ -460,13 +472,15 @@ def ask_vision(system_prompt, user_text, image_b64, mime="image/jpeg"):
                    for encoded, image_mime in images)
     messages = [{"role": "system", "content": system_prompt},
                 {"role": "user", "content": content}]
-    callers = _vision_callers()
-    deadline = time.monotonic() + VISION_TOTAL_TIMEOUT
+    total_timeout = VISION_TOTAL_TIMEOUT if total_timeout is None else max(1, float(total_timeout))
+    provider_timeout = VISION_PROVIDER_TIMEOUT if provider_timeout is None else max(0.5, float(provider_timeout))
+    callers = _vision_callers() if max_tokens is None else _vision_callers(max_tokens=max_tokens)
+    deadline = time.monotonic() + total_timeout
     for provider in VISION_PROVIDER_ORDER:
         key = provider + ":vision"
         if not is_configured(provider) or _cooldown_until.get(key, 0) > time.monotonic():
             continue
-        provider_deadline = min(deadline, time.monotonic() + VISION_PROVIDER_TIMEOUT)
+        provider_deadline = min(deadline, time.monotonic() + provider_timeout)
         answer, model = _try_provider(provider, messages, provider_deadline, models=_vision_models(provider),
                                       callers=callers, key=key, vision=True)
         if answer:

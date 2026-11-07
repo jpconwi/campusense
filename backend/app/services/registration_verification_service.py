@@ -246,7 +246,9 @@ def face_selfie_guidance(image):
                   "direction rather than where the eyes look. "
                   "Only return a correction for an obvious framing or visibility problem. "
                   "Return JSON only.")
-        answer, _provider, _model = systemAi.ask_vision(system_prompt, prompt, encoded, mime)
+        answer, _provider, _model = systemAi.ask_vision(
+            system_prompt, prompt, encoded, mime,
+            total_timeout=5, provider_timeout=4, max_tokens=96)
         if not answer:
             return {"state": "unavailable", "instruction": "AI guidance is unavailable. Capture for administrator review.",
                     "available": False}

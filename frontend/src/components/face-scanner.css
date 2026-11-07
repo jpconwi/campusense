@@ -18,6 +18,3 @@
 .face-scan-instruction.unclear { color: #b42318; }
 .face-scan-instruction.ready { color: #04784a; }
 .face-scan-instruction.error, .face-scan-instruction.review { color: #475569; }
-.face-scan-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; margin: 8px 0 0; text-align: center; font-size: .86rem; }
-.face-scan-legend .not-ready { color: #b42318; }
-.face-scan-legend .is-ready { color: #04784a; }
