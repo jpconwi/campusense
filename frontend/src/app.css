@@ -1106,6 +1106,30 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
 .account-check-buttons .btn { flex: 1 1 auto; text-align: center; }
 .account-dialog { width: min(100%, 1080px); }
 .account-dialog .report-dialog-content { background: #f6f8fb; }
+.document-scan-field { display: grid; gap: 6px; }
+.document-scan-field > strong { color: var(--ink); font-size: .9rem; }
+.document-scan-field > small { color: var(--muted); font-size: .82rem; font-weight: 400; }
+.document-scanner { display: grid; gap: 8px; width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #f8fafc; }
+.document-scan-stage { position: relative; display: grid; place-items: center; width: min(100%, 440px); margin: 0 auto; overflow: hidden;
+                       aspect-ratio: 1.586; border-radius: 9px; background: #202a37; }
+.document-scan-stage.kind-cor { width: min(100%, 340px); aspect-ratio: .72; }
+.document-scan-stage video, .document-scan-stage > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.document-scan-stage > img { object-fit: contain; background: #e9eef4; }
+.document-scan-guide { position: absolute; inset: 7% 4.5%; border: 3px solid #d12f3d; border-radius: 8px; pointer-events: none;
+                       box-shadow: 0 0 0 100vmax rgba(8,14,30,.18); transition: border-color .18s ease, box-shadow .18s ease; }
+.kind-cor .document-scan-guide { inset: 4.5% 7%; }
+.document-scan-stage.checking .document-scan-guide, .document-scan-stage.capturing .document-scan-guide { border-color: #e5a326; }
+.document-scan-stage.ready .document-scan-guide { border-color: #07945b; box-shadow: 0 0 0 100vmax rgba(8,14,30,.1), 0 0 14px rgba(7,148,91,.38); }
+.document-scan-placeholder { position: absolute; z-index: 1; max-width: 80%; color: #fff; font-size: .86rem; font-weight: 650; text-align: center;
+                             text-shadow: 0 1px 3px #000; }
+.document-scan-status { min-height: 1.35em; color: var(--muted); font-size: .84rem; font-weight: 600; text-align: center; }
+.document-scan-status.unclear { color: #aa252e; }
+.document-scan-status.ready, .document-scan-status.captured { color: #08784c; }
+.document-scan-status.checking, .document-scan-status.capturing { color: #895d0b; }
+.document-scan-error { color: #aa252e; font-size: .82rem; }
+.document-scan-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.document-choose-button { position: relative; overflow: hidden; cursor: pointer; }
+.document-choose-button input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 @media (max-width: 760px) {
   .account-summary { gap: 8px; }
   .account-chip { align-items: flex-start; flex-direction: column; justify-content: center; gap: 3px; min-height: 70px; padding: 9px 11px; }

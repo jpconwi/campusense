@@ -5,6 +5,7 @@ import { useAuth } from "../auth.jsx";
 import { Header } from "../components/Layout.jsx";
 import RegistrationHelp from "../components/RegistrationHelp.jsx";
 import FaceScanner from "../components/FaceScanner.jsx";
+import DocumentScanner from "../components/DocumentScanner.jsx";
 
 export default function Register() {
   const { loading, user } = useAuth();
@@ -59,6 +60,25 @@ export default function Register() {
     } finally {
       if (requestId === extractionRequest.current) setExtracting(false);
     }
+  }
+
+  function captureIdFront(file) {
+    setIdFile(file);
+    if (!file) setIdBackFile(null);
+    extractionRequest.current += 1;
+    setExtracting(false);
+    if (file) extractStudentInfo(file);
+  }
+
+  function captureIdBack(file) {
+    setIdBackFile(file);
+  }
+
+  function captureCor(file) {
+    setCorFile(file);
+    extractionRequest.current += 1;
+    setExtracting(false);
+    if (file) extractStudentInfo(file);
   }
 
   async function submit(event) {
@@ -181,29 +201,29 @@ export default function Register() {
                         </select>
                       </label>
                       <p className="registration-scan-help">To autofill your name and student ID, choose a document and agree to AI reading below. The fields remain editable if the result needs correction.</p>
-                      <p className="registration-scan-help">Choose either your school ID or your COR, then capture it with your camera or select an image. School ID automatic screening requires front and back; a COR can be screened by itself.</p>
+                      <p className="registration-scan-help">Center the full document inside the guide. The camera captures automatically when the image is clear and steady. School ID screening uses front and back; a COR can be screened by itself.</p>
                       {studentDocumentType === "school_id" ? (
                         <>
-                          <label>
-                            School ID front
-                            <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" required
-                              onChange={(e) => { const file = e.target.files?.[0] || null; setIdFile(file); extractionRequest.current += 1; setExtracting(false); if (file) extractStudentInfo(file); }} />
-                            <small>{idFile ? `Selected: ${idFile.name}` : "JPG, PNG, or WEBP; maximum 5 MB."}</small>
-                          </label>
-                          <label>
-                            School ID back (required for automatic screening)
-                            <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
-                              onChange={(e) => setIdBackFile(e.target.files?.[0] || null)} />
-                            <small>{idBackFile ? `Selected: ${idBackFile.name}` : "Without the back, the application stays pending for admin review."}</small>
-                          </label>
+                          <div className="document-scan-field">
+                            <strong>School ID front</strong>
+                            <DocumentScanner label="school ID front" kind="id" value={idFile}
+                              enabled={Boolean(faceFiles?.front) && !busy} onCapture={captureIdFront} />
+                            {!idFile && <small>JPG, PNG, or WEBP; maximum 5 MB.</small>}
+                          </div>
+                          <div className="document-scan-field">
+                            <strong>School ID back (needed for automatic screening)</strong>
+                            <DocumentScanner label="school ID back" kind="id" value={idBackFile}
+                              enabled={Boolean(faceFiles?.front && idFile) && !busy} onCapture={captureIdBack} />
+                            {!idBackFile && <small>Without the back, the application stays pending for admin review.</small>}
+                          </div>
                         </>
                       ) : (
-                        <label>
-                          Certificate of Registration (COR)
-                          <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" required
-                            onChange={(e) => { const file = e.target.files?.[0] || null; setCorFile(file); extractionRequest.current += 1; setExtracting(false); if (file) extractStudentInfo(file); }} />
-                          <small>{corFile ? `Selected: ${corFile.name}` : "JPG, PNG, or WEBP; maximum 5 MB."}</small>
-                        </label>
+                        <div className="document-scan-field">
+                          <strong>Certificate of Registration (COR)</strong>
+                          <DocumentScanner label="certificate of registration" kind="cor" value={corFile}
+                            enabled={Boolean(faceFiles?.front) && !busy} onCapture={captureCor} />
+                          {!corFile && <small>JPG, PNG, or WEBP; maximum 5 MB.</small>}
+                        </div>
                       )}
                       <label className="registration-consent">
                         <input type="checkbox" checked={aiConsent} onChange={(e) => {
@@ -212,7 +232,7 @@ export default function Register() {
                           if (consent) extractStudentInfo(studentDocumentType === "school_id" ? idFile : corFile, true, "student");
                           else { extractionRequest.current += 1; setExtracting(false); setExtractionMessage("AI autofill is off. You can enter your name and student ID manually."); }
                         }} />
-                        <span>I agree to send my ID/COR scan to the configured AI provider to extract only my printed full name and student ID for form autofill, and to visually screen the document. I will check and correct the detected values before submitting. The provider may process these fields; other personal fields, faces, and QR codes are not requested. The visual screening does not prove authenticity or verify signatures. Image metadata is removed first, and administrators can view the submitted scans.</span>
+                        <span>I agree to send my ID/COR scan to the configured AI provider to extract only my printed full name and student ID for form autofill, and to visually screen the document. A clear match to the configured reference, matching identity details, and a verified selfie may be auto-approved. Unclear, mismatched, or unavailable checks go to an administrator. The check does not prove authenticity or verify signatures. Image metadata is removed first, and administrators can view the submitted scans.</span>
                       </label>
                       {extracting && <p className="registration-scan-help" role="status">Reading your document...</p>}
                       {extractionMessage && <p className="registration-scan-help" role="status">{extractionMessage}</p>}
