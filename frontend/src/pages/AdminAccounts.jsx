@@ -103,50 +103,60 @@ function AccountDetail({ row, onChanged }) {
         </div>
       </div>
 
-      <div className="account-detail-meta">
-        <span><b>Source</b>{row.is_nemsu ? "NEMSU account" : "Personal Gmail"}</span>
-        <span><b>Role</b>{row.registration_type || row.role || "-"}</span>
-        <span><b>School ID</b>{row.student_id || "-"}</span>
-        <span><b>Department</b>{row.department || "-"}</span>
-        <span><b>Submitted</b>{row.created_at}</span>
-        <span><b>Face review</b>{row.face_review_status === "AI Pose Passed" ? "Selfie framing passed" : row.face_review_status || "Not required"}</span>
-      </div>
+      <div className="account-detail-layout">
+        <div className="account-detail-main">
+          <section className="account-detail-section">
+            <h4>Account information</h4>
+            <div className="account-detail-meta">
+              <span><b>Source</b>{row.is_nemsu ? "NEMSU account" : "Personal Gmail"}</span>
+              <span><b>Role</b>{row.registration_type || row.role || "-"}</span>
+              <span><b>School ID</b>{row.student_id || "-"}</span>
+              <span><b>Department</b>{row.department || "-"}</span>
+              <span><b>Submitted</b>{row.created_at}</span>
+              <span><b>Face review</b>{row.face_review_status === "AI Pose Passed" ? "Selfie framing passed" : row.face_review_status || "Not required"}</span>
+            </div>
+          </section>
 
-      <section className="account-docs">
-        <h4>Identity documents and face</h4>
-        <div className="account-doc-grid">
-          {row.has_verification_document &&
-            <DocPreview title={row.verification_document_kind === "cor" ? "COR" : "School ID front"}
-                        url={apiUrl(`${base}/verification-document`)} />}
-          {row.has_id_back_document && <DocPreview title="School ID back" url={apiUrl(`${base}/verification-document/id-back`)} />}
-          {row.has_cor_document && <DocPreview title="Certificate of Registration" url={apiUrl(`${base}/verification-document/cor`)} />}
-          {row.has_face_image && <DocPreview title="Face scan selfie" url={apiUrl(`${base}/face-image`)} />}
+          {row.verification_ai_note && (
+            <section className="account-detail-section account-ai-note">
+              <h4>Document screening</h4>
+              <p>{row.verification_ai_note}</p>
+            </section>
+          )}
+
+          {row.reviewed_by && (
+            <section className="account-detail-section account-review-history">
+              <h4>Previous check</h4>
+              <p><b>{row.reviewed_by}</b> marked this account <b>{(row.review_status || "").toLowerCase()}</b>{row.reviewed_at ? ` on ${row.reviewed_at}` : ""}.</p>
+              {row.review_note && <p className="muted">{row.review_note}</p>}
+            </section>
+          )}
+
+          <section className="account-detail-section account-action-section">
+            <h4>Review decision</h4>
+            <CheckForm row={row} onChanged={onChanged} />
+          </section>
         </div>
-        {row.has_face_scan_pdf && (
-          <a className="account-pdf-link" href={apiUrl(`${base}/face-scan-pdf`)} target="_blank" rel="noreferrer">
-            Open the selfie PDF
-          </a>
-        )}
-        {!row.has_verification_document && !row.has_cor_document && !row.has_id_back_document && !row.has_face_image &&
-          <p className="muted">No documents were uploaded for this account.</p>}
-      </section>
 
-      {row.verification_ai_note && (
-        <section className="account-ai-note">
-          <h4>NEMSAI document screening</h4>
-          <p>{row.verification_ai_note}</p>
+        <section className="account-detail-section account-docs">
+          <h4>Documents and selfie</h4>
+          <div className="account-doc-grid">
+            {row.has_verification_document &&
+              <DocPreview title={row.verification_document_kind === "cor" ? "COR" : "School ID front"}
+                          url={apiUrl(`${base}/verification-document`)} />}
+            {row.has_id_back_document && <DocPreview title="School ID back" url={apiUrl(`${base}/verification-document/id-back`)} />}
+            {row.has_cor_document && <DocPreview title="Certificate of Registration" url={apiUrl(`${base}/verification-document/cor`)} />}
+            {row.has_face_image && <DocPreview title="Face scan selfie" url={apiUrl(`${base}/face-image`)} />}
+          </div>
+          {row.has_face_scan_pdf && (
+            <a className="account-pdf-link" href={apiUrl(`${base}/face-scan-pdf`)} target="_blank" rel="noreferrer">
+              Open the selfie PDF
+            </a>
+          )}
+          {!row.has_verification_document && !row.has_cor_document && !row.has_id_back_document && !row.has_face_image &&
+            <p className="muted">No documents were uploaded for this account.</p>}
         </section>
-      )}
-
-      {row.reviewed_by && (
-        <section className="account-review-history">
-          <h4>Last check</h4>
-          <p><b>{row.reviewed_by}</b> marked this account <b>{(row.review_status || "").toLowerCase()}</b>{row.reviewed_at ? ` on ${row.reviewed_at}` : ""}.</p>
-          {row.review_note && <p className="muted">{row.review_note}</p>}
-        </section>
-      )}
-
-      <CheckForm row={row} onChanged={onChanged} />
+      </div>
     </div>
   );
 }
@@ -192,19 +202,19 @@ export default function AdminAccounts() {
   const opened = rows.find((r) => r.id === openId);
 
   return (
-    <div className="page" style={{ maxWidth: 1300 }}>
+    <div className="page account-checks-page" style={{ maxWidth: 1300 }}>
       <h2 className="page-title">Account Checks</h2>
       <p className="page-intro">Review NEMSU and personal-Gmail student and instructor registrations, then pass them on to the super admin.</p>
 
-      <div className="account-summary">
-        <span className="account-chip"><b>{counts.pending}</b> pending approval</span>
-        <span className="account-chip"><b>{counts.unreviewed}</b> need a check</span>
-        <span className="account-chip"><b>{counts.flagged}</b> flagged</span>
+      <div className="account-summary" aria-label="Account review totals">
+        <div className="account-chip is-pending"><b>{counts.pending}</b><span>Pending approval</span></div>
+        <div className="account-chip is-unreviewed"><b>{counts.unreviewed}</b><span>Needs a check</span></div>
+        <div className="account-chip is-flagged"><b>{counts.flagged}</b><span>Flagged</span></div>
       </div>
 
-      <div className="filters">
+      <div className="filters account-filters" aria-label="Filter accounts">
         {FILTERS.map((f) => (
-          <button key={f.key} type="button" className={filter === f.key ? "on" : ""}
+          <button key={f.key} type="button" aria-pressed={filter === f.key} className={filter === f.key ? "on" : ""}
             onClick={() => setFilter(f.key)}>{f.label}</button>
         ))}
       </div>
@@ -262,7 +272,7 @@ export default function AdminAccounts() {
 
       {opened && (
         <div className="report-dialog-backdrop" onClick={() => setOpenId(null)}>
-          <section className="report-dialog" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title"
+          <section className="report-dialog account-dialog" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title"
             onClick={(event) => event.stopPropagation()}>
             <header className="report-dialog-header">
               <div>
