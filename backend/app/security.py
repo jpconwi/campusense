@@ -43,12 +43,14 @@ NAV = {
     ],
     "admin": [
         ("Dashboard", "/admin"), ("NEMSAI Assistant", "/ai"),
+        ("Account Checks", "/admin/accounts"),
         ("Manage Reports", "/admin/reports?status=Pending"),
         ("Faculty Reports", "/admin/faculty"), ("Feedback & Suggestions", "/admin/feedback"),
         ("Announcements", "/admin/announcements"),
     ],
     "super_admin": [
         ("Dashboard", "/admin"), ("NEMSAI Assistant", "/ai"), ("Users", "/admin/users"),
+        ("Account Checks", "/admin/accounts"),
         ("Help Messages", "/admin/help-messages"), ("Manage Reports", "/admin/reports?status=Pending"),
         ("Faculty Reports", "/admin/faculty"), ("Feedback & Suggestions", "/admin/feedback"),
         ("Campus Reservations", "/admin/reservations"), ("Rooms", "/admin/rooms"),

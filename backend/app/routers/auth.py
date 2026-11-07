@@ -168,6 +168,12 @@ def _finish_login(info, allow_personal_registration=False):
             return "ok", user.id, user.role
 
     with SessionLocal() as db:
+        existing = (user_service.get_by_google_id(db, info["sub"])
+                    or user_service.get_by_email(db, email))
+        # A brand-new NEMSU account must complete the guided face scan first. NEMSU
+        # addresses are then auto-activated and queued for the administrator's check.
+        if existing is None and is_nemsu and not is_admin:
+            return "nemsu_registration_required", None, None
         user = user_service.login_user(db, info["sub"], name, email, is_admin)
         if not user.is_active:
             return "deactivated", None, None
@@ -200,6 +206,15 @@ async def callback(request: Request):
         request.session["student_registration_started_at"] = request.session["personal_registration_started_at"]
         request.session["face_scan_steps"] = []
         return RedirectResponse("/register", status_code=302)
+    if result == "nemsu_registration_required":
+        request.session.clear()
+        request.session["nemsu_registration"] = {
+            "google_id": info["sub"], "email": info["email"].strip().lower(),
+            "google_name": (info.get("name") or "").strip()[:120],
+        }
+        request.session["nemsu_registration_started_at"] = int(time.time())
+        request.session["face_scan_steps"] = []
+        return RedirectResponse("/register/nemsu", status_code=302)
     if result != "ok":
         return _to_login(request, {
             "approval_pending": "approval_pending",
@@ -215,11 +230,11 @@ async def callback(request: Request):
 async def personal_face_guidance(request: Request, stage: str = Form(...),
                                 frame: UploadFile = File(...), manual: str = Form("false"),
                                 consent: str = Form("")):
-    identity = request.session.get("personal_registration")
-    started = request.session.get("personal_registration_started_at", 0)
-    if (not identity or identity.get("email", "").rsplit("@", 1)[-1].lower() != "gmail.com"
-            or time.time() - int(started) > 15 * 60):
-        raise HTTPException(401, "Your registration session expired. Start again with personal Gmail.")
+    identity = request.session.get("personal_registration") or request.session.get("nemsu_registration")
+    started = (request.session.get("personal_registration_started_at")
+               or request.session.get("nemsu_registration_started_at", 0))
+    if not identity or time.time() - int(started) > 15 * 60:
+        raise HTTPException(401, "Your registration session expired. Start again with Google.")
     if consent.lower() != "true":
         raise ValidationError("Face scan AI consent is required before camera analysis.")
     order = ("front", "left", "right")
@@ -403,6 +418,64 @@ async def instructor_registration(request: Request, full_name: str = Form(...),
     request.session.clear()
     return {"success": True,
             "message": "Your instructor registration is pending admin review. You can sign in after it is approved."}
+
+
+@router.get("/nemsu-registration")
+def nemsu_registration_status(request: Request):
+    identity = request.session.get("nemsu_registration")
+    started = request.session.get("nemsu_registration_started_at", 0)
+    if not identity or time.time() - int(started) > 15 * 60:
+        raise HTTPException(401, "Your registration session expired. Start again with your NEMSU Google account.")
+    return {"email": identity.get("email", ""), "google_name": identity.get("google_name", "")}
+
+
+@router.post("/nemsu-registration")
+async def nemsu_registration(request: Request, full_name: str = Form(...), role: str = Form(...),
+                             face_photo_front: UploadFile = File(...),
+                             face_photo_left: UploadFile = File(...),
+                             face_photo_right: UploadFile = File(...),
+                             face_photo_consent: str = Form(""),
+                             db: Session = Depends(get_db)):
+    """NEMSU students/instructors: complete the guided face scan, then sign in right
+    away. The account still enters the administrator's first-level check queue."""
+    identity = request.session.get("nemsu_registration")
+    started = request.session.get("nemsu_registration_started_at", 0)
+    if not identity or time.time() - int(started) > 15 * 60:
+        request.session.clear()
+        raise HTTPException(401, "Your registration session expired. Start again with your NEMSU Google account.")
+    email = identity.get("email", "")
+    if not is_nemsu_email(email):
+        raise HTTPException(400, "NEMSU registration requires an official NEMSU Google account.")
+    chosen = role.strip().lower()
+    if chosen not in ("student", "instructor"):
+        raise ValidationError("Choose Student or Instructor.")
+    if face_photo_consent.lower() != "true":
+        raise ValidationError("Consent is required to store your selfie for administrator face review.")
+    face_steps = request.session.get("face_scan_steps") or []
+    if [s.get("stage") for s in face_steps] != ["front", "left", "right"]:
+        raise ValidationError("Complete the guided face scan before submitting.")
+    face_front = await _read_face_photo(face_photo_front)
+    face_left = await _read_face_photo(face_photo_left)
+    face_right = await _read_face_photo(face_photo_right)
+    if [face_front["source_digest"], face_left["source_digest"], face_right["source_digest"]] != [
+        step.get("digest") for step in face_steps
+    ]:
+        raise ValidationError("The submitted face scan images must be the same images captured in the guided steps.")
+    face_pdf = _make_face_scan_pdf(face_front, face_left, face_right)
+    face_verified = all(s.get("verified") for s in face_steps)
+
+    name = clean_text(full_name, "Full name", 120)
+    if len(name) < 3:
+        raise ValidationError("Enter your full name.")
+    user = user_service.submit_nemsu_registration(
+        db, identity["google_id"], name, email, chosen,
+        face_image=face_front["data"], face_image_content_type=face_front["content_type"],
+        face_image_filename=face_front["filename"], face_scan_pdf=face_pdf,
+        face_verified=face_verified)
+    request.session.clear()                      # sign the new account in right away
+    request.session["user_id"] = user.id
+    return {"success": True, "next": _landing(user.role),
+            "message": "Your NEMSU account is active. An administrator will review your face scan."}
 
 
 @router.get("/personal-registration")

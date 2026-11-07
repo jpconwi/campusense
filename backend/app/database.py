@@ -99,6 +99,10 @@ def _add_student_registration_columns():
         "face_scan_pdf": binary_type,
         "face_scan_pdf_filename": "VARCHAR(255)",
         "face_review_status": "VARCHAR(20) NOT NULL DEFAULT 'Not required'",
+        "review_status": "VARCHAR(20) NOT NULL DEFAULT 'Unreviewed'",
+        "reviewed_by": "VARCHAR(255)",
+        "reviewed_at": "TIMESTAMP",
+        "review_note": "VARCHAR(500)",
         "deleted_at": "TIMESTAMP",
         "purge_after": "TIMESTAMP",
     }

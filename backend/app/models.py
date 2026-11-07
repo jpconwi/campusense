@@ -52,6 +52,11 @@ class User(Base):
     face_scan_pdf: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     face_scan_pdf_filename: Mapped[Optional[str]] = mapped_column(String(255))
     face_review_status: Mapped[str] = mapped_column(String(20), default="Pending", nullable=False)
+    # First-level account check by a report manager: Unreviewed | Checked | Flagged.
+    review_status: Mapped[str] = mapped_column(String(20), default="Unreviewed", nullable=False)
+    reviewed_by: Mapped[Optional[str]] = mapped_column(String(255))
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    review_note: Mapped[Optional[str]] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     last_login: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

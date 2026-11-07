@@ -67,6 +67,33 @@ def submit_student_registration(db: Session, google_id, full_name, email, studen
     return user
 
 
+def submit_nemsu_registration(db: Session, google_id, full_name, email, role,
+                              face_image=None, face_image_content_type=None, face_image_filename=None,
+                              face_scan_pdf=None, face_verified=False):
+    """Create an auto-activated NEMSU account after the guided face scan. NEMSU
+    addresses are trusted, so the account can sign in immediately; it still enters
+    the administrator's first-level check queue afterwards."""
+    if role not in ("student", "instructor"):
+        role = "student"
+    if get_by_google_id(db, google_id) or get_by_email(db, email):
+        raise ValidationError("An account already exists for this NEMSU email. Sign in to continue.")
+    stamp = now()
+    user = User(google_id=google_id, name=full_name, email=email, role=role,
+                approval_status="Approved", registration_type=role,
+                face_image=face_image, face_image_content_type=face_image_content_type,
+                face_image_filename=face_image_filename, face_scan_pdf=face_scan_pdf,
+                face_scan_pdf_filename="face-scan.pdf" if face_scan_pdf else None,
+                face_review_status="AI Pose Passed" if face_verified else "Pending",
+                review_status="Unreviewed", is_active=True, created_at=stamp, last_login=stamp)
+    db.add(user)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise ValidationError("This account could not be registered. Please sign in and try again.")
+    return user
+
+
 def submit_instructor_registration(db: Session, google_id, full_name, email, instructor_id, department,
                                    face_image=None, face_image_content_type=None, face_image_filename=None,
                                    face_scan_pdf=None, face_verified=False):
@@ -182,7 +209,7 @@ def set_active(db: Session, user_id, active):
     return True
 
 
-def approve_personal_registration(db: Session, user_id):
+def approve_personal_registration(db: Session, user_id, reviewer_email=None):
     user = db.get(User, user_id)
     if (user is None or user.approval_status != "Pending" or user.deleted_at
             or (user.face_review_status != "Not required"
@@ -199,22 +226,49 @@ def approve_personal_registration(db: Session, user_id):
     user.approval_status = "Approved"
     user.role = role
     user.is_active = True
+    _stamp_review(user, reviewer_email)
     db.commit()
     return True
 
 
-def approve_student_registration(db: Session, user_id):
+def approve_student_registration(db: Session, user_id, reviewer_email=None):
     """Backward-compatible name for existing call sites."""
-    return approve_personal_registration(db, user_id)
+    return approve_personal_registration(db, user_id, reviewer_email)
 
 
-def reject_student_registration(db: Session, user_id):
+def reject_student_registration(db: Session, user_id, reviewer_email=None):
     user = db.get(User, user_id)
     if user is None or user.approval_status != "Pending" or user.deleted_at:
         return False
     user.approval_status = "Rejected"
     user.role = None
     user.is_active = False
+    _stamp_review(user, reviewer_email)
+    db.commit()
+    return True
+
+
+def _stamp_review(user, reviewer_email):
+    """Record who last acted on a registration account and when."""
+    user.review_status = "Checked"
+    if reviewer_email:
+        user.reviewed_by = reviewer_email
+        user.reviewed_at = now()
+
+
+def check_account(db: Session, user_id, reviewer_email, note="", flag=False):
+    """First-level check by a report manager. `flag=True` reports the account to a
+    super admin instead of clearing it. Only registration accounts (student or
+    instructor) that are not deleted can be checked."""
+    user = db.get(User, user_id)
+    if (user is None or user.deleted_at
+            or user.registration_type not in ("student", "instructor")
+            or user.approval_status not in ("Approved", "Pending")):
+        return False
+    user.review_status = "Flagged" if flag else "Checked"
+    user.reviewed_by = reviewer_email
+    user.reviewed_at = now()
+    user.review_note = (note or "").strip()[:500] or None
     db.commit()
     return True
 

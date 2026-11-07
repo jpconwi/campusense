@@ -3,6 +3,7 @@ import { useAuth } from "./auth.jsx";
 import Layout from "./components/Layout.jsx";
 import { AppSkeleton } from "./components/Skeletons.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
+import AdminAccounts from "./pages/AdminAccounts.jsx";
 import AdminDataset from "./pages/AdminDataset.jsx";
 import AdminFaculty from "./pages/AdminFaculty.jsx";
 import AdminHelpMessages from "./pages/AdminHelpMessages.jsx";
@@ -17,6 +18,7 @@ import Login from "./pages/Login.jsx";
 import MyList from "./pages/MyList.jsx";
 import NotFound from "./pages/NotFound.jsx";
 import Notifications from "./pages/Notifications.jsx";
+import NemsuRegister from "./pages/NemsuRegister.jsx";
 import Profile from "./pages/Profile.jsx";
 import Register from "./pages/Register.jsx";
 import RoleSelect from "./pages/RoleSelect.jsx";
@@ -45,6 +47,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/register/nemsu" element={<NemsuRegister />} />
       <Route path="/select-role" element={<RoleSelect />} />
       <Route path="/admin/login/:secret" element={<AdminLogin />} />
 
@@ -60,6 +63,7 @@ export default function App() {
         <Route path="/faculty" element={page(<Faculty />, ["instructor"])} />
 
         <Route path="/admin" element={page(<AdminDashboard />, ["admin"])} />
+        <Route path="/admin/accounts" element={page(<AdminAccounts />, ["admin"])} />
         <Route path="/admin/users" element={page(<AdminUsers />, ["super_admin"])} />
         <Route path="/admin/system" element={page(<SuperAdmin />, ["super_admin"])} />
         <Route path="/admin/online-users" element={<Navigate to="/admin/users?view=online" replace />} />

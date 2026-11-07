@@ -1,0 +1,283 @@
+import { Fragment, useCallback, useEffect, useState } from "react";
+import { api, apiUrl, slug } from "../api.js";
+import { useAuth } from "../auth.jsx";
+import { EmptyState, Icon, Loading, PATHS, SearchBox, matches } from "../components/Ui.jsx";
+
+/** "2026-10-29 11:26:02" -> date on one line, time below it. */
+function DateCell({ value }) {
+  const [date, ...time] = String(value || "").split(" ");
+  return <span>{date}{time.length > 0 && <><br /><small className="muted">{time.join(" ")}</small></>}</span>;
+}
+
+function approvalClass(status) {
+  if (status === "Approved") return "s-available";
+  if (status === "Rejected") return "s-rejected";
+  return "s-pending";
+}
+
+function reviewClass(status) {
+  if (status === "Checked") return "s-reviewed";
+  if (status === "Flagged") return "s-rejected";
+  return "s-pending";
+}
+
+/** Preview a stored document; PDFs fall back to a link when the image can't render. */
+function DocPreview({ title, url }) {
+  const [failed, setFailed] = useState(false);
+  if (!url) return null;
+  return (
+    <figure className="account-doc">
+      <figcaption>{title}</figcaption>
+      {failed
+        ? <a href={url} target="_blank" rel="noreferrer">Open {title}</a>
+        : <a href={url} target="_blank" rel="noreferrer" title={`Open ${title}`}>
+            <img src={url} alt={title} loading="lazy" onError={() => setFailed(true)} />
+          </a>}
+    </figure>
+  );
+}
+
+/** First-level check actions: approve/reject a pending account, or check/flag it. */
+function CheckForm({ row, onChanged }) {
+  const { setFlash } = useAuth();
+  const [note, setNote] = useState(row.review_note || "");
+  const [busy, setBusy] = useState("");
+
+  async function run(path, body, key) {
+    setBusy(key);
+    try {
+      const result = await api(`/api/admin/accounts/${row.id}/${path}`, { method: "POST", json: body });
+      setFlash({ text: result.message, kind: "info" });
+      onChanged();
+    } catch (err) {
+      setFlash({ text: err.message, kind: "error" });
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <div className="account-check-actions">
+      {row.approval_status === "Pending" && (
+        <div className="account-decide">
+          <button className="btn small" type="button" disabled={busy !== ""}
+            onClick={() => run("approve", {}, "approve")}>
+            {busy === "approve" ? "Approving..." : "Approve account"}
+          </button>
+          <button className="btn small danger" type="button" disabled={busy !== ""}
+            onClick={() => run("reject", {}, "reject")}>
+            {busy === "reject" ? "Rejecting..." : "Reject account"}
+          </button>
+        </div>
+      )}
+      <label htmlFor={`check-note-${row.id}`}>Check note (optional)</label>
+      <textarea id={`check-note-${row.id}`} rows={2} maxLength={500} value={note}
+        onChange={(event) => setNote(event.target.value)}
+        placeholder="Anything the super admin should know about this account." />
+      <div className="account-check-buttons">
+        <button className="btn small" type="button" disabled={busy !== ""}
+          onClick={() => run("check", { note, flag: false }, "check")}>
+          {busy === "check" ? "Saving..." : "Mark checked"}
+        </button>
+        <button className="btn small danger" type="button" disabled={busy !== ""}
+          onClick={() => run("check", { note, flag: true }, "flag")}>
+          {busy === "flag" ? "Reporting..." : "Report to super admin"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AccountDetail({ row, onChanged }) {
+  const base = `/api/admin/users/${row.id}`;
+  return (
+    <div className="account-detail">
+      <div className="account-detail-head">
+        <div>
+          <h4>{row.name}</h4>
+          <a href={`mailto:${row.email}`}>{row.email}</a>
+        </div>
+        <div className="account-detail-badges">
+          <span className={"badge " + approvalClass(row.approval_status)}>{row.approval_status}</span>
+          <span className={"badge " + reviewClass(row.review_status)}>{row.review_status || "Unreviewed"}</span>
+        </div>
+      </div>
+
+      <div className="account-detail-meta">
+        <span><b>Source</b>{row.is_nemsu ? "NEMSU account" : "Personal Gmail"}</span>
+        <span><b>Role</b>{row.registration_type || row.role || "-"}</span>
+        <span><b>School ID</b>{row.student_id || "-"}</span>
+        <span><b>Department</b>{row.department || "-"}</span>
+        <span><b>Submitted</b>{row.created_at}</span>
+        <span><b>Face review</b>{row.face_review_status || "Not required"}</span>
+      </div>
+
+      <section className="account-docs">
+        <h4>Identity documents and face</h4>
+        <div className="account-doc-grid">
+          {row.has_verification_document &&
+            <DocPreview title={row.verification_document_kind === "cor" ? "COR" : "School ID front"}
+                        url={apiUrl(`${base}/verification-document`)} />}
+          {row.has_id_back_document && <DocPreview title="School ID back" url={apiUrl(`${base}/verification-document/id-back`)} />}
+          {row.has_cor_document && <DocPreview title="Certificate of Registration" url={apiUrl(`${base}/verification-document/cor`)} />}
+          {row.has_face_image && <DocPreview title="Face scan selfie" url={apiUrl(`${base}/face-image`)} />}
+        </div>
+        {row.has_face_scan_pdf && (
+          <a className="account-pdf-link" href={apiUrl(`${base}/face-scan-pdf`)} target="_blank" rel="noreferrer">
+            Open the three-pose face scan PDF
+          </a>
+        )}
+        {!row.has_verification_document && !row.has_cor_document && !row.has_id_back_document && !row.has_face_image &&
+          <p className="muted">No documents were uploaded for this account.</p>}
+      </section>
+
+      {row.verification_ai_note && (
+        <section className="account-ai-note">
+          <h4>NEMSAI document screening</h4>
+          <p>{row.verification_ai_note}</p>
+        </section>
+      )}
+
+      {row.reviewed_by && (
+        <section className="account-review-history">
+          <h4>Last check</h4>
+          <p><b>{row.reviewed_by}</b> marked this account <b>{(row.review_status || "").toLowerCase()}</b>{row.reviewed_at ? ` on ${row.reviewed_at}` : ""}.</p>
+          {row.review_note && <p className="muted">{row.review_note}</p>}
+        </section>
+      )}
+
+      <CheckForm row={row} onChanged={onChanged} />
+    </div>
+  );
+}
+
+const FILTERS = [
+  { key: "all", label: "All" },
+  { key: "pending", label: "Pending approval" },
+  { key: "unreviewed", label: "Needs check" },
+  { key: "flagged", label: "Flagged" },
+  { key: "checked", label: "Checked" },
+];
+
+export default function AdminAccounts() {
+  const [data, setData] = useState(null);
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [openId, setOpenId] = useState(null);
+
+  const load = useCallback(() => { api("/api/admin/accounts").then(setData).catch(() => {}); }, []);
+  useEffect(() => { document.title = "Account Checks | NEMSU"; load(); }, [load]);
+
+  useEffect(() => {
+    if (openId === null) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => { if (event.key === "Escape") setOpenId(null); };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [openId]);
+
+  if (!data) return <Loading wide={1300} />;
+  const { rows, counts } = data;
+  const filtered = rows.filter((r) => matches(r, q)).filter((r) => {
+    if (filter === "pending") return r.approval_status === "Pending";
+    if (filter === "unreviewed") return (r.review_status || "Unreviewed") === "Unreviewed";
+    if (filter === "flagged") return r.review_status === "Flagged";
+    if (filter === "checked") return r.review_status === "Checked";
+    return true;
+  });
+  const opened = rows.find((r) => r.id === openId);
+
+  return (
+    <div className="page" style={{ maxWidth: 1300 }}>
+      <h2 className="page-title">Account Checks</h2>
+      <p className="page-intro">Review NEMSU and personal-Gmail student and instructor registrations, then pass them on to the super admin.</p>
+
+      <div className="account-summary">
+        <span className="account-chip"><b>{counts.pending}</b> pending approval</span>
+        <span className="account-chip"><b>{counts.unreviewed}</b> need a check</span>
+        <span className="account-chip"><b>{counts.flagged}</b> flagged</span>
+      </div>
+
+      <div className="filters">
+        {FILTERS.map((f) => (
+          <button key={f.key} type="button" className={filter === f.key ? "on" : ""}
+            onClick={() => setFilter(f.key)}>{f.label}</button>
+        ))}
+      </div>
+
+      {rows.length > 0 && (
+        <SearchBox value={q} onChange={setQ} shown={filtered.length} total={rows.length}
+          placeholder="Search accounts..." />
+      )}
+
+      {filtered.length ? (
+        <div className="report-table-wrap">
+          <table className="report-table">
+            <thead>
+              <tr>
+                <th scope="col">Applicant</th>
+                <th scope="col">Source</th>
+                <th scope="col">Role</th>
+                <th scope="col">Submitted</th>
+                <th scope="col">Status</th>
+                <th scope="col">Checked by</th>
+                <th scope="col" aria-label="Details" />
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <Fragment key={r.id}>
+                  <tr className={`report-row${openId === r.id ? " is-open" : ""}`} onClick={() => setOpenId(r.id)}>
+                    <td className="report-who"><span>{r.name}</span><small className="muted">{r.email}</small></td>
+                    <td>{r.is_nemsu ? "NEMSU" : "Personal Gmail"}</td>
+                    <td>{r.registration_type || r.role || "-"}</td>
+                    <td className="report-when"><DateCell value={r.created_at} /></td>
+                    <td>
+                      <span className={"badge " + approvalClass(r.approval_status)}>{r.approval_status}</span>{" "}
+                      <span className={"badge " + reviewClass(r.review_status)}>{r.review_status || "Unreviewed"}</span>
+                    </td>
+                    <td className="report-assignee">{r.reviewed_by || <span className="muted">Unreviewed</span>}</td>
+                    <td className="report-toggle-cell">
+                      <button type="button" className="report-toggle" aria-label={`Show details for ${r.name}`}
+                        onClick={(event) => { event.stopPropagation(); setOpenId(r.id); }}>
+                        <Icon d={PATHS.arrow} size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyState title={rows.length ? "No matches" : "No accounts to check"}>
+          {rows.length ? "Nothing matches this search and filter."
+            : "New NEMSU or personal-Gmail registrations will appear here for checking."}
+        </EmptyState>
+      )}
+
+      {opened && (
+        <div className="report-dialog-backdrop" onClick={() => setOpenId(null)}>
+          <section className="report-dialog" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title"
+            onClick={(event) => event.stopPropagation()}>
+            <header className="report-dialog-header">
+              <div>
+                <span className="report-dialog-eyebrow">Account check</span>
+                <h3 id="account-dialog-title">{opened.name}</h3>
+              </div>
+              <button type="button" className="report-dialog-close" onClick={() => setOpenId(null)}
+                aria-label="Close account details" autoFocus>×</button>
+            </header>
+            <div className="report-dialog-content">
+              <AccountDetail key={opened.id} row={opened} onChanged={load} />
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -29,8 +29,8 @@ from starlette.concurrency import run_in_threadpool
 
 from app import config
 from app.database import get_db
-from app.routers.auth import _finish_login
-from app.security import MESSAGE_WRONG_ACCOUNT, create_mobile_token
+from app.routers.auth import _finish_login, _make_face_scan_pdf
+from app.security import MESSAGE_WRONG_ACCOUNT, create_mobile_token, is_nemsu_email
 from app.services import registration_verification_service, user_service
 from app.services.common import ValidationError, clean_text
 from app.services.google_token import InvalidGoogleToken, verify_google_id_token
@@ -76,6 +76,10 @@ async def mobile_google_login(body: GoogleTokenBody):
 
     if result == "registration_required":
         return {"status": "registration_required",
+                "email": (info.get("email") or "").strip().lower(),
+                "google_name": (info.get("name") or "").strip()[:120]}
+    if result == "nemsu_registration_required":
+        return {"status": "nemsu_registration_required",
                 "email": (info.get("email") or "").strip().lower(),
                 "google_name": (info.get("name") or "").strip()[:120]}
     if result in _BLOCKED:
@@ -186,6 +190,43 @@ async def mobile_student_registration(
                 "message": "Your document passed the visual screening and your student account is active. Sign in to continue."}
     return {"success": True, "approval_status": "Pending",
             "message": "Your documents need manual admin review. Your account will remain pending until it is approved."}
+
+
+@router.post("/register/nemsu")
+async def mobile_nemsu_registration(
+        id_token: str = Form(...), full_name: str = Form(...), role: str = Form(...),
+        face_photo_front: UploadFile = File(None),
+        face_photo_left: UploadFile = File(None),
+        face_photo_right: UploadFile = File(None),
+        db: Session = Depends(get_db)):
+    """NEMSU students/instructors: register with optional face captures, then sign in
+    right away. The account enters the administrator's first-level check queue."""
+    info = await _verified_claims(id_token)
+    email = (info.get("email") or "").strip().lower()
+    if not info.get("sub") or not info.get("email_verified") or not is_nemsu_email(email):
+        raise HTTPException(403, MESSAGE_WRONG_ACCOUNT)
+    chosen = role.strip().lower()
+    if chosen not in ("student", "instructor"):
+        raise ValidationError("Choose Student or Instructor.")
+    name = clean_text(full_name, "Full name", 120)
+    if len(name) < 3:
+        raise ValidationError("Enter your full name.")
+    front = await _read_scan(face_photo_front, "face scan (front)")
+    left = await _read_scan(face_photo_left, "face scan (left)")
+    right = await _read_scan(face_photo_right, "face scan (right)")
+    face_pdf = None
+    if front and left and right:
+        face_pdf = await run_in_threadpool(_make_face_scan_pdf, front, left, right)
+    user = user_service.submit_nemsu_registration(
+        db, info["sub"], name, email, chosen,
+        face_image=front["data"] if front else None,
+        face_image_content_type=front["content_type"] if front else None,
+        face_image_filename=front["filename"] if front else None,
+        face_scan_pdf=face_pdf, face_verified=bool(face_pdf))
+    return {"success": True, "approval_status": "Approved",
+            "token": create_mobile_token(user.id), "token_type": "Bearer",
+            "expires_in": config.MOBILE_TOKEN_DAYS * 24 * 3600, "role": user.role,
+            "message": "Your NEMSU account is active. An administrator will review your face scan."}
 
 
 @router.post("/register/instructor")

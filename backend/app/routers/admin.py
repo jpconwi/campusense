@@ -50,6 +50,30 @@ def _without_sentiment(rows):
             for row in rows]
 
 
+def _log_admin_action(db, actor_email, action, target_email, details):
+    """Record an account decision so the super admin can see who acted."""
+    db.add(AdminActivityLog(actor_email=actor_email, action=action, target_email=target_email,
+                            details=details, created_at=common.now()))
+    db.commit()
+
+
+def _account_review_rows(db):
+    """Registration accounts (student/instructor) for the first-level check queue."""
+    rows = []
+    for r in user_service.list_users(db):
+        if r.get("registration_type") not in ("student", "instructor"):
+            continue
+        r.pop("google_id", None)
+        r["is_nemsu"] = is_nemsu_email(r["email"])
+        r["has_verification_document"] = bool(r.get("verification_filename"))
+        r["has_cor_document"] = bool(r.get("verification_cor_filename"))
+        r["has_id_back_document"] = bool(r.get("verification_id_back_filename"))
+        r["has_face_image"] = bool(r.get("face_image_filename"))
+        r["has_face_scan_pdf"] = bool(r.get("face_scan_pdf_filename"))
+        rows.append(r)
+    return rows
+
+
 # --------------------------------------------------------- AI provider chain
 @router.get("/ai-status")
 def ai_status(_me: CurrentUser = Depends(super_admin_required)):
@@ -283,6 +307,8 @@ def verify_photo_report(report_id: int, body: VerifyBody, me: CurrentUser = Depe
                         db: Session = Depends(get_db)):
     """An administrator confirms or rejects what the AI found in a photo report."""
     photo_report_service.verify(db, me, report_id, body.verification, body.note)
+    _log_admin_action(db, me.email, "report_verified", None,
+                      f"Report #{report_id} marked {body.verification}.")
     return {"success": True, "message": f"Report #{report_id} marked {body.verification}."}
 
 
@@ -320,7 +346,7 @@ def users(_me: CurrentUser = Depends(super_admin_required), db: Session = Depend
 
 
 @router.get("/users/{user_id}/verification-document")
-def user_verification_document(user_id: int, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+def user_verification_document(user_id: int, _me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     row = user_service.get_user(db, user_id)
     if row is None or not row.verification_document or not row.verification_content_type:
         raise HTTPException(404, "Verification document not found.")
@@ -332,7 +358,7 @@ def user_verification_document(user_id: int, _me: CurrentUser = Depends(super_ad
 
 
 @router.get("/users/{user_id}/verification-document/cor")
-def user_cor_document(user_id: int, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+def user_cor_document(user_id: int, _me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     row = user_service.get_user(db, user_id)
     if row is None or not row.verification_cor_document or not row.verification_cor_content_type:
         raise HTTPException(404, "COR scan not found.")
@@ -343,7 +369,7 @@ def user_cor_document(user_id: int, _me: CurrentUser = Depends(super_admin_requi
 
 
 @router.get("/users/{user_id}/verification-document/id-back")
-def user_id_back_document(user_id: int, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+def user_id_back_document(user_id: int, _me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     row = user_service.get_user(db, user_id)
     if row is None or not row.verification_id_back_document or not row.verification_id_back_content_type:
         raise HTTPException(404, "ID back scan not found.")
@@ -354,7 +380,7 @@ def user_id_back_document(user_id: int, _me: CurrentUser = Depends(super_admin_r
 
 
 @router.get("/users/{user_id}/face-image")
-def user_face_image(user_id: int, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+def user_face_image(user_id: int, _me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     row = user_service.get_user(db, user_id)
     if row is None or not row.face_image or not row.face_image_content_type:
         raise HTTPException(404, "Selfie not found.")
@@ -365,7 +391,7 @@ def user_face_image(user_id: int, _me: CurrentUser = Depends(super_admin_require
 
 
 @router.get("/users/{user_id}/face-scan-pdf")
-def user_face_scan_pdf(user_id: int, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+def user_face_scan_pdf(user_id: int, _me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     row = user_service.get_user(db, user_id)
     if row is None or not row.face_scan_pdf:
         raise HTTPException(404, "Face scan PDF not found.")
@@ -380,7 +406,7 @@ class FaceReviewBody(BaseModel):
 
 
 @router.post("/users/{user_id}/face-review")
-def user_face_review(user_id: int, body: FaceReviewBody, _me: CurrentUser = Depends(super_admin_required),
+def user_face_review(user_id: int, body: FaceReviewBody, me: CurrentUser = Depends(admin_required),
                      db: Session = Depends(get_db)):
     if body.status not in ("Verified", "Rejected"):
         raise ValidationError("Choose Verified or Rejected.")
@@ -389,23 +415,78 @@ def user_face_review(user_id: int, body: FaceReviewBody, _me: CurrentUser = Depe
         raise ValidationError("That pending account has no selfie to review.")
     row.face_review_status = body.status
     db.commit()
+    _log_admin_action(db, me.email, "face_reviewed", row.email, f"Selfie marked {body.status.lower()}.")
     return {"success": True, "message": f"Selfie marked {body.status.lower()}."}
 
 
 @router.post("/users/{user_id}/approve")
-def approve_user_registration(user_id: int, me: CurrentUser = Depends(super_admin_required),
+def approve_user_registration(user_id: int, me: CurrentUser = Depends(admin_required),
                               db: Session = Depends(get_db)):
-    if user_id == me.id or not user_service.approve_personal_registration(db, user_id):
+    target = user_service.get_user(db, user_id)
+    if user_id == me.id or target is None or not user_service.approve_personal_registration(db, user_id, me.email):
         raise ValidationError("That personal-Gmail registration is not pending or is missing required details.")
+    _log_admin_action(db, me.email, "account_approved", target.email, "Approved personal-Gmail registration.")
     return {"success": True, "message": "Account registration approved."}
 
 
 @router.post("/users/{user_id}/reject")
-def reject_user_registration(user_id: int, me: CurrentUser = Depends(super_admin_required),
+def reject_user_registration(user_id: int, me: CurrentUser = Depends(admin_required),
                              db: Session = Depends(get_db)):
-    if user_id == me.id or not user_service.reject_student_registration(db, user_id):
+    target = user_service.get_user(db, user_id)
+    if user_id == me.id or target is None or not user_service.reject_student_registration(db, user_id, me.email):
         raise ValidationError("That student registration is not pending.")
+    _log_admin_action(db, me.email, "account_rejected", target.email, "Rejected personal-Gmail registration.")
     return {"success": True, "message": "Account registration rejected."}
+
+
+# ------------------------------------- account checks (reports managers)
+@router.get("/accounts")
+def review_accounts(_me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
+    """First-level check queue: NEMSU and personal-Gmail student/instructor accounts.
+    Report managers clear or flag these before the super admin's oversight view."""
+    rows = _account_review_rows(db)
+    return {"rows": rows, "counts": {
+        "pending": sum(r["approval_status"] == "Pending" for r in rows),
+        "unreviewed": sum(r["review_status"] == "Unreviewed" for r in rows),
+        "flagged": sum(r["review_status"] == "Flagged" for r in rows),
+    }}
+
+
+class AccountCheckBody(BaseModel):
+    note: str = ""
+    flag: bool = False
+
+
+@router.post("/accounts/{user_id}/approve")
+def approve_account(user_id: int, me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
+    target = user_service.get_user(db, user_id)
+    if user_id == me.id or target is None or not user_service.approve_personal_registration(db, user_id, me.email):
+        raise ValidationError("That registration is not pending or is missing required details.")
+    _log_admin_action(db, me.email, "account_approved", target.email, "Approved personal-Gmail registration.")
+    return {"success": True, "message": f"{target.email} approved. The account can sign in now."}
+
+
+@router.post("/accounts/{user_id}/reject")
+def reject_account(user_id: int, me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
+    target = user_service.get_user(db, user_id)
+    if user_id == me.id or target is None or not user_service.reject_student_registration(db, user_id, me.email):
+        raise ValidationError("That registration is not pending.")
+    _log_admin_action(db, me.email, "account_rejected", target.email, "Rejected personal-Gmail registration.")
+    return {"success": True, "message": f"{target.email} was rejected."}
+
+
+@router.post("/accounts/{user_id}/check")
+def check_review_account(user_id: int, body: AccountCheckBody, me: CurrentUser = Depends(admin_required),
+                         db: Session = Depends(get_db)):
+    target = user_service.get_user(db, user_id)
+    if target is None or not user_service.check_account(db, user_id, me.email, body.note, body.flag):
+        raise ValidationError("That account cannot be checked.")
+    detail = (body.note or "").strip()[:200] or ("Reported to the super admin." if body.flag
+                                                 else "First-level check complete.")
+    _log_admin_action(db, me.email, "account_flagged" if body.flag else "account_checked", target.email, detail)
+    return {"success": True,
+            "message": (f"{target.email} reported to the super admin." if body.flag
+                        else f"{target.email} checked and passed on to the super admin.")}
 
 
 class RoleBody(BaseModel):
