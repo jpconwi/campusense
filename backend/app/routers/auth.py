@@ -236,21 +236,20 @@ async def personal_face_guidance(request: Request, frame: UploadFile = File(...)
     if consent.lower() != "true":
         raise ValidationError("Face scan AI consent is required before camera analysis.")
     steps = list(request.session.get("face_scan_steps") or [])
-    if steps:
-        raise ValidationError("The front-facing selfie has already been captured.")
     scan = await _read_registration_scan(frame, "face scan frame")
+    digest = hashlib.sha256(scan["data"]).hexdigest()
+    if len(steps) == 1 and steps[0].get("stage") == "front" and steps[0].get("digest") == digest:
+        verified = bool(steps[0].get("verified"))
+        return {"ready": True, "available": verified, "already_captured": True,
+                "instruction": "Selfie already saved. Continue with registration."}
     if manual.lower() == "true":
-        steps.append({"stage": "front", "verified": False,
-                      "digest": hashlib.sha256(scan["data"]).hexdigest()})
-        request.session["face_scan_steps"] = steps
+        request.session["face_scan_steps"] = [{"stage": "front", "verified": False, "digest": digest}]
         return {"ready": True, "available": False,
                 "instruction": "Selfie saved for administrator review."}
     result = await run_in_threadpool(registration_verification_service.face_selfie_guidance,
                                      (scan["data"], scan["content_type"]))
     if result.get("state") == "ready":
-        steps.append({"stage": "front", "verified": True,
-                      "digest": hashlib.sha256(scan["data"]).hexdigest()})
-        request.session["face_scan_steps"] = steps
+        request.session["face_scan_steps"] = [{"stage": "front", "verified": True, "digest": digest}]
         return {**result, "ready": True}
     return {**result, "ready": False}
 

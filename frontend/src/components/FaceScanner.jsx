@@ -91,10 +91,13 @@ export default function FaceScanner({ onComplete, disabled = false }) {
         setPoseState("unclear");
         return;
       }
-      await capturePose(frame);
+      await capturePose(frame, !result.available);
     } catch (e) {
-      setError(e.message || "Could not check this selfie.");
-      setInstruction("Could not reach face guidance. Retrying automatically in a few seconds.");
+      const isServerResponse = Number.isInteger(e.status);
+      setError(isServerResponse ? "" : (e.message || "Could not check this selfie."));
+      setInstruction(isServerResponse
+        ? (e.message || "Face guidance could not check this selfie.")
+        : "Could not reach face guidance. Retrying automatically in a few seconds.");
       setPoseState("error");
       retryAfterRef.current = Date.now() + 4000;
     }
@@ -119,7 +122,7 @@ export default function FaceScanner({ onComplete, disabled = false }) {
       ? <button className="btn" type="button" disabled={disabled} onClick={start}>Start face scan</button>
       : capture
         ? <p className={`face-scan-instruction ${poseState}`} role="status">
-            {poseState === "review" ? "Selfie saved for administrator review." : "Front-facing selfie captured."}
+            {poseState === "review" ? "Selfie saved for administrator review." : "Selfie captured. Continue with registration."}
           </p>
         : <>
             <p className={`face-scan-instruction ${poseState}`} role="status" aria-live="polite">
