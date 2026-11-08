@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import { Loading, SearchBox } from "../components/Ui.jsx";
 import AdminOnlineUsers from "./AdminOnlineUsers.jsx";
+import AdminAccounts from "./AdminAccounts.jsx";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -29,7 +30,8 @@ function RoleForm({ user, onChanged }) {
 export default function AdminUsers() {
   const { user: me, setFlash } = useAuth();
   const [params] = useSearchParams();
-  const view = params.get("view") === "online" ? "online" : "users";
+  const viewParam = params.get("view");
+  const view = viewParam === "online" || viewParam === "checks" ? viewParam : "users";
   const [rows, setRows] = useState(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
@@ -91,8 +93,9 @@ export default function AdminUsers() {
     <nav className="admin-view-switch" aria-label="User management views">
       <Link to="/admin/users?view=users" className={view === "users" ? "selected" : ""}>All users</Link>
       <Link to="/admin/users?view=online" className={view === "online" ? "selected" : ""}>Online users</Link>
+      <Link to="/admin/users?view=checks" className={view === "checks" ? "selected" : ""}>Account checks</Link>
     </nav>
-    {view === "online" ? <AdminOnlineUsers embedded /> : <>
+    {view === "online" ? <AdminOnlineUsers embedded /> : view === "checks" ? <AdminAccounts scope="super_admin" /> : <>
     <p className="admin-section-note">Users are sorted A-Z. Deleted accounts are disabled immediately and permanently removed after seven days.</p>
     <div className="admin-users-controls">
       <SearchBox value={search} onChange={setSearch} shown={visibleRows.length}

@@ -515,6 +515,19 @@ def check_review_account(user_id: int, body: AccountCheckBody, me: CurrentUser =
                         else f"{target.email} checked and passed on to the super admin.")}
 
 
+@router.post("/accounts/{user_id}/delete")
+def delete_flagged_account(user_id: int, me: CurrentUser = Depends(super_admin_required),
+                           db: Session = Depends(get_db)):
+    target = user_service.get_user(db, user_id)
+    if (user_id == me.id or target is None or target.review_status != "Flagged"
+            or not user_service.soft_delete_user(db, user_id)):
+        raise ValidationError("Only a suspicious account reported by an admin can be deleted here.")
+    _log_admin_action(db, me.email, "account_deleted", target.email,
+                      "Flagged account disabled by the super admin.")
+    db.commit()
+    return {"success": True, "message": "Reported account disabled and scheduled for permanent deletion in 7 days."}
+
+
 class RoleBody(BaseModel):
     role: str = ""
 

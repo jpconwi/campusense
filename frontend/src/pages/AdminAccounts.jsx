@@ -38,7 +38,7 @@ function DocPreview({ title, url }) {
 }
 
 /** First-level check actions: approve/reject a pending account, or check/flag it. */
-function CheckForm({ row, onChanged }) {
+function CheckForm({ row, onChanged, scope }) {
   const { setFlash } = useAuth();
   const [note, setNote] = useState(row.review_note || "");
   const [busy, setBusy] = useState("");
@@ -54,11 +54,25 @@ function CheckForm({ row, onChanged }) {
     } finally {
       setBusy("");
     }
+
+    async function deleteFlaggedAccount() {
+      if (!window.confirm(`Delete ${row.name}'s account after the admin reported it suspicious?`)) return;
+      setBusy("delete");
+      try {
+        const result = await api(`/api/admin/accounts/${row.id}/delete`, { method: "POST", json: {} });
+        setFlash({ text: result.message, kind: "info" });
+        onChanged();
+      } catch (err) {
+        setFlash({ text: err.message, kind: "error" });
+      } finally {
+        setBusy("");
+      }
+    }
   }
 
   return (
     <div className="account-check-actions">
-      {row.approval_status === "Pending" && (
+      {scope !== "super_admin" && row.approval_status === "Pending" && (
         <div className="account-decide">
           <button className="btn small" type="button" disabled={busy !== ""}
             onClick={() => run("approve", {}, "approve")}>
@@ -73,22 +87,39 @@ function CheckForm({ row, onChanged }) {
       <label htmlFor={`check-note-${row.id}`}>Check note (optional)</label>
       <textarea id={`check-note-${row.id}`} rows={2} maxLength={500} value={note}
         onChange={(event) => setNote(event.target.value)}
-        placeholder="Anything the super admin should know about this account." />
+        placeholder={scope === "super_admin"
+          ? "Anything the account-check team should know about this account."
+          : "Anything the super admin should know about this account."} />
       <div className="account-check-buttons">
-        <button className="btn small" type="button" disabled={busy !== ""}
-          onClick={() => run("check", { note, flag: false }, "check")}>
-          {busy === "check" ? "Saving..." : "Mark checked"}
-        </button>
-        <button className="btn small danger" type="button" disabled={busy !== ""}
-          onClick={() => run("check", { note, flag: true }, "flag")}>
-          {busy === "flag" ? "Reporting..." : "Report to super admin"}
-        </button>
+        {scope === "super_admin" ? (
+          <>
+            <button className="btn small" type="button" disabled={busy !== ""}
+              onClick={() => run("check", { note, flag: false }, "check")}>
+              {busy === "check" ? "Saving..." : "Mark checked"}
+            </button>
+            <button className="btn small danger" type="button" disabled={busy !== ""}
+              onClick={deleteFlaggedAccount}>
+              {busy === "delete" ? "Deleting..." : "Delete account"}
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="btn small" type="button" disabled={busy !== ""}
+              onClick={() => run("check", { note, flag: false }, "check")}>
+              {busy === "check" ? "Saving..." : "Mark checked"}
+            </button>
+            <button className="btn small danger" type="button" disabled={busy !== ""}
+              onClick={() => run("check", { note, flag: true }, "flag")}>
+              {busy === "flag" ? "Saving..." : "Report to super admin"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-function AccountDetail({ row, onChanged }) {
+function AccountDetail({ row, onChanged, scope }) {
   const base = `/api/admin/users/${row.id}`;
   return (
     <div className="account-detail">
@@ -134,7 +165,7 @@ function AccountDetail({ row, onChanged }) {
 
           <section className="account-detail-section account-action-section">
             <h4>Review decision</h4>
-            <CheckForm row={row} onChanged={onChanged} />
+            <CheckForm row={row} onChanged={onChanged} scope={scope} />
           </section>
         </div>
 
@@ -169,7 +200,7 @@ const FILTERS = [
   { key: "checked", label: "Checked" },
 ];
 
-export default function AdminAccounts() {
+export default function AdminAccounts({ scope = "admin" }) {
   const [data, setData] = useState(null);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
@@ -192,7 +223,10 @@ export default function AdminAccounts() {
 
   if (!data) return <Loading wide={1300} />;
   const { rows, counts } = data;
-  const filtered = rows.filter((r) => matches(r, q)).filter((r) => {
+  const scopedRows = scope === "super_admin"
+    ? rows.filter((r) => r.review_status === "Flagged")
+    : rows;
+  const filtered = scopedRows.filter((r) => matches(r, q)).filter((r) => {
     if (filter === "pending") return r.approval_status === "Pending";
     if (filter === "unreviewed") return (r.review_status || "Unreviewed") === "Unreviewed";
     if (filter === "flagged") return r.review_status === "Flagged";
@@ -203,23 +237,30 @@ export default function AdminAccounts() {
 
   return (
     <div className="page account-checks-page" style={{ maxWidth: 1300 }}>
-      <h2 className="page-title">Account Checks</h2>
-      <p className="page-intro">Review NEMSU and personal-Gmail student and instructor registrations, then pass them on to the super admin.</p>
+      <h2 className="page-title">{scope === "super_admin" ? "Account Oversight" : "Account Checks"}</h2>
+      <p className="page-intro">{scope === "super_admin"
+        ? "Review account checks, flagged registrations, and final approval status across the campus."
+        : "Review NEMSU and personal-Gmail student and instructor registrations, then pass them on to the super admin."}</p>
 
-      <div className="account-summary" aria-label="Account review totals">
+      {scope === "super_admin" && (
+        <div className="account-summary" aria-label="Flagged account review totals">
+          <div className="account-chip is-flagged"><b>{scopedRows.length}</b><span>Reported accounts</span></div>
+        </div>
+      )}
+      {scope !== "super_admin" && <div className="account-summary" aria-label="Account review totals">
         <div className="account-chip is-pending"><b>{counts.pending}</b><span>Pending approval</span></div>
         <div className="account-chip is-unreviewed"><b>{counts.unreviewed}</b><span>Needs a check</span></div>
         <div className="account-chip is-flagged"><b>{counts.flagged}</b><span>Flagged</span></div>
-      </div>
+      </div>}
 
-      <div className="filters account-filters" aria-label="Filter accounts">
+      {scope !== "super_admin" && <div className="filters account-filters" aria-label="Filter accounts">
         {FILTERS.map((f) => (
           <button key={f.key} type="button" aria-pressed={filter === f.key} className={filter === f.key ? "on" : ""}
             onClick={() => setFilter(f.key)}>{f.label}</button>
         ))}
-      </div>
+      </div>}
 
-      {rows.length > 0 && (
+      {scopedRows.length > 0 && (
         <SearchBox value={q} onChange={setQ} shown={filtered.length} total={rows.length}
           placeholder="Search accounts..." />
       )}
@@ -265,7 +306,7 @@ export default function AdminAccounts() {
         </div>
       ) : (
         <EmptyState title={rows.length ? "No matches" : "No accounts to check"}>
-          {rows.length ? "Nothing matches this search and filter."
+          {scopedRows.length ? "Nothing matches this search and filter."
             : "New NEMSU or personal-Gmail registrations will appear here for checking."}
         </EmptyState>
       )}
@@ -283,7 +324,7 @@ export default function AdminAccounts() {
                 aria-label="Close account details" autoFocus>×</button>
             </header>
             <div className="report-dialog-content">
-              <AccountDetail key={opened.id} row={opened} onChanged={load} />
+              <AccountDetail key={opened.id} row={opened} onChanged={load} scope={scope} />
             </div>
           </section>
         </div>
