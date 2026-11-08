@@ -200,13 +200,19 @@ const FILTERS = [
   { key: "checked", label: "Checked" },
 ];
 
-export default function AdminAccounts({ scope = "admin" }) {
+export default function AdminAccounts({ scope = "admin", embedded = false }) {
   const [data, setData] = useState(null);
+  const [loadError, setLoadError] = useState("");
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
   const [openId, setOpenId] = useState(null);
 
-  const load = useCallback(() => { api("/api/admin/accounts").then(setData).catch(() => {}); }, []);
+  const load = useCallback(() => {
+    setLoadError("");
+    api("/api/admin/accounts").then(setData).catch((error) => {
+      setLoadError(error.message || "Could not load account checks.");
+    });
+  }, []);
   useEffect(() => { document.title = "Account Checks | NEMSU"; load(); }, [load]);
 
   useEffect(() => {
@@ -221,6 +227,7 @@ export default function AdminAccounts({ scope = "admin" }) {
     };
   }, [openId]);
 
+  if (loadError) return <div className="error" role="alert">{loadError}</div>;
   if (!data) return <Loading wide={1300} />;
   const { rows, counts } = data;
   const scopedRows = scope === "super_admin"
@@ -236,11 +243,11 @@ export default function AdminAccounts({ scope = "admin" }) {
   const opened = rows.find((r) => r.id === openId);
 
   return (
-    <div className="page account-checks-page" style={{ maxWidth: 1300 }}>
-      <h2 className="page-title">{scope === "super_admin" ? "Account Oversight" : "Account Checks"}</h2>
-      <p className="page-intro">{scope === "super_admin"
+    <div className={embedded ? "account-checks-page" : "page account-checks-page"} style={{ maxWidth: 1300 }}>
+      {!embedded && <h2 className="page-title">{scope === "super_admin" ? "Account Oversight" : "Account Checks"}</h2>}
+      {!embedded && <p className="page-intro">{scope === "super_admin"
         ? "Review account checks, flagged registrations, and final approval status across the campus."
-        : "Review NEMSU and personal-Gmail student and instructor registrations, then pass them on to the super admin."}</p>
+        : "Review NEMSU and personal-Gmail student and instructor registrations, then pass them on to the super admin."}</p>}
 
       {scope === "super_admin" && (
         <div className="account-summary" aria-label="Flagged account review totals">

@@ -95,7 +95,7 @@ export default function AdminUsers() {
       <Link to="/admin/users?view=online" className={view === "online" ? "selected" : ""}>Online users</Link>
       <Link to="/admin/users?view=checks" className={view === "checks" ? "selected" : ""}>Account checks</Link>
     </nav>
-    {view === "online" ? <AdminOnlineUsers embedded /> : view === "checks" ? <AdminAccounts scope="super_admin" /> : <>
+    {view === "online" ? <AdminOnlineUsers embedded /> : view === "checks" ? <AdminAccounts scope="super_admin" embedded /> : <>
     <p className="admin-section-note">Users are sorted A-Z. Deleted accounts are disabled immediately and permanently removed after seven days.</p>
     <div className="admin-users-controls">
       <SearchBox value={search} onChange={setSearch} shown={visibleRows.length}
