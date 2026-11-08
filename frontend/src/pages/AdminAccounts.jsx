@@ -54,19 +54,19 @@ function CheckForm({ row, onChanged, scope }) {
     } finally {
       setBusy("");
     }
+  }
 
-    async function deleteFlaggedAccount() {
-      if (!window.confirm(`Delete ${row.name}'s account after the admin reported it suspicious?`)) return;
-      setBusy("delete");
-      try {
-        const result = await api(`/api/admin/accounts/${row.id}/delete`, { method: "POST", json: {} });
-        setFlash({ text: result.message, kind: "info" });
-        onChanged();
-      } catch (err) {
-        setFlash({ text: err.message, kind: "error" });
-      } finally {
-        setBusy("");
-      }
+  async function deleteFlaggedAccount() {
+    if (!window.confirm(`Delete ${row.name}'s account after the admin reported it suspicious?`)) return;
+    setBusy("delete");
+    try {
+      const result = await api(`/api/admin/accounts/${row.id}/delete`, { method: "POST", json: {} });
+      setFlash({ text: result.message, kind: "info" });
+      onChanged();
+    } catch (err) {
+      setFlash({ text: err.message, kind: "error" });
+    } finally {
+      setBusy("");
     }
   }
 
