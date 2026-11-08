@@ -50,6 +50,21 @@ def _without_sentiment(rows):
             for row in rows]
 
 
+def _without_cost_estimates(rows):
+    """Keep preliminary repair pricing visible to Super Admins only."""
+    safe_rows = []
+    private_cost_fields = {"estimated_budget_php_min", "estimated_budget_php_max",
+                           "estimate_assumptions", "pricing_basis", "pricing_sources"}
+    for row in rows:
+        safe = dict(row)
+        safe.pop("ai_analysis", None)
+        if isinstance(safe.get("ai"), dict):
+            safe["ai"] = {key: value for key, value in safe["ai"].items()
+                          if key not in private_cost_fields}
+        safe_rows.append(safe)
+    return safe_rows
+
+
 def _log_admin_action(db, actor_email, action, target_email, details):
     """Record an account decision so the super admin can see who acted."""
     db.add(AdminActivityLog(actor_email=actor_email, action=action, target_email=target_email,
@@ -90,7 +105,7 @@ def _urgent_open(db):
 
 # ------------------------------------------------------------- dashboard
 @router.get("/dashboard")
-def dashboard(db: Session = Depends(get_db)):
+def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     faculty = faculty_service.load_records(db)
     stats = [
         ["Total Students", user_service.count_role(db, "student")],
@@ -104,12 +119,26 @@ def dashboard(db: Session = Depends(get_db)):
         ["Total Feedback", common.count_rows(db, "feedback")],
         ["Total Reservations", common.count_rows(db, "reservations")],
     ]
+    recent_reports = common.list_rows(db, "reports", status="Pending")
+    recent_concerns = common.list_rows(db, "concerns", status="Pending")
+    urgent_reports = _urgent_open(db)
+    if me.role == "admin":
+        assigned = lambda row: row.get("workflow_review") == "Accepted" and \
+            (row.get("assigned_admin_email") or "").lower() == me.email.lower()
+        recent_reports = [row for row in recent_reports if assigned(row)]
+        recent_concerns = [row for row in recent_concerns if assigned(row)]
+        urgent_reports = _without_cost_estimates([row for row in urgent_reports if assigned(row)])
+        recent_reports = _without_cost_estimates(recent_reports)
+        recent_concerns = _without_cost_estimates(recent_concerns)
+    recent_reports = recent_reports[:5]
+    recent_concerns = recent_concerns[:5]
+    urgent_reports = urgent_reports[:5]
     return {
         "stats": stats,
         "charts": chart_service.dashboard_charts(db),
-        "recent_concerns": _without_sentiment(common.list_rows(db, "concerns", status="Pending", limit=5)),
-        "recent_reports": _without_sentiment(common.list_rows(db, "reports", status="Pending", limit=5)),
-        "urgent_reports": _urgent_open(db)[:5],
+        "recent_concerns": _without_sentiment(recent_concerns),
+        "recent_reports": _without_sentiment(recent_reports),
+        "urgent_reports": urgent_reports,
     }
 
 
@@ -190,6 +219,17 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
         # possible hazards that are still open come first (the sort keeps newest-first inside each group)
         rows.sort(key=lambda r: str(r.get("created_at") or ""), reverse=True)
         rows.sort(key=lambda r: not (r["urgent"] and r["status"] in open_now))
+    elif kind == "concerns":
+        for row in rows:
+            try:
+                row["ai"] = json.loads(row.get("ai_analysis") or "null") if row.get("source") == "photo" else None
+            except ValueError:
+                row["ai"] = None
+            row["urgent"] = bool(row["ai"] and row["ai"].get("urgent"))
+    if kind in ("reports", "concerns") and me.role == "admin":
+        rows = [r for r in rows if r.get("workflow_review") == "Accepted"
+                and (r.get("assigned_admin_email") or "").lower() == me.email.lower()]
+        rows = _without_cost_estimates(rows)
     rows = _without_sentiment(rows)
     return {
         "kind": kind, "spec": ({**SECTIONS[kind], "title": "Reports and Concerns"}
@@ -198,7 +238,7 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
         "statuses": common.TABLE_STATUSES[kind],
         "columns": [[h, k] for h, k, _ in common.COLUMNS[kind]],
         "rows": rows,
-        "assignees": sorted(config.admin_emails() | {name for (name,) in db.query(CampusDepartment.name).all()})
+        "assignees": sorted(config.admin_emails() - config.super_admin_emails())
                      if kind in ("reports", "concerns") else [],
     }
 
@@ -213,7 +253,19 @@ def change_status(kind: str, row_id: int, body: StatusBody, me: CurrentUser = De
                   db: Session = Depends(get_db)):
     if kind not in SECTIONS:
         raise HTTPException(404, "That page was not found.")
-    if kind == "reservations":
+    if kind in ("reports", "concerns"):
+        row = db.get(common.MODELS[kind], row_id)
+        if row is None:
+            raise ValidationError("Report not found.")
+        if me.role != "admin" or row.workflow_review != "Accepted" \
+                or (row.assigned_admin_email or "").lower() != me.email.lower():
+            raise HTTPException(403, "Only the assigned administrator can update this report.")
+        if body.status not in common.TABLE_STATUSES[kind]:
+            raise ValidationError("Invalid status.")
+        row.status = body.status
+        row.updated_at = common.now()
+        db.commit()
+    elif kind == "reservations":
         row = db.get(common.MODELS["reservations"], row_id)
         previous = row.status if row else None
         reservation_service.change_status(db, row_id, body.status, me.email, body.note)
@@ -236,21 +288,18 @@ class ReportAssignmentBody(BaseModel):
 
 @router.post("/records/{kind}/{row_id}/assign")
 def assign_record(kind: str, row_id: int, body: ReportAssignmentBody,
-                  db: Session = Depends(get_db)):
+                  me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     if kind not in ("reports", "concerns"):
         raise HTTPException(404, "That page was not found.")
     row = db.get(common.MODELS[kind], row_id)
     if row is None:
         raise ValidationError("Report not found.")
-    requested = (body.assigned_admin_email or "").strip()
-    if not requested:
-        row.assigned_admin_email = None
-    elif requested.lower() in config.admin_emails():
-        row.assigned_admin_email = requested.lower()
-    else:
-        if "@" in requested:
-            raise ValidationError("Choose a configured administrator email or enter a department name.")
-        row.assigned_admin_email = common.clean_text(requested, "Department", 120)
+    requested = (body.assigned_admin_email or "").strip().lower()
+    if row.workflow_review != "Accepted":
+        raise ValidationError("Accept the report before assigning it.")
+    if requested not in (config.admin_emails() - config.super_admin_emails()):
+        raise ValidationError("Choose a configured administrator email.")
+    row.assigned_admin_email = requested
     row.updated_at = common.now()
     db.commit()
     return {"success": True, "message": "Report assignment updated."}
@@ -262,30 +311,63 @@ class AdminFeedbackBody(BaseModel):
 
 @router.post("/records/{kind}/{row_id}/feedback")
 def update_reporter_feedback(kind: str, row_id: int, body: AdminFeedbackBody,
-                             db: Session = Depends(get_db)):
+                             me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     if kind not in ("reports", "concerns"):
         raise HTTPException(404, "That page was not found.")
     message = common.clean_text(body.message, "Update", 2000, required=False)
     row = db.get(common.MODELS[kind], row_id)
     if row is None:
         raise ValidationError("Report not found.")
+    if me.role != "admin" or row.workflow_review != "Accepted" \
+            or (row.assigned_admin_email or "").lower() != me.email.lower():
+        raise HTTPException(403, "Only the assigned administrator can update the reporter.")
     row.admin_feedback = message or None
     row.updated_at = common.now()
     db.commit()
     return {"success": True, "message": "Reporter update saved."}
 
 
+class ReportDecisionBody(BaseModel):
+    decision: str
+    note: str = ""
+
+
+@router.post("/records/{kind}/{row_id}/decision")
+def decide_report(kind: str, row_id: int, body: ReportDecisionBody,
+                  me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+    if kind not in ("reports", "concerns"):
+        raise HTTPException(404, "That page was not found.")
+    if body.decision not in ("Accepted", "Rejected"):
+        raise ValidationError("Choose accept or reject.")
+    row = db.get(common.MODELS[kind], row_id)
+    if row is None:
+        raise ValidationError("Report not found.")
+    note = common.clean_text(body.note, "Review note", 500, required=False) or None
+    row.workflow_review = body.decision
+    row.workflow_review_note = note
+    row.workflow_reviewed_by = me.email
+    row.workflow_reviewed_at = common.now()
+    row.assigned_admin_email = None
+    if body.decision == "Rejected":
+        row.status = "Rejected"
+    elif row.status == "Rejected":
+        row.status = "Pending"
+    row.updated_at = common.now()
+    db.commit()
+    return {"success": True, "message": f"Report {body.decision.lower()} by Super Admin."}
+
+
 @router.post("/reports/{report_id}/assign")
-def assign_report(report_id: int, body: ReportAssignmentBody, db: Session = Depends(get_db)):
+def assign_report(report_id: int, body: ReportAssignmentBody,
+                  me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     """Assign a report to one of the server-configured administrators."""
     from app.models import Report
     row = db.get(Report, report_id)
     if row is None:
         raise ValidationError("Report not found.")
-    email = (body.assigned_admin_email or "").strip().lower() or None
-    departments = {name for (name,) in db.query(CampusDepartment.name).all()}
-    if email is not None and email not in config.admin_emails() and email not in departments:
-        raise ValidationError("Choose an administrator or department from the list.")
+    email = (body.assigned_admin_email or "").strip().lower()
+    if row.workflow_review != "Accepted" or email not in (config.admin_emails() - config.super_admin_emails()):
+        raise ValidationError("Accept the report and choose a configured administrator.")
     row.assigned_admin_email = email
     row.updated_at = common.now()
     db.commit()
@@ -293,13 +375,21 @@ def assign_report(report_id: int, body: ReportAssignmentBody, db: Session = Depe
 
 
 @router.delete("/reports/{report_id}")
-def delete_report(report_id: int, db: Session = Depends(get_db)):
+def delete_report(report_id: int, me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
+    row = db.get(common.MODELS["reports"], report_id)
+    if row and me.role != "super_admin" and (row.workflow_review != "Accepted"
+            or (row.assigned_admin_email or "").lower() != me.email.lower()):
+        raise HTTPException(403, "Only the assigned administrator can manage this report.")
     report_service.delete_report(db, report_id)
     return {"success": True, "message": f"Report #{report_id} deleted."}
 
 
 @router.delete("/concerns/{concern_id}")
-def delete_concern(concern_id: int, db: Session = Depends(get_db)):
+def delete_concern(concern_id: int, me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
+    row = db.get(common.MODELS["concerns"], concern_id)
+    if row and me.role != "super_admin" and (row.workflow_review != "Accepted"
+            or (row.assigned_admin_email or "").lower() != me.email.lower()):
+        raise HTTPException(403, "Only the assigned administrator can manage this report.")
     concern_service.delete_concern(db, concern_id)
     return {"success": True, "message": f"Concern #{concern_id} deleted."}
 
@@ -308,6 +398,10 @@ def delete_concern(concern_id: int, db: Session = Depends(get_db)):
 def verify_photo_report(report_id: int, body: VerifyBody, me: CurrentUser = Depends(admin_required),
                         db: Session = Depends(get_db)):
     """An administrator confirms or rejects what the AI found in a photo report."""
+    row = db.get(common.MODELS["reports"], report_id)
+    if row is None or me.role != "admin" or row.workflow_review != "Accepted" \
+            or (row.assigned_admin_email or "").lower() != me.email.lower():
+        raise HTTPException(403, "Only the assigned administrator can review this report.")
     photo_report_service.verify(db, me, report_id, body.verification, body.note)
     _log_admin_action(db, me.email, "report_verified", None,
                       f"Report #{report_id} marked {body.verification}.")

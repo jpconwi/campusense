@@ -33,7 +33,6 @@ def create_report(db: Session, user, form, image_file):
                  location=location, area=area, room=room, report_type=report_type,
                  description=description, report_date=report_date, image_filename=image,
                  status="Pending", sentiment=mood["label"], sentiment_score=mood["score"],
-                 assigned_admin_email=common.assigned_report_admin(report_type),
                  created_at=stamp, updated_at=stamp)
     db.add(row)
     db.commit()

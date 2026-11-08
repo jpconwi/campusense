@@ -425,12 +425,16 @@ def pdf(kind: str, record_id: str, user: CurrentUser = Depends(login_required),
         row = common.get_row(db, kind, rid)
         if row is None or (not user.is_admin and row["user_id"] != user.id):
             raise HTTPException(404, "That page was not found.")
+        if user.role == "admin" and kind in ("reports", "concerns") and (
+                row.get("workflow_review") != "Accepted"
+                or (row.get("assigned_admin_email") or "").lower() != user.email.lower()):
+            raise HTTPException(404, "That page was not found.")
         path = builders[kind](row["id"])
-        include_ai_estimate = bool(user.is_admin and kind == "reports" and row.get("source") == "photo")
+        include_ai_estimate = bool(user.role == "super_admin" and kind == "reports" and row.get("source") == "photo")
         if kind == "reports" and row.get("source") == "photo":
             # Owner and admin PDFs are separate so admin-only planning estimates can never
             # leak through a shared cached PDF path.
-            suffix = "_admin" if user.is_admin else "_user"
+            suffix = "_admin" if user.role == "super_admin" else "_assigned" if user.role == "admin" else "_user"
             path = path.with_name(f"{path.stem}{suffix}{path.suffix}")
         pdf_service.ensure_pdf(kind, row, path, include_ai_estimate=include_ai_estimate)
     return FileResponse(path, media_type="application/pdf")
@@ -449,7 +453,12 @@ def upload(filename: str, user: CurrentUser = Depends(login_required),
             owner_id = db.execute(select(model.user_id).where(
                 model.image_filename == filename).limit(1)).scalar_one_or_none()
             if owner_id is not None:
-                if user.is_admin or owner_id == user.id:
+                allowed_admin = user.role == "super_admin"
+                if user.role == "admin":
+                    record = db.scalars(select(model).where(model.image_filename == filename).limit(1)).first()
+                    allowed_admin = bool(record and record.workflow_review == "Accepted"
+                                         and (record.assigned_admin_email or "").lower() == user.email.lower())
+                if allowed_admin or owner_id == user.id:
                     image_data, content_type = upload_service.get_image(filename)
                     if image_data is not None:
                         return Response(image_data, media_type=content_type,

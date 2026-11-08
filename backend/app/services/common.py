@@ -38,7 +38,7 @@ COLUMNS = {
         ("Type", "concern_type", False), ("Location", "location", False),
         ("Room", "room", False), ("Description", "description", False),
         ("Assigned department", "assigned_admin_email", True),
-        ("Admin update", "admin_feedback", True), ("Status", "status", False),
+        ("Admin update", "admin_feedback", False), ("Status", "status", False),
     ],
     "reports": [
         ("ID", "id", False), ("Submitted", "created_at", False),
@@ -49,7 +49,7 @@ COLUMNS = {
         ("Area", "area", False), ("Room", "room", False),
         ("Description", "description", False),
         ("Status", "status", False), ("Assigned administrator", "assigned_admin_email", True),
-        ("Admin update", "admin_feedback", True),
+        ("Admin update", "admin_feedback", False),
     ],
     "feedback": [
         ("ID", "id", False), ("Submitted", "created_at", False),

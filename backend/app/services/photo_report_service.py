@@ -189,7 +189,6 @@ def submit(db: Session, user, draft_id, form, destination=None):
         source="photo", ai_status=analysis.get("status"), ai_analysis=json.dumps(analysis),
         ai_provider=draft.ai_provider, urgent=bool(analysis.get("urgent")),
         noticed_when=draft.noticed_when, observed_cause=draft.observed_cause, verification="Unverified")
-    report.assigned_admin_email = common.assigned_report_admin(report.report_type)
     db.add(report)
     db.execute(delete(PhotoDraft).where(PhotoDraft.user_id == user.id,
                                         PhotoDraft.image_filename == draft.image_filename))
@@ -252,4 +251,6 @@ def for_admin(row):
 def for_student(row):
     """Rows shown to the student who sent them: no administrator notes, no raw AI data."""
     return {k: v for k, v in row.items()
-            if k not in ("ai_analysis", "verification_note", "verified_by", "verified_at", "ai_provider")}
+            if k not in ("ai_analysis", "verification_note", "verified_by", "verified_at", "ai_provider",
+                         "workflow_review", "workflow_review_note", "workflow_reviewed_by",
+                         "workflow_reviewed_at", "assigned_admin_email")}

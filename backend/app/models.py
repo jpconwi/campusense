@@ -156,6 +156,10 @@ class Concern(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     assigned_admin_email: Mapped[Optional[str]] = mapped_column(String(255), index=True)
     admin_feedback: Mapped[Optional[str]] = mapped_column(Text)
+    workflow_review: Mapped[str] = mapped_column(String(20), default="Pending", nullable=False)
+    workflow_review_note: Mapped[Optional[str]] = mapped_column(String(500))
+    workflow_reviewed_by: Mapped[Optional[str]] = mapped_column(String(255))
+    workflow_reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
 
 class Report(Base):
@@ -190,6 +194,10 @@ class Report(Base):
     verification_note: Mapped[Optional[str]] = mapped_column(String(500))
     verified_by: Mapped[Optional[str]] = mapped_column(String(255))
     verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    workflow_review: Mapped[str] = mapped_column(String(20), default="Pending", nullable=False)
+    workflow_review_note: Mapped[Optional[str]] = mapped_column(String(500))
+    workflow_reviewed_by: Mapped[Optional[str]] = mapped_column(String(255))
+    workflow_reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
 

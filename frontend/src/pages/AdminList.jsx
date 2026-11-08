@@ -83,6 +83,50 @@ function AdminUpdateForm({ row, kind, onChanged }) {
   </form>;
 }
 
+function ReviewWorkflow({ row, kind, assignees, onChanged }) {
+  const { setFlash } = useAuth();
+  const [note, setNote] = useState(row.workflow_review_note || "");
+  const [assignee, setAssignee] = useState(row.assigned_admin_email || "");
+  async function decide(decision) {
+    try {
+      const result = await api(`/api/admin/records/${kind}/${row.id}/decision`, {
+        method: "POST", json: { decision, note },
+      });
+      setFlash({ text: result.message, kind: "info" }); onChanged();
+    } catch (error) { setFlash({ text: error.message, kind: "error" }); }
+  }
+  async function assign(event) {
+    event.preventDefault();
+    try {
+      const result = await api(`/api/admin/records/${kind}/${row.id}/assign`, {
+        method: "POST", json: { assigned_admin_email: assignee },
+      });
+      setFlash({ text: result.message, kind: "info" }); onChanged();
+    } catch (error) { setFlash({ text: error.message, kind: "error" }); }
+  }
+  return <section className="report-review-workflow">
+    <h4>Super Admin review</h4>
+    <p><b>Review status:</b> {row.workflow_review || "Pending"}</p>
+    {row.workflow_reviewed_by && <p className="muted">Reviewed by {row.workflow_reviewed_by}{row.workflow_reviewed_at ? ` on ${row.workflow_reviewed_at}` : ""}</p>}
+    {row.workflow_review_note && <p>{row.workflow_review_note}</p>}
+    {row.workflow_review === "Pending" ? <>
+      <label htmlFor={`review-note-${kind}-${row.id}`}>Review note (optional)</label>
+      <textarea id={`review-note-${kind}-${row.id}`} rows={2} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} />
+      <div className="report-review-actions">
+        <button className="btn small" type="button" onClick={() => decide("Accepted")}>Accept report</button>
+        <button className="btn small danger" type="button" onClick={() => decide("Rejected")}>Reject report</button>
+      </div>
+    </> : row.workflow_review === "Accepted" && <form className="inline" onSubmit={assign}>
+      <label htmlFor={`assign-review-${kind}-${row.id}`}>Assign to administrator</label>
+      <select id={`assign-review-${kind}-${row.id}`} required value={assignee} onChange={(event) => setAssignee(event.target.value)}>
+        <option value="">Choose an administrator</option>
+        {assignees.map((email) => <option key={email} value={email}>{email}</option>)}
+      </select>
+      <button className="btn small" type="submit" disabled={!assignee}>Assign</button>
+    </form>}
+  </section>;
+}
+
 function DeleteRecordButton({ row, onChanged }) {
   const { setFlash } = useAuth();
   const [busy, setBusy] = useState(false);
@@ -198,6 +242,7 @@ function Flags({ r }) {
 /** Everything about one photo report: photo, student's words, NEMSAI notes, verification. */
 function PhotoDetail({ row, onChanged }) {
   const { setFlash } = useAuth();
+  const { user } = useAuth();
   const ai = row.ai || {};
   const [choice, setChoice] = useState(row.verification || "Unverified");
   const [note, setNote] = useState(row.verification_note || "");
@@ -226,7 +271,7 @@ function PhotoDetail({ row, onChanged }) {
             {ai.observations && ai.observations.length > 0 && <ul>{ai.observations.map((o, i) => <li key={i}>{o}</li>)}</ul>}
             {row.description && !row.description.startsWith("(The student did not") &&
               <p className="muted">Description {CHECK[ai.description_check] || "was not compared"}. {ai.check_explanation}</p>}
-            <section className="photo-admin-estimate">
+            {user?.role === "super_admin" && <section className="photo-admin-estimate">
               <h4>Preliminary severity and repair estimate <span className="badge ai-guess">NEMSAI estimate · unverified</span></h4>
               <p><strong>Severity:</strong> <span className={`badge severity-${ai.severity || "unclear"}`}>{(ai.severity || "unclear").toUpperCase()}</span>
                 {ai.severity_reason ? ` ${ai.severity_reason}` : " Needs onsite review."}</p>
@@ -244,10 +289,10 @@ function PhotoDetail({ row, onChanged }) {
                 <li key={`${source.url}-${i}`}><a href={source.url} target="_blank" rel="noreferrer">{source.title || source.url}</a></li>
               ))}</ul></div>}
               <small className="muted">NEMSAI screening only, not a diagnosis, quotation, or approved budget. Confirm onsite and price with current local supplier/labor rates.</small>
-            </section>
+            </section>}
           </>
         )}
-        <form className="verify-form" onSubmit={save}>
+        {user?.role === "admin" && <form className="verify-form" onSubmit={save}>
           <label htmlFor={`v-${row.id}`}>Your verdict on NEMSAI's findings</label>
           <select id={`v-${row.id}`} value={choice} onChange={(e) => setChoice(e.target.value)}>
             <option>Unverified</option><option>Confirmed</option><option>Not confirmed</option>
@@ -255,7 +300,7 @@ function PhotoDetail({ row, onChanged }) {
           <input type="text" maxLength={500} placeholder="Note (optional)" aria-label="Verification note" value={note} onChange={(e) => setNote(e.target.value)} />
           <button className="btn small" type="submit">Save verdict</button>
           {row.verified_by && <span className="muted">Last set by {row.verified_by}</span>}
-        </form>
+        </form>}
       </div>
     </div>
   );
@@ -270,7 +315,7 @@ const shortText = (text, limit = 110) => {
  * Everything an admin needs for one record, rendered only after the row is opened.
  * Photo reports keep the richer verification view; every other record shows its fields.
  */
-function RecordDetail({ row, apiKind, assignees, statuses, onChanged }) {
+function RecordDetail({ row, apiKind, assignees, statuses, onChanged, superAdmin }) {
   const photoReport = apiKind === "reports" && row.source === "photo";
   return (
     <div className="report-detail">
@@ -296,17 +341,14 @@ function RecordDetail({ row, apiKind, assignees, statuses, onChanged }) {
           </aside>
         </div>
       )}
-      <div className="report-card-actions">
-        <div><label>Assigned administrator or department</label>
-          <AssignmentForm row={row} kind={apiKind} assignees={assignees} onChanged={onChanged} /></div>
-        <div><label>Update status</label>
-          <StatusForm kind={apiKind} row={row} statuses={statuses} onChanged={onChanged} /></div>
+      {superAdmin ? <ReviewWorkflow row={row} kind={apiKind} assignees={assignees} onChanged={onChanged} /> : <div className="report-card-actions">
+        <div><label>Update status</label><StatusForm kind={apiKind} row={row} statuses={statuses} onChanged={onChanged} /></div>
         <div className="report-actions-end">
           <a className="btn small ghost" href={`/api/pdf/${apiKind}/${row.id}`} target="_blank" rel="noopener noreferrer">Download PDF</a>
           <DeleteRecordButton row={row} onChanged={onChanged} />
         </div>
-      </div>
-      <AdminUpdateForm row={row} kind={apiKind} onChanged={onChanged} />
+      </div>}
+      {!superAdmin && <AdminUpdateForm row={row} kind={apiKind} onChanged={onChanged} />}
       {row.admin_feedback && <p className="report-last-update">Last update sent to the reporter: {row.admin_feedback}</p>}
     </div>
   );
@@ -314,6 +356,8 @@ function RecordDetail({ row, apiKind, assignees, statuses, onChanged }) {
 
 /** Concerns / Reports / Feedback / Reservations for admins. */
 export default function AdminList({ kind }) {
+  const { user } = useAuth();
+  const superAdmin = user?.role === "super_admin";
   const [params, setParams] = useSearchParams();
   const status = params.get("status") || "";
   const urgent = params.get("urgent") || "";
@@ -396,7 +440,9 @@ export default function AdminList({ kind }) {
       )}
       {rows.length ? kind === "reports" ? (
         <>
-          <p className="report-list-note">{rows.length} {rows.length === 1 ? "record" : "records"} shown. Select a row to open its details.</p>
+          <p className="report-list-note">{superAdmin
+            ? `${rows.length} ${rows.length === 1 ? "submission" : "submissions"} awaiting your review or assignment. Select one to review.`
+            : `${rows.length} assigned ${rows.length === 1 ? "report" : "reports"} shown. Select one to update its status or send the reporter an update.`}</p>
           <div className="report-table-wrap">
             <table className="report-table">
               <thead>
@@ -467,7 +513,7 @@ export default function AdminList({ kind }) {
                             aria-label="Close report details" autoFocus>×</button>
                   </header>
                   <div className="report-dialog-content">
-                    <RecordDetail row={openedRecord} apiKind={apiKind} assignees={assignees} statuses={statuses} onChanged={load} />
+                    <RecordDetail row={openedRecord} apiKind={apiKind} assignees={assignees} statuses={statuses} onChanged={load} superAdmin={superAdmin} />
                   </div>
                 </section>
               </div>
