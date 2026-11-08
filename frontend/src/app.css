@@ -1051,6 +1051,7 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
 
 /* ---- Account review queue ---- */
 .account-checks-page { max-width: 1300px; }
+.account-checks-page.embedded-account-checks { width: 100%; min-height: 220px; }
 .account-checks-page > .page-intro { max-width: 900px; margin-bottom: 18px; }
 .account-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 18px; }
 .account-chip { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 14px;

@@ -229,7 +229,8 @@ export default function AdminAccounts({ scope = "admin", embedded = false }) {
 
   if (loadError) return <div className="error" role="alert">{loadError}</div>;
   if (!data) return <Loading wide={1300} />;
-  const { rows, counts } = data;
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const counts = data?.counts || {};
   const scopedRows = scope === "super_admin"
     ? rows.filter((r) => r.review_status === "Flagged")
     : rows;
@@ -243,7 +244,7 @@ export default function AdminAccounts({ scope = "admin", embedded = false }) {
   const opened = rows.find((r) => r.id === openId);
 
   return (
-    <div className={embedded ? "account-checks-page" : "page account-checks-page"} style={{ maxWidth: 1300 }}>
+    <div className={embedded ? "account-checks-page embedded-account-checks" : "page account-checks-page"} style={{ maxWidth: 1300 }}>
       {!embedded && <h2 className="page-title">{scope === "super_admin" ? "Account Oversight" : "Account Checks"}</h2>}
       {!embedded && <p className="page-intro">{scope === "super_admin"
         ? "Review account checks, flagged registrations, and final approval status across the campus."
@@ -312,9 +313,11 @@ export default function AdminAccounts({ scope = "admin", embedded = false }) {
           </table>
         </div>
       ) : (
-        <EmptyState title={rows.length ? "No matches" : "No accounts to check"}>
+        <EmptyState title={scope === "super_admin" ? "No reported accounts" : (rows.length ? "No matches" : "No accounts to check")}>
           {scopedRows.length ? "Nothing matches this search and filter."
-            : "New NEMSU or personal-Gmail registrations will appear here for checking."}
+            : scope === "super_admin"
+              ? "Accounts reported as suspicious by admins will appear here."
+              : "New NEMSU or personal-Gmail registrations will appear here for checking."}
         </EmptyState>
       )}
 

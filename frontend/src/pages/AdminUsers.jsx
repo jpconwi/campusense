@@ -87,6 +87,17 @@ export default function AdminUsers() {
   }
 
   if (view === "users" && !rows) return <Loading label="Loading users..." wide={1300} />;
+  if (view === "checks") {
+    return <div className="page admin-users-page">
+      <h2 className="page-title">Users</h2>
+      <nav className="admin-view-switch" aria-label="User management views">
+        <Link to="/admin/users?view=users" className="">All users</Link>
+        <Link to="/admin/users?view=online" className="">Online users</Link>
+        <Link to="/admin/users?view=checks" className="selected">Account checks</Link>
+      </nav>
+      <AdminAccounts scope="super_admin" embedded />
+    </div>;
+  }
   return <div className="page admin-users-page">
     <h2 className="page-title">Users</h2>
     <p className="page-intro">Manage accounts and check student and instructor presence.</p>
