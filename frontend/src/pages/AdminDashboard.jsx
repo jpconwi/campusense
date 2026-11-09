@@ -5,20 +5,6 @@ import { Donut, HBars, Trend } from "../components/Charts.jsx";
 import { Icon, Loading, PATHS } from "../components/Ui.jsx";
 import { useAuth } from "../auth.jsx";
 
-// where a stat card leads to, and how it looks
-function statInfo(label, superAdmin) {
-  const l = label.toLowerCase();
-  const pending = l.includes("pending") ? "?status=Pending" : "";
-  if (l.includes("urgent") || l.includes("hazard")) return { to: "/admin/reports?urgent=1", icon: PATHS.alert, tone: "red" };
-  if (l.includes("concern")) return { to: `/admin/reports?type=concern${pending ? "&status=Pending" : ""}`, icon: PATHS.concern, tone: pending ? "amber" : "blue" };
-  if (l.includes("report") && l.includes("faculty")) return { to: "/admin/faculty", icon: PATHS.faculty, tone: "blue" };
-  if (l.includes("report")) return { to: "/admin/reports" + (l.includes("resolved") ? "?status=Resolved" : pending), icon: PATHS.report, tone: l.includes("resolved") ? "green" : pending ? "amber" : "teal" };
-  if (l.includes("feedback")) return { to: "/admin/feedback", icon: PATHS.feedback, tone: "violet" };
-  if (l.includes("reservation")) return { to: superAdmin ? "/admin/reservations" : "/admin", icon: PATHS.reserve, tone: "green" };
-  if (l.includes("student") || l.includes("instructor")) return { to: superAdmin ? "/admin/users" : "/admin", icon: PATHS.users, tone: "slate" };
-  return { to: "/admin", icon: PATHS.dashboard, tone: "blue" };
-}
-
 const short = (text, n = 90) => (text && text.length > n ? text.slice(0, n - 1) + "…" : text || "");
 
 export default function AdminDashboard() {
@@ -66,12 +52,11 @@ export default function AdminDashboard() {
       )}
 
       <div className="stat-grid">
-        {d.stats.map(([label, number]) => {
-          const info = statInfo(label, superAdmin);
+        {(d.stat_cards || []).map(({ label, value, href, tone, icon }) => {
           return (
-            <Link className={`stat2 tone-${info.tone}`} to={info.to} key={label}>
-              <span className="stat-ico"><Icon d={info.icon} size={20} /></span>
-              <span className="num">{number}</span>
+            <Link className={`stat2 tone-${tone}`} to={href} key={label}>
+              <span className="stat-ico"><Icon d={PATHS[icon] || PATHS.dashboard} size={20} /></span>
+              <span className="num">{value}</span>
               <span className="lbl">{label}</span>
             </Link>
           );

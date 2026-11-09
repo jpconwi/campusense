@@ -19,8 +19,8 @@ from zoneinfo import ZoneInfo
 
 from app import config
 from app.database import get_db
-from app.models import (AIProviderSetting, AdminActivityLog, CampusDepartment, User,
-                        UserDailyActivity, UserPresence, FacultyReport, Reservation)
+from app.models import (AIProviderSetting, AdminActivityLog, CampusDepartment, User, Feedback,
+                        UserDailyActivity, UserPresence, FacultyReport, Reservation, Concern, Report)
 from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_email,
                           is_nemsu_email, super_admin_required)
 from app.services import (announcement_service, campus_service, chart_service, common, concern_service, faculty_service,
@@ -108,18 +108,81 @@ def _urgent_open(db):
 @router.get("/dashboard")
 def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     faculty = faculty_service.load_records(db)
-    stats = [
-        ["Total Students", user_service.count_role(db, "student")],
-        ["Total Instructors", user_service.count_role(db, "instructor")],
-        ["Pending Concerns", common.count_rows(db, "concerns", "Pending")],
-        ["Total Reports", common.count_rows(db, "reports")],
-        ["Pending Reports", common.count_rows(db, "reports", "Pending")],
-        ["Urgent Photo Reports (open)", len(_urgent_open(db))],
-        ["Resolved Reports", common.count_rows(db, "reports", "Resolved")],
-        ["Faculty Reports", len(faculty)],
-        ["Total Feedback", common.count_rows(db, "feedback")],
-        ["Total Reservations", common.count_rows(db, "reservations")],
-    ]
+    report_scope = db.query(Report)
+    concern_scope = db.query(Concern)
+    feedback_scope = db.query(Feedback)
+    if me.role == "admin":
+        owner = me.email.lower()
+        report_scope = report_scope.filter(Report.workflow_review == "Accepted",
+                                           Report.assigned_admin_email == owner)
+        concern_scope = concern_scope.filter(Concern.workflow_review == "Accepted",
+                                             Concern.assigned_admin_email == owner)
+        feedback_scope = feedback_scope.filter(Feedback.feedback_scope == "campus")
+
+    counts = {
+        "concerns": concern_scope.count(),
+        "pending_concerns": concern_scope.filter(Concern.status == "Pending").count(),
+        "reports": report_scope.count(),
+        "pending_reports": report_scope.filter(Report.status == "Pending").count(),
+        "resolved_reports": report_scope.filter(Report.status == "Resolved").count(),
+        "feedback": feedback_scope.count(),
+        "urgent_reports": len([row for row in _urgent_open(db)
+                                if me.role == "super_admin" or (
+                                    row.get("workflow_review") == "Accepted"
+                                    and (row.get("assigned_admin_email") or "").lower() == me.email.lower())]),
+    }
+
+    def stat(label, value, href, tone, icon):
+        return {"label": label, "value": value, "href": href, "tone": tone, "icon": icon}
+
+    if me.role == "super_admin":
+        stats = [
+            ["Total Students", user_service.count_role(db, "student")],
+            ["Total Instructors", user_service.count_role(db, "instructor")],
+            ["Pending Concerns", common.count_rows(db, "concerns", "Pending")],
+            ["Total Reports", common.count_rows(db, "reports")],
+            ["Pending Reports", common.count_rows(db, "reports", "Pending")],
+            ["Urgent Photo Reports (open)", len(_urgent_open(db))],
+            ["Resolved Reports", common.count_rows(db, "reports", "Resolved")],
+            ["Faculty Reports", len(faculty)],
+            ["Total Feedback", common.count_rows(db, "feedback")],
+            ["Total Reservations", common.count_rows(db, "reservations")],
+        ]
+        stat_cards = [
+            stat("Total Students", stats[0][1], "/admin/users?filter=student", "slate", "users"),
+            stat("Total Instructors", stats[1][1], "/admin/users?filter=instructor", "slate", "users"),
+            stat("Pending Concerns", stats[2][1], "/admin/reports?type=concern&status=Pending", "amber", "concern"),
+            stat("Total Reports", stats[3][1], "/admin/reports", "teal", "report"),
+            stat("Pending Reports", stats[4][1], "/admin/reports?status=Pending", "amber", "report"),
+            stat("Urgent Photo Reports (open)", stats[5][1], "/admin/reports?urgent=1", "red", "alert"),
+            stat("Resolved Reports", stats[6][1], "/admin/reports?status=Resolved", "green", "report"),
+            stat("Faculty Reports", stats[7][1], "/admin/faculty", "blue", "faculty"),
+            stat("Total Feedback", stats[8][1], "/admin/feedback?scope=all", "violet", "feedback"),
+            stat("Total Reservations", stats[9][1], "/admin/reservations", "green", "reserve"),
+        ]
+    else:
+        stats = [
+            ["Assigned Concerns", counts["concerns"]],
+            ["Pending Concerns", counts["pending_concerns"]],
+            ["Assigned Reports", counts["reports"]],
+            ["Pending Reports", counts["pending_reports"]],
+            ["Urgent Photo Reports (open)", counts["urgent_reports"]],
+            ["Resolved Reports", counts["resolved_reports"]],
+            ["Faculty Reports", len(faculty)],
+            ["Campus Feedback", counts["feedback"]],
+            ["Total Reservations", common.count_rows(db, "reservations")],
+        ]
+        stat_cards = [
+            stat("Assigned Concerns", stats[0][1], "/admin/reports?type=concern", "blue", "concern"),
+            stat("Pending Concerns", stats[1][1], "/admin/reports?type=concern&status=Pending", "amber", "concern"),
+            stat("Assigned Reports", stats[2][1], "/admin/reports?type=problem", "teal", "report"),
+            stat("Pending Reports", stats[3][1], "/admin/reports?type=problem&status=Pending", "amber", "report"),
+            stat("Urgent Photo Reports (open)", stats[4][1], "/admin/reports?urgent=1", "red", "alert"),
+            stat("Resolved Reports", stats[5][1], "/admin/reports?type=problem&status=Resolved", "green", "report"),
+            stat("Faculty Reports", stats[6][1], "/admin/faculty", "blue", "faculty"),
+            stat("Campus Feedback", stats[7][1], "/admin/feedback?scope=campus", "violet", "feedback"),
+            stat("Total Reservations", stats[8][1], "/admin/reservations", "green", "reserve"),
+        ]
     recent_reports = common.list_rows(db, "reports", status="Pending")
     recent_concerns = common.list_rows(db, "concerns", status="Pending")
     urgent_reports = _urgent_open(db)
@@ -136,6 +199,7 @@ def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(g
     urgent_reports = urgent_reports[:5]
     return {
         "stats": stats,
+        "stat_cards": stat_cards,
         "charts": chart_service.dashboard_charts(db),
         "recent_concerns": _without_sentiment(recent_concerns),
         "recent_reports": _without_sentiment(recent_reports),
@@ -301,6 +365,8 @@ def change_status(kind: str, row_id: int, body: StatusBody, me: CurrentUser = De
             raise ValidationError("Feedback not found.")
         if me.role == "admin" and row.feedback_scope != "campus":
             raise HTTPException(403, "Admins can update campus feedback only.")
+        if me.role == "admin" and body.status == "Forwarded":
+            raise ValidationError("Use the forward action to send feedback to the Super Admin.")
         if not common.update_status(db, kind, row_id, body.status):
             raise ValidationError("Feedback not found.")
     elif kind == "reservations":

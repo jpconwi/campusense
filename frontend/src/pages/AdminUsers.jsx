@@ -34,7 +34,7 @@ export default function AdminUsers() {
   const view = viewParam === "online" || viewParam === "checks" ? viewParam : "users";
   const [rows, setRows] = useState(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState(() => params.get("filter") || "all");
   const load = useCallback(() => { api("/api/admin/users").then((data) => setRows(data.rows)).catch(() => {}); }, []);
   useEffect(() => { document.title = "Users | NEMSU"; load(); }, [load]);
 

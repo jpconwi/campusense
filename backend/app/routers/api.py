@@ -213,7 +213,8 @@ def submit_feedback(
             "feedback_type_other": feedback_type_other, "message": message,
             "feedback_date": feedback_date}
     row = feedback_service.create_feedback(db, user, form)
-    return _ok(row, "Thank you! Your feedback has been submitted.", "feedback")
+    destination = "campus administrators" if row["feedback_scope"] == "campus" else "the Super Admin"
+    return _ok(row, f"Thank you! Your feedback was sent to {destination}.", "feedback")
 
 
 @router.post("/reservations")
@@ -371,10 +372,15 @@ def my_records(kind: str, user: CurrentUser = Depends(role_required("student", "
         raise HTTPException(404, "That page was not found.")
     if kind == "reservations" and user.role != "instructor":
         raise HTTPException(403, NO_STUDENT_RESERVATION)
+    rows = common.list_rows(db, kind, user_id=user.id)
+    if kind == "feedback":
+        for row in rows:
+            row.pop("forwarded_by", None)
+            row.pop("forwarded_at", None)
     return {
         "kind": kind, "spec": USER_KINDS[kind], "pdf": kind in PDF_KINDS,
         "rows": [photo_report_service.for_student({k: v for k, v in r.items() if not k.startswith("sentiment")})
-                 for r in common.list_rows(db, kind, user_id=user.id)],       # sentiment + AI notes: admin-only
+                 for r in rows],       # sentiment + AI notes: admin-only
         "columns": [[h, k] for h, k, private in common.COLUMNS[kind] if not private],
     }
 
@@ -429,6 +435,8 @@ def pdf(kind: str, record_id: str, user: CurrentUser = Depends(login_required),
         if user.role == "admin" and kind in ("reports", "concerns") and (
                 row.get("workflow_review") != "Accepted"
                 or (row.get("assigned_admin_email") or "").lower() != user.email.lower()):
+            raise HTTPException(404, "That page was not found.")
+        if user.role == "admin" and kind == "feedback" and row.get("feedback_scope") != "campus":
             raise HTTPException(404, "That page was not found.")
         path = builders[kind](row["id"])
         include_ai_estimate = bool(user.role == "super_admin" and kind == "reports" and row.get("source") == "photo")

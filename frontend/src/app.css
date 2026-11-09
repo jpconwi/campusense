@@ -94,6 +94,7 @@ td.desc { min-width: 200px; max-width: 360px; overflow-wrap: anywhere; }
 .empty { color: var(--muted); padding: 14px 4px; }
 .badge { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: .8rem; font-weight: 700; background: #e7e8f5; color: var(--ink); white-space: nowrap; }
 .badge.s-pending { background: #edf3f8; color: #3c5d78; }
+.badge.s-forwarded { background: #eee8ff; color: #5830a8; }
 .badge.s-under-review, .badge.s-in-progress { background: #e3edf5; color: #234f75; }
 .badge.s-resolved, .badge.s-approved, .badge.s-available, .badge.s-reviewed { background: #dff3e1; color: #1b6a25; }
 .badge.s-rejected, .badge.s-cancelled, .badge.s-absent { background: #fde0e0; color: #8e1118; }
@@ -588,6 +589,11 @@ h2.page-title { letter-spacing: -.01em; }
 .admin-update-form label { color: var(--muted); font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .035em; }
 .admin-update-form textarea { width: 100%; min-height: 70px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
 .admin-update-form .btn { justify-self: start; }
+.feedback-admin-tools { display: grid; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+.feedback-response-form { display: grid; gap: 6px; }
+.feedback-response-form label { color: var(--muted); font-size: .78rem; font-weight: 700; letter-spacing: .035em; text-transform: uppercase; }
+.feedback-response-form textarea { width: 100%; min-height: 76px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font: inherit; resize: vertical; }
+.feedback-response-form .btn, .feedback-admin-tools > .btn { justify-self: start; }
 .workflow-progress { min-width: 230px; }
 .workflow-progress ol { display: grid; gap: 7px; list-style: none; padding: 2px 0; }
 .workflow-progress li { display: flex; align-items: flex-start; gap: 7px; color: var(--muted); font-size: .84rem; line-height: 1.3; }

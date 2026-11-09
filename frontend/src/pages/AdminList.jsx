@@ -83,6 +83,39 @@ function AdminUpdateForm({ row, kind, onChanged }) {
   </form>;
 }
 
+function FeedbackAdminTools({ row, onChanged }) {
+  const { user, setFlash } = useAuth();
+  const [message, setMessage] = useState(row.admin_response || "");
+  useEffect(() => setMessage(row.admin_response || ""), [row.admin_response]);
+  async function save(event) {
+    event.preventDefault();
+    try {
+      const result = await api(`/api/admin/feedback/${row.id}/response`, {
+        method: "POST", json: { message },
+      });
+      setFlash({ text: result.message, kind: "info" }); onChanged();
+    } catch (error) { setFlash({ text: error.message, kind: "error" }); }
+  }
+  async function forward() {
+    if (!window.confirm("Forward this feedback to the Super Admin for system review?")) return;
+    try {
+      const result = await api(`/api/admin/feedback/${row.id}/forward`, { method: "POST", json: {} });
+      setFlash({ text: result.message, kind: "info" }); onChanged();
+    } catch (error) { setFlash({ text: error.message, kind: "error" }); }
+  }
+  return <div className="feedback-admin-tools">
+    <form className="feedback-response-form" onSubmit={save}>
+      <label htmlFor={`feedback-response-${row.id}`}>Response to student or faculty</label>
+      <textarea id={`feedback-response-${row.id}`} rows={3} maxLength={2000} value={message}
+        onChange={(event) => setMessage(event.target.value)} placeholder="Write a response or follow-up." />
+      <button className="btn small" type="submit">Save response</button>
+    </form>
+    {user?.role === "admin" && row.feedback_scope === "campus" && <button className="btn small ghost" type="button" onClick={forward}>
+      Forward to Super Admin
+    </button>}
+  </div>;
+}
+
 function adminActivityLabel(admin) {
   if (!admin.account_active) return "Admin account inactive";
   if (admin.online) return "Active now";
@@ -191,13 +224,16 @@ function DateCell({ value }) {
 }
 
 function RecordCard({ row, columns, kind, spec, statuses, assignees = [], onChanged }) {
+  const scopeLabels = { campus: "Campus services", system: "NEMSAI / application", technical: "Technical issue" };
+  const reference = row.record_kind === "concern" ? `NEMSAI-C-${String(row.id).padStart(4, "0")}`
+    : kind === "feedback" ? `FB-${String(row.id).padStart(4, "0")}` : `NEMSAI-${String(row.id).padStart(4, "0")}`;
   const nameKey = ["reporter_name", "name", "requester_name"].find((key) => row[key] !== undefined);
   const emailKey = ["reporter_email", "email", "requester_email"].find((key) => row[key] !== undefined);
   const details = columns.filter(([, key]) => !["id", "created_at", "status", "assigned_admin_email",
     nameKey, emailKey, "submitter_role"].includes(key) && row[key]);
   return <article className={`record-card${row.record_kind === "concern" ? " report-concern-card" : ""}`}>
     <div className="record-card-head">
-      <div><strong>{row.record_kind === "concern" ? `NEMSAI-C-${String(row.id).padStart(4, "0")}` : `NEMSAI-${String(row.id).padStart(4, "0")}`}</strong><DateCell value={row.created_at} /></div>
+      <div><strong>{reference}</strong><DateCell value={row.created_at} /></div>
       <span className={"badge s-" + slug(row.status)}>{row.status}</span>
     </div>
     <div className="record-card-person">
@@ -223,13 +259,14 @@ function RecordCard({ row, columns, kind, spec, statuses, assignees = [], onChan
     <div className="record-card-fields">
       {details.map(([label, key]) => <div className={LONG_TEXT.includes(key) ? "record-card-long" : ""} key={key}>
         <b>{label}</b>
-        <span>{row[key]}</span>
+        <span>{key === "feedback_scope" ? scopeLabels[row[key]] || row[key] : row[key]}</span>
       </div>)}
     </div>
     {(kind === "concerns" || kind === "reports") && <div className="report-workflow-controls">
       <div><label>Assigned department or administrator</label><AssignmentForm row={row} kind={kind} assignees={assignees} onChanged={onChanged} /></div>
       <AdminUpdateForm row={row} kind={kind} onChanged={onChanged} />
     </div>}
+    {kind === "feedback" && <FeedbackAdminTools row={row} onChanged={onChanged} />}
     <div className="record-card-links">
       {row.image_filename && <ReportPhoto filename={row.image_filename} />}
       {spec.pdf && <a href={`/api/pdf/${kind}/${row.id}`} target="_blank" rel="noopener noreferrer">Download PDF</a>}
@@ -395,6 +432,10 @@ export default function AdminList({ kind }) {
   const [params, setParams] = useSearchParams();
   const status = params.get("status") || "";
   const urgent = params.get("urgent") || "";
+  const availableFeedbackScopes = superAdmin ? ["all", "campus", "suggestions", "system", "technical"] : ["campus", "suggestions"];
+  const requestedFeedbackScope = params.get("scope") || (superAdmin ? "all" : "campus");
+  const feedbackScope = availableFeedbackScopes.includes(requestedFeedbackScope)
+    ? requestedFeedbackScope : (superAdmin ? "all" : "campus");
   const requestedType = params.get("type") || "all";
   const typeFilter = ["concern", "problem"].includes(requestedType) ? requestedType : "all";
   const priorityRelevant = kind === "reports" && typeFilter !== "concern";
@@ -420,18 +461,24 @@ export default function AdminList({ kind }) {
     const q = new URLSearchParams();
     if (status) q.set("status", status);
     if (activeUrgent) q.set("urgent", activeUrgent);
+    if (kind === "feedback") q.set("scope", feedbackScope);
     api(`/api/admin/records/${kind}` + (q.toString() ? `?${q}` : "")).then(setData).catch(() => {});
-  }, [kind, status, activeUrgent]);
+  }, [kind, status, activeUrgent, feedbackScope]);
   useEffect(() => { setData(null); setQ(""); load(); }, [load]);
   useEffect(() => {
-    if (!superAdmin || kind !== "reports") return undefined;
+    if (!superAdmin || !["reports", "feedback"].includes(kind)) return undefined;
     const timer = window.setInterval(load, 30_000);
     return () => window.clearInterval(timer);
   }, [load, superAdmin, kind]);
-  useEffect(() => { if (data) document.title = `${data.spec.title} | NEMSU`; }, [data]);
+  const feedbackTitles = { all: "All Feedback", campus: "Campus Feedback", suggestions: "Campus Suggestions",
+    system: "System Feedback", technical: "Technical Issues" };
+  const pageTitle = kind === "feedback" ? feedbackTitles[feedbackScope] : data?.spec.title;
+  useEffect(() => { if (data) document.title = `${pageTitle || data.spec.title} | NEMSU`; }, [data, pageTitle]);
 
   if (!data) return <Loading wide={1400} />;
   const { spec, rows: allRows, columns, statuses, current } = data;
+  const visibleStatuses = kind === "feedback" && user?.role === "admin"
+    ? statuses.filter((value) => value !== "Forwarded") : statuses;
   const assignees = data.assignees || [];
   const typeRows = allRows.filter((r) => kind !== "reports" || typeFilter === "all" || r.record_kind === typeFilter);
   const rows = typeRows.filter((r) => matches(r, q));
@@ -444,13 +491,29 @@ export default function AdminList({ kind }) {
     const next = new URLSearchParams();
     if (nextStatus) next.set("status", nextStatus);
     if (kind === "reports" && typeFilter !== "all") next.set("type", typeFilter);
+    if (kind === "feedback") next.set("scope", feedbackScope);
     if (priorityRelevant && nextUrgent) next.set("urgent", nextUrgent);
     return `${base}${next.toString() ? `?${next}` : ""}`;
   };
 
   return (
     <div className="page" style={{ maxWidth: 1400 }}>
-      <h2 className="page-title">{spec.title}</h2>
+      <h2 className="page-title">{pageTitle || spec.title}</h2>
+      {kind === "feedback" && <label className="admin-filter-label" htmlFor="admin-feedback-scope">
+        Feedback view
+        <select id="admin-feedback-scope" value={feedbackScope} onChange={(event) => {
+          const next = new URLSearchParams(params);
+          next.set("scope", event.target.value);
+          next.delete("status");
+          setParams(next);
+        }}>
+          {superAdmin && <>
+            <option value="all">All feedback</option><option value="system">System feedback</option>
+            <option value="technical">Technical issues</option>
+          </>}
+          <option value="campus">Campus feedback</option><option value="suggestions">Campus suggestions</option>
+        </select>
+      </label>}
       {kind === "reports" && <label className="admin-filter-label" htmlFor="admin-record-type">
         Record type
         <select id="admin-record-type" value={typeFilter} onChange={(e) => {
@@ -464,7 +527,7 @@ export default function AdminList({ kind }) {
       </label>}
       <div className="filters">
         <Link to={filterHref()} className={!current ? "on" : ""}>All statuses</Link>
-        {statuses.map((s) => <Link key={s} to={filterHref({ nextStatus: s, nextUrgent: urgent })} className={current === s ? "on" : ""}>{s}</Link>)}
+        {visibleStatuses.map((s) => <Link key={s} to={filterHref({ nextStatus: s, nextUrgent: urgent })} className={current === s ? "on" : ""}>{s}</Link>)}
       </div>
       {priorityRelevant && (
         <div className="filters" aria-label="Filter by priority">
@@ -562,7 +625,7 @@ export default function AdminList({ kind }) {
       ) : (
         <section className="record-card-list" aria-label={spec.title}>
           {rows.map((row) => <RecordCard key={row.id} row={row} columns={columns} kind={kind}
-            spec={spec} statuses={statuses} assignees={assignees} onChanged={load} />)}
+            spec={spec} statuses={visibleStatuses} assignees={assignees} onChanged={load} />)}
         </section>
       ) : q && allRows.length ? (
         <EmptyState title="No matches">Nothing matches "{q}". Try fewer or different words.</EmptyState>

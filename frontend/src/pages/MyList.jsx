@@ -5,6 +5,7 @@ import RecordForm, { SuccessCard } from "../components/RecordForm.jsx";
 import { EmptyState, Loading, SearchBox, matches } from "../components/Ui.jsx";
 
 const LONG_TEXT = ["description", "message", "purpose", "additional_info", "admin_response"];
+const FEEDBACK_SCOPE_LABELS = { campus: "Campus services", system: "NEMSAI / application", technical: "Technical issue" };
 
 function WorkflowProgress({ row }) {
   const status = row.status || "Pending";
@@ -113,6 +114,7 @@ export default function MyList({ kind, hideForm = false }) {
   const [formKind, setFormKind] = useState("report");
   const [selectedRecord, setSelectedRecord] = useState(null);
   const combined = kind === "reports";
+  const autoRefresh = combined || kind === "feedback";
   const pageTitle = kind === "feedback" ? (hideForm ? "My Feedback" : "Feedback & Suggestions") : "";
 
   const load = useCallback(() => {
@@ -131,7 +133,7 @@ export default function MyList({ kind, hideForm = false }) {
   useEffect(() => { setData(null); setOpen(false); setResult(null); setQ(""); load(); }, [load]);
   useEffect(() => { if (data) document.title = `${pageTitle || data.spec.title} | NEMSU`; }, [data, pageTitle]);
   useEffect(() => {
-    if (!combined) return undefined;
+    if (!autoRefresh) return undefined;
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") load();
     };
@@ -141,7 +143,7 @@ export default function MyList({ kind, hideForm = false }) {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [combined, load]);
+  }, [autoRefresh, load]);
 
   if (error) return <div className="page"><p className="empty">{error}</p></div>;
   if (!data) return <Loading variant="form" />;
@@ -158,7 +160,7 @@ export default function MyList({ kind, hideForm = false }) {
       <h2 className="page-title">{pageTitle || spec.title}</h2>
       <p className="page-intro">{kind === "feedback" && !hideForm
         ? "Share campus feedback, suggest improvements, or report an issue with NEMSAI or the app."
-        : spec.intro}{combined && " Status updates refresh automatically."}</p>
+        : spec.intro}{autoRefresh && " Status updates refresh automatically."}</p>
 
       {!hideForm && <p><button className="btn" type="button" onClick={() => setOpen((o) => !o)}>
         {open ? "Close form" : combined ? "New report" : kind === "feedback" ? "New feedback or suggestion" : `New ${spec.form}`}
@@ -230,7 +232,9 @@ export default function MyList({ kind, hideForm = false }) {
                   ? <td key={key} data-label={header}><span className={"badge s-" + slug(r[key])}>{r[key]}</span></td>
                   : combined && key === "id"
                     ? <td key={key} data-label={header}>{r.record_kind === "concern" ? `NEMSAI-C-${String(r[key]).padStart(4, "0")}` : `NEMSAI-${String(r[key]).padStart(4, "0")}`}</td>
-                  : <td key={key} data-label={header} className={LONG_TEXT.includes(key) ? "desc" : undefined}>{r[key] || ""}</td>)}
+                  : <td key={key} data-label={header} className={LONG_TEXT.includes(key) ? "desc" : undefined}>
+                      {key === "feedback_scope" ? FEEDBACK_SCOPE_LABELS[r[key]] || r[key] : r[key] || ""}
+                    </td>)}
                 {(combined ? data.image : spec.image) && <td data-label="Photo">{r.image_filename && <a href={`/api/uploads/${r.image_filename}`} target="_blank" rel="noopener noreferrer">View</a>}</td>}
                 {data.pdf && <td data-label="PDF"><a href={`/api/pdf/${combined ? r.record_kind === "concern" ? "concerns" : "reports" : kind}/${r.id}`} target="_blank" rel="noopener noreferrer">PDF</a></td>}
               </tr>

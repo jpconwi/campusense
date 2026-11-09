@@ -59,6 +59,7 @@ COLUMNS = {
         ("Type", "feedback_type", False),
         ("Message", "message", False),
         ("Admin response", "admin_response", False), ("Status", "status", False),
+        ("Forwarded by", "forwarded_by", True), ("Forwarded at", "forwarded_at", True),
     ],
     "reservations": [
         ("ID", "id", False), ("Submitted", "created_at", False),

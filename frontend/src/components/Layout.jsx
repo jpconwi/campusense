@@ -184,13 +184,25 @@ function groupNav(nav, role) {
   const out = [];
   for (const item of nav) {
     const path = item.path.split("?", 1)[0];
+    const superAdminGroups = {
+      "/admin/help-messages": "Inbox", "/admin/reports": "Inbox", "/admin/faculty": "Inbox",
+      "/admin/feedback": "Inbox",
+      "/admin/users": "People",
+      "/admin/rooms": "Campus data", "/admin/campus": "Campus data", "/admin/announcements": "Campus data",
+      "/admin/reservations": "Campus data",
+      "/admin": "System", "/ai": "System", "/admin/system": "System",
+    };
     // NEMSAI Assistant sits with the overview for admins
-    const name = path === "/ai" && role?.includes("admin") ? "Overview" : GROUPS[path] || "More";
+    const name = role === "super_admin"
+      ? superAdminGroups[path] || "System"
+      : path === "/ai" && role?.includes("admin") ? "Overview" : GROUPS[path] || "More";
     let g = out.find((x) => x.name === name);
     if (!g) { g = { name, items: [] }; out.push(g); }
     g.items.push(item);
   }
-  const ORDER = ["Menu", "Overview", "Inbox", "Manage", "My records", "Account", "More"];
+  const ORDER = role === "super_admin"
+    ? ["Inbox", "People", "Campus data", "System"]
+    : ["Menu", "Overview", "Inbox", "Manage", "My records", "Account", "More"];
   return out.sort((a, b) => ORDER.indexOf(a.name) - ORDER.indexOf(b.name));
 }
 
@@ -250,7 +262,7 @@ export default function Layout() {
                                const matchesQuery = [...required].every(([key, value]) => current.get(key) === value);
                                return location.pathname === itemPath && matchesQuery ? "active" : "";
                              }}>
-                      <span className="sb-ico"><Icon d={ICONS[item.path] || FALLBACK_ICON} /></span>
+                      <span className="sb-ico"><Icon d={ICONS[item.path.split("?", 1)[0]] || FALLBACK_ICON} /></span>
                       <span className="lbl">{item.label}</span>
                     </NavLink>
                   ))}
