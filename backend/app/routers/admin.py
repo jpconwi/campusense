@@ -323,6 +323,8 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
             rows = [row for row in rows if row.get("feedback_scope") == "system"]
         elif scope == "technical":
             rows = [row for row in rows if row.get("feedback_scope") == "technical"]
+        elif scope == "system-technical":
+            rows = [row for row in rows if row.get("feedback_scope") in ("system", "technical")]
     if kind in ("reports", "concerns") and me.role == "admin":
         rows = [r for r in rows if r.get("workflow_review") == "Accepted"
                 and (r.get("assigned_admin_email") or "").lower() == me.email.lower()]

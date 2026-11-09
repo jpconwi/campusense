@@ -432,7 +432,7 @@ export default function AdminList({ kind }) {
   const [params, setParams] = useSearchParams();
   const status = params.get("status") || "";
   const urgent = params.get("urgent") || "";
-  const availableFeedbackScopes = superAdmin ? ["all", "campus", "suggestions", "system", "technical"] : ["campus", "suggestions"];
+  const availableFeedbackScopes = superAdmin ? ["all", "campus", "suggestions", "system-technical"] : ["campus", "suggestions"];
   const requestedFeedbackScope = params.get("scope") || (superAdmin ? "all" : "campus");
   const feedbackScope = availableFeedbackScopes.includes(requestedFeedbackScope)
     ? requestedFeedbackScope : (superAdmin ? "all" : "campus");
@@ -471,7 +471,7 @@ export default function AdminList({ kind }) {
     return () => window.clearInterval(timer);
   }, [load, superAdmin, kind]);
   const feedbackTitles = { all: "All Feedback", campus: "Campus Feedback", suggestions: "Campus Suggestions",
-    system: "System Feedback", technical: "Technical Issues" };
+    "system-technical": "System & Technical Feedback" };
   const pageTitle = kind === "feedback" ? feedbackTitles[feedbackScope] : data?.spec.title;
   useEffect(() => { if (data) document.title = `${pageTitle || data.spec.title} | NEMSU`; }, [data, pageTitle]);
 
@@ -508,8 +508,8 @@ export default function AdminList({ kind }) {
           setParams(next);
         }}>
           {superAdmin && <>
-            <option value="all">All feedback</option><option value="system">System feedback</option>
-            <option value="technical">Technical issues</option>
+            <option value="all">All feedback</option>
+            <option value="system-technical">System &amp; technical feedback</option>
           </>}
           <option value="campus">Campus feedback</option><option value="suggestions">Campus suggestions</option>
         </select>
