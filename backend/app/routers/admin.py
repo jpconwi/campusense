@@ -234,9 +234,7 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
     rows = _without_sentiment(rows)
     assignees = []
     if kind in ("reports", "concerns") and me.role == "super_admin":
-        eligible_emails = config.admin_emails() - config.super_admin_emails()
-        admins = db.scalars(select(User).where(User.email.in_(eligible_emails), User.role == "admin")
-                            .order_by(User.name)).all() if eligible_emails else []
+        admins = db.scalars(select(User).where(User.role == "admin").order_by(User.name)).all()
         presence = {row.user_id: row.last_seen_at for row in db.scalars(select(UserPresence)).all()}
         now_utc = datetime.utcnow().replace(microsecond=0)
         for admin in admins:
@@ -316,8 +314,6 @@ def assign_record(kind: str, row_id: int, body: ReportAssignmentBody,
     requested = (body.assigned_admin_email or "").strip().lower()
     if row.workflow_review != "Accepted":
         raise ValidationError("Accept the report before assigning it.")
-    if requested not in (config.admin_emails() - config.super_admin_emails()):
-        raise ValidationError("Choose a configured administrator email.")
     assignee = db.scalars(select(User).where(User.email == requested, User.role == "admin")).first()
     if (assignee is None or not assignee.is_active or assignee.deleted_at is not None
             or assignee.approval_status != "Approved"):
@@ -389,8 +385,8 @@ def assign_report(report_id: int, body: ReportAssignmentBody,
     if row is None:
         raise ValidationError("Report not found.")
     email = (body.assigned_admin_email or "").strip().lower()
-    if row.workflow_review != "Accepted" or email not in (config.admin_emails() - config.super_admin_emails()):
-        raise ValidationError("Accept the report and choose a configured administrator.")
+    if row.workflow_review != "Accepted":
+        raise ValidationError("Accept the report before assigning it.")
     assignee = db.scalars(select(User).where(User.email == email, User.role == "admin")).first()
     if (assignee is None or not assignee.is_active or assignee.deleted_at is not None
             or assignee.approval_status != "Approved"):

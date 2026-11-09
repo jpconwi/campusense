@@ -969,13 +969,15 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
 .report-review-workflow > label, .admin-assignment-form > label { color: var(--muted); font-size: .78rem; font-weight: 700; letter-spacing: .035em; text-transform: uppercase; }
 .report-review-workflow textarea { width: 100%; min-height: 68px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font: inherit; resize: vertical; }
 .report-review-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.admin-assignment-form { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.admin-assignment-form { display: grid; grid-template-columns: minmax(250px, 360px) auto; align-items: end; gap: 7px 9px; }
+.admin-assignment-form > label { grid-column: 1 / -1; }
+.admin-assignment-form > .btn { min-height: 38px; }
 .admin-picker { position: relative; min-width: min(100%, 260px); }
 .admin-picker-trigger { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 38px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
 .admin-picker-trigger > span { color: var(--muted); }
 .admin-picker-dot { display: inline-block; flex: 0 0 10px; width: 10px; height: 10px; border-radius: 50%; background: #98a0ad; }
 .admin-picker-dot.is-online { background: #169b60; box-shadow: 0 0 0 3px rgba(22,155,96,.14); }
-.admin-picker-options { position: absolute; z-index: 30; top: calc(100% + 5px); left: 0; width: max(100%, 360px); max-height: 260px; overflow: auto; padding: 5px; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 12px 30px rgba(20,35,56,.18); }
+.admin-picker-options { position: absolute; z-index: 30; top: calc(100% + 5px); left: 0; width: max(100%, 400px); max-height: 260px; overflow: auto; padding: 5px; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 12px 30px rgba(20,35,56,.18); }
 .admin-picker-option { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 9px; width: 100%; padding: 9px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
 .admin-picker-option:hover:not(:disabled), .admin-picker-option[aria-selected="true"] { background: #f0f5fc; }
 .admin-picker-option:disabled { color: var(--muted); cursor: not-allowed; opacity: .7; }
@@ -998,8 +1000,9 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
   .report-dialog { width: 100%; height: 100%; max-height: none; border: 0; border-radius: 0; }
   .report-dialog-header { padding: 14px 16px; }
   .report-detail { padding: 16px; }
-  .admin-assignment-form { align-items: stretch; flex-direction: column; }
-  .admin-picker, .admin-assignment-form > .btn { width: 100%; }
+  .admin-assignment-form { grid-template-columns: minmax(0, 1fr) auto; }
+  .admin-picker { width: 100%; }
+  .admin-assignment-form > .btn { width: auto; }
   .admin-picker-options { width: 100%; }
   .admin-picker-option { grid-template-columns: 12px minmax(0, 1fr); }
   .admin-picker-activity { grid-column: 2; text-align: left; }
