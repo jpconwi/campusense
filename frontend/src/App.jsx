@@ -59,6 +59,7 @@ export default function App() {
         <Route path="/concerns" element={<Navigate to="/reports" replace />} />
         <Route path="/reports" element={page(<MyList kind="reports" />, person)} />
         <Route path="/feedback" element={page(<MyList kind="feedback" />, person)} />
+        <Route path="/my-feedback" element={page(<MyList kind="feedback" hideForm />, person)} />
         <Route path="/reservations" element={page(<MyList kind="reservations" />, ["instructor"])} />
         <Route path="/faculty" element={page(<Faculty />, ["instructor"])} />
 

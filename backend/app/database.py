@@ -41,6 +41,7 @@ def init_db():
     _add_photo_draft_session_column()
     _add_report_assignment_column()
     _add_report_workflow_review_columns()
+    _add_feedback_routing_columns()
     _add_faculty_reservation_review_columns()
     from app.services import campus_service, sentiment_service
     with SessionLocal() as db:
@@ -229,6 +230,28 @@ def _add_report_workflow_review_columns():
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {sql_type}"))
                 else:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"))
+
+
+def _add_feedback_routing_columns():
+    """Add feedback routing, response, and forwarding fields to existing databases."""
+    from sqlalchemy import inspect, text
+    columns = {column["name"] for column in inspect(engine).get_columns("feedback")}
+    binary = "BOOLEAN NOT NULL DEFAULT FALSE"
+    additions = {
+        "feedback_scope": "VARCHAR(20) NOT NULL DEFAULT 'campus'",
+        "admin_response": "TEXT",
+        "forwarded_to_super_admin": binary,
+        "forwarded_by": "VARCHAR(255)",
+        "forwarded_at": "TIMESTAMP",
+    }
+    with engine.begin() as conn:
+        for name, sql_type in additions.items():
+            if name in columns:
+                continue
+            if engine.dialect.name == "postgresql":
+                conn.execute(text(f"ALTER TABLE feedback ADD COLUMN IF NOT EXISTS {name} {sql_type}"))
+            else:
+                conn.execute(text(f"ALTER TABLE feedback ADD COLUMN {name} {sql_type}"))
 
 
 def _add_faculty_reservation_review_columns():

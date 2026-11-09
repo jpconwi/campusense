@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, apiUrl, slug } from "../api.js";
 import RecordForm, { SuccessCard } from "../components/RecordForm.jsx";
 import { EmptyState, Loading, SearchBox, matches } from "../components/Ui.jsx";
 
-const LONG_TEXT = ["description", "message", "purpose", "additional_info"];
+const LONG_TEXT = ["description", "message", "purpose", "additional_info", "admin_response"];
 
 function WorkflowProgress({ row }) {
   const status = row.status || "Pending";
@@ -102,7 +103,7 @@ function UserReportDetails({ row, onClose }) {
 }
 
 /** My Concerns / My Reports / Feedback / Reservations (one page, four kinds). */
-export default function MyList({ kind }) {
+export default function MyList({ kind, hideForm = false }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
@@ -112,6 +113,7 @@ export default function MyList({ kind }) {
   const [formKind, setFormKind] = useState("report");
   const [selectedRecord, setSelectedRecord] = useState(null);
   const combined = kind === "reports";
+  const pageTitle = kind === "feedback" ? (hideForm ? "My Feedback" : "Feedback & Suggestions") : "";
 
   const load = useCallback(() => {
     if (combined) {
@@ -127,7 +129,7 @@ export default function MyList({ kind }) {
   }, [kind, combined]);
 
   useEffect(() => { setData(null); setOpen(false); setResult(null); setQ(""); load(); }, [load]);
-  useEffect(() => { if (data) document.title = `${data.spec.title} | NEMSU`; }, [data]);
+  useEffect(() => { if (data) document.title = `${pageTitle || data.spec.title} | NEMSU`; }, [data, pageTitle]);
   useEffect(() => {
     if (!combined) return undefined;
     const refreshWhenVisible = () => {
@@ -153,13 +155,15 @@ export default function MyList({ kind }) {
 
   return (
     <div className="page">
-      <h2 className="page-title">{spec.title}</h2>
-      <p className="page-intro">{spec.intro}{combined && " Status updates refresh automatically."}</p>
+      <h2 className="page-title">{pageTitle || spec.title}</h2>
+      <p className="page-intro">{kind === "feedback" && !hideForm
+        ? "Share campus feedback, suggest improvements, or report an issue with NEMSAI or the app."
+        : spec.intro}{combined && " Status updates refresh automatically."}</p>
 
-      <p><button className="btn" type="button" onClick={() => setOpen((o) => !o)}>
-        {open ? "Close form" : combined ? "New report" : `New ${spec.form}`}
-      </button></p>
-      {open && (
+      {!hideForm && <p><button className="btn" type="button" onClick={() => setOpen((o) => !o)}>
+        {open ? "Close form" : combined ? "New report" : kind === "feedback" ? "New feedback or suggestion" : `New ${spec.form}`}
+      </button></p>}
+      {!hideForm && open && (
         <div className="card" style={{ marginTop: 14 }}>
           {combined && <div style={{ maxWidth: 420, marginBottom: 14 }}>
             <label htmlFor="record-kind">Submit as</label>
@@ -237,7 +241,8 @@ export default function MyList({ kind }) {
         <EmptyState title="No matches">Nothing matches "{q}".</EmptyState>
       ) : (
         <EmptyState title="Nothing yet"
-                    action={<button className="btn" type="button" onClick={() => setOpen(true)}>{combined ? "New report" : `New ${spec.form}`}</button>}>
+                    action={hideForm ? <Link className="btn" to="/feedback">Send feedback</Link>
+                      : <button className="btn" type="button" onClick={() => setOpen(true)}>{combined ? "New report" : `New ${spec.form}`}</button>}>
           You have not submitted anything here yet.
         </EmptyState>
       )}

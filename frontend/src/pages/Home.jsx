@@ -37,8 +37,8 @@ export default function Home() {
     { to: "/reports", title: "My Reports", icon: PATHS.report, tone: "teal", track: true,
       pending: counts && (counts.concerns || 0) + (counts.reports || 0),
       text: "Submit and track concerns or problems." },
-    { to: "/feedback", title: "Feedback", icon: PATHS.feedback, tone: "violet",
-      text: "Share your thoughts about a campus area." },
+    { to: "/feedback", title: "Feedback & Suggestions", icon: PATHS.feedback, tone: "violet",
+      text: "Share campus feedback, suggest improvements, or report an app issue." },
     ...(instructor ? [
       { to: "/reservations", title: "Reservations", icon: PATHS.reserve, tone: "green", track: true, pending: counts && counts.reservations,
         text: "Request a room or facility." },

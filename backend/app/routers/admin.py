@@ -187,6 +187,7 @@ def user_activity(_me: CurrentUser = Depends(super_admin_required), db: Session 
 # -------------------------------------------------------- record lists
 @router.get("/records/{kind}")
 def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = None,
+            scope: Optional[str] = None,
             me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     if kind not in SECTIONS:
         raise HTTPException(404, "That page was not found.")
@@ -227,6 +228,18 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
             except ValueError:
                 row["ai"] = None
             row["urgent"] = bool(row["ai"] and row["ai"].get("urgent"))
+    if kind == "feedback":
+        if me.role == "admin":
+            rows = [row for row in rows if row.get("feedback_scope") == "campus"]
+        if scope == "campus":
+            rows = [row for row in rows if row.get("feedback_scope") == "campus"]
+        elif scope == "suggestions":
+            rows = [row for row in rows if row.get("feedback_scope") == "campus"
+                    and row.get("feedback_type") == "Suggestion"]
+        elif scope == "system":
+            rows = [row for row in rows if row.get("feedback_scope") == "system"]
+        elif scope == "technical":
+            rows = [row for row in rows if row.get("feedback_scope") == "technical"]
     if kind in ("reports", "concerns") and me.role == "admin":
         rows = [r for r in rows if r.get("workflow_review") == "Accepted"
                 and (r.get("assigned_admin_email") or "").lower() == me.email.lower()]
@@ -282,6 +295,14 @@ def change_status(kind: str, row_id: int, body: StatusBody, me: CurrentUser = De
         row.status = body.status
         row.updated_at = common.now()
         db.commit()
+    elif kind == "feedback":
+        row = db.get(common.MODELS["feedback"], row_id)
+        if row is None:
+            raise ValidationError("Feedback not found.")
+        if me.role == "admin" and row.feedback_scope != "campus":
+            raise HTTPException(403, "Admins can update campus feedback only.")
+        if not common.update_status(db, kind, row_id, body.status):
+            raise ValidationError("Feedback not found.")
     elif kind == "reservations":
         row = db.get(common.MODELS["reservations"], row_id)
         previous = row.status if row else None
@@ -344,6 +365,38 @@ def update_reporter_feedback(kind: str, row_id: int, body: AdminFeedbackBody,
     row.updated_at = common.now()
     db.commit()
     return {"success": True, "message": "Reporter update saved."}
+
+
+@router.post("/feedback/{feedback_id}/response")
+def respond_to_feedback(feedback_id: int, body: AdminFeedbackBody,
+                        me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
+    row = db.get(common.MODELS["feedback"], feedback_id)
+    if row is None:
+        raise ValidationError("Feedback not found.")
+    if me.role == "admin" and row.feedback_scope != "campus":
+        raise HTTPException(403, "Admins can respond to campus feedback only.")
+    row.admin_response = common.clean_text(body.message, "Response", 2000, required=False) or None
+    row.updated_at = common.now()
+    db.commit()
+    return {"success": True, "message": "Feedback response saved."}
+
+
+@router.post("/feedback/{feedback_id}/forward")
+def forward_feedback(feedback_id: int, me: CurrentUser = Depends(admin_required),
+                     db: Session = Depends(get_db)):
+    if me.role != "admin":
+        raise HTTPException(403, "Only campus admins can forward feedback.")
+    row = db.get(common.MODELS["feedback"], feedback_id)
+    if row is None or row.feedback_scope != "campus":
+        raise ValidationError("Only campus feedback can be forwarded.")
+    row.feedback_scope = "system"
+    row.forwarded_to_super_admin = True
+    row.forwarded_by = me.email
+    row.forwarded_at = common.now()
+    row.status = "Forwarded"
+    row.updated_at = common.now()
+    db.commit()
+    return {"success": True, "message": "Feedback forwarded to the Super Admin."}
 
 
 class ReportDecisionBody(BaseModel):

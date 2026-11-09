@@ -15,7 +15,7 @@ from app.models import Concern, Feedback, Report, Reservation, User
 
 # ------------------------------------------------------------ statuses
 WORKFLOW_STATUSES = ["Pending", "Under Review", "In Progress", "Resolved", "Rejected"]
-FEEDBACK_STATUSES = ["Pending", "Reviewed"]
+FEEDBACK_STATUSES = ["Pending", "Forwarded", "Reviewed"]
 RESERVATION_STATUSES = ["Pending", "Approved", "Rejected", "Cancelled"]
 
 TABLE_STATUSES = {
@@ -55,9 +55,10 @@ COLUMNS = {
         ("ID", "id", False), ("Submitted", "created_at", False),
         ("Name", "name", True), ("Email", "email", True),
         ("From", "submitter_role", True),
-        ("Area", "area", False), ("Type", "feedback_type", False),
+        ("Area / Feature", "area", False), ("Category", "feedback_scope", False),
+        ("Type", "feedback_type", False),
         ("Message", "message", False),
-        ("Status", "status", False),
+        ("Admin response", "admin_response", False), ("Status", "status", False),
     ],
     "reservations": [
         ("ID", "id", False), ("Submitted", "created_at", False),

@@ -37,9 +37,11 @@ export const FORMS = {
     ],
   },
   feedback: {
-    title: "Feedback Form", endpoint: "/api/feedback", desc: "Share your feedback about a campus area or facility.",
+    title: "Feedback & Suggestions", endpoint: "/api/feedback",
+    desc: "Campus feedback goes to an admin. NEMSAI and technical feedback goes to the Super Admin.",
     fields: [
-      { name: "area", label: "Area / Facility", type: "text", required: true, placeholder: "e.g. Library" },
+      { name: "feedback_scope", label: "What is your feedback about?", type: "select", options: ["Campus services", "NEMSAI / application", "Technical issue"], required: true },
+      { name: "area", label: "Campus area or feature", type: "text", required: true, placeholder: "e.g. Library or NEMSAI Assistant" },
       { name: "feedback_type", label: "Feedback type", type: "select", options: FEEDBACK_TYPES, required: true },
       { name: "message", label: "Message", type: "textarea", required: true },
       { name: "feedback_date", label: "Date", type: "date", required: true, today: true },

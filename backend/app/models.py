@@ -212,9 +212,14 @@ class Feedback(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     area: Mapped[str] = mapped_column(String(120), nullable=False)
     feedback_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    feedback_scope: Mapped[str] = mapped_column(String(20), default="campus", nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     feedback_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(String(30), default="Pending", nullable=False)
+    admin_response: Mapped[Optional[str]] = mapped_column(Text)
+    forwarded_to_super_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    forwarded_by: Mapped[Optional[str]] = mapped_column(String(255))
+    forwarded_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     sentiment: Mapped[Optional[str]] = mapped_column(String(10))        # Positive / Neutral / Negative / Mixed
     sentiment_score: Mapped[Optional[int]] = mapped_column(Integer)      # -100 .. 100
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)

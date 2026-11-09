@@ -9,6 +9,11 @@ from app.services.common import clean_choice_other, clean_date, clean_text, now
 from app.services.pdf_service import generate_pdf
 
 FEEDBACK_TYPES = ["Compliment", "Suggestion", "Complaint", "Other"]
+FEEDBACK_SCOPES = {
+    "Campus services": "campus",
+    "NEMSAI / application": "system",
+    "Technical issue": "technical",
+}
 
 
 def pdf_path(feedback_id):
@@ -17,6 +22,8 @@ def pdf_path(feedback_id):
 
 def create_feedback(db: Session, user, form):
     area = clean_text(form.get("area"), "Area / Facility", 120)
+    scope_label = clean_choice_other(form, "feedback_scope", "Feedback category", list(FEEDBACK_SCOPES))
+    feedback_scope = FEEDBACK_SCOPES[scope_label]
     feedback_type = clean_choice_other(form, "feedback_type", "Feedback type", FEEDBACK_TYPES)
     message = clean_text(form.get("message"), "Message", 2000)
     feedback_date = clean_date(form.get("feedback_date"), "Date", allow_future=False)
@@ -24,7 +31,8 @@ def create_feedback(db: Session, user, form):
     mood = sentiment_service.analyze(message)
     stamp = now()
     row = Feedback(user_id=user.id, name=user.name, email=user.email, area=area,
-                   feedback_type=feedback_type, message=message, feedback_date=feedback_date,
+                   feedback_type=feedback_type, feedback_scope=feedback_scope,
+                   message=message, feedback_date=feedback_date,
                    status="Pending", sentiment=mood["label"], sentiment_score=mood["score"],
                    created_at=stamp, updated_at=stamp)
     db.add(row)
@@ -33,6 +41,7 @@ def create_feedback(db: Session, user, form):
     generate_pdf(pdf_path(row.id), "Campus Feedback", [
         ("Feedback ID", row.id), ("Name", user.name), ("Email", user.email),
         ("Area / Facility", area), ("Feedback Type", feedback_type),
+        ("Feedback Category", scope_label),
         ("Message", message), ("Date", feedback_date.isoformat()),
         ("Submitted At", stamp.strftime("%Y-%m-%d %H:%M:%S")), ("Status", "Pending"),
     ])

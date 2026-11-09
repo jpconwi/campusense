@@ -76,8 +76,8 @@ USER_KINDS = {
                  "intro": "Report broken equipment or facility problems. You can follow the status here."},
     "reports": {"title": "My Reports", "form": "report", "image": True,
                 "intro": "Submit campus reports and follow their status."},
-    "feedback": {"title": "Feedback", "form": "feedback", "image": False,
-                 "intro": "Tell us what you think about a campus area or facility."},
+    "feedback": {"title": "My Feedback", "form": "feedback", "image": False,
+                 "intro": "Track the status of your campus feedback, suggestions, and technical reports."},
     "reservations": {"title": "Reservations", "form": "reservation", "image": False,
                      "intro": "Request a room or facility. A request stays Pending until an administrator approves it."},
 }
@@ -204,11 +204,12 @@ def submit_report(
 
 @router.post("/feedback")
 def submit_feedback(
-        area: str = Form(""), feedback_type: str = Form(""), feedback_type_other: str = Form(""),
+        area: str = Form(""), feedback_scope: str = Form(""),
+        feedback_type: str = Form(""), feedback_type_other: str = Form(""),
         message: str = Form(""), feedback_date: str = Form(""),
         user: CurrentUser = Depends(role_required("student", "instructor")),
         db: Session = Depends(get_db)):
-    form = {"area": area, "feedback_type": feedback_type,
+    form = {"area": area, "feedback_scope": feedback_scope, "feedback_type": feedback_type,
             "feedback_type_other": feedback_type_other, "message": message,
             "feedback_date": feedback_date}
     row = feedback_service.create_feedback(db, user, form)

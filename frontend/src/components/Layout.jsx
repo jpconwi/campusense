@@ -44,6 +44,7 @@ const ICONS = {
   "/reports": "M7 3h8l4 4v14H7zM15 3v4h4M10 12h6M10 16h6",
   "/concerns": "M12 3l10 18H2zM12 10v5M12 18v.5",
   "/feedback": "M4 5h16v11H9l-5 4zM8 9h8M8 12h5",
+  "/my-feedback": "M4 5h16v11H9l-5 4zM8 9h8M8 12h5",
   "/reservations": "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
   "/profile": "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0",
   "/faculty": "M3 9l9-5 9 5-9 5zM7 12v5c3 2 7 2 10 0v-5",
@@ -172,7 +173,7 @@ function ChatHistory({ activeId, tick, onOpen, onDeleted }) {
 // Sidebar sections. The server sends a flat list; the groups are decided here by path.
 const GROUPS = {
   "/": "Menu", "/notifications": "Menu", "/ai": "Menu", "/admin": "Overview",
-  "/reports": "My records", "/feedback": "My records",
+  "/reports": "My records", "/feedback": "My records", "/my-feedback": "My records",
   "/reservations": "My records", "/faculty": "My records",
   "/profile": "Account",
   "/admin/reports": "Inbox", "/admin/faculty": "Inbox",
@@ -242,7 +243,13 @@ export default function Layout() {
                   <p className="sb-group-name lbl">{g.name}</p>
                   {g.items.map((item) => (
                     <NavLink key={item.path} to={item.path} end title={item.label}
-                             className={({ isActive }) => (isActive ? "active" : "")}>
+                             className={() => {
+                               const [itemPath, itemQuery = ""] = item.path.split("?");
+                               const required = new URLSearchParams(itemQuery);
+                               const current = new URLSearchParams(location.search);
+                               const matchesQuery = [...required].every(([key, value]) => current.get(key) === value);
+                               return location.pathname === itemPath && matchesQuery ? "active" : "";
+                             }}>
                       <span className="sb-ico"><Icon d={ICONS[item.path] || FALLBACK_ICON} /></span>
                       <span className="lbl">{item.label}</span>
                     </NavLink>
