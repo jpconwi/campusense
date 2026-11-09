@@ -57,6 +57,7 @@ class User(Base):
     reviewed_by: Mapped[Optional[str]] = mapped_column(String(255))
     reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     review_note: Mapped[Optional[str]] = mapped_column(String(500))
+    rejection_reason: Mapped[Optional[str]] = mapped_column(String(300))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     last_login: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

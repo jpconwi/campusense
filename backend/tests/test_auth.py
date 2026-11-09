@@ -3,8 +3,10 @@
 import pytest
 
 from app import config
+from app.models import AdminActivityLog, User
 from app.services import admin_auth_service
 from app.services.common import ValidationError
+from sqlalchemy import select
 from tests.conftest import Client, make_user
 
 
@@ -94,6 +96,74 @@ def test_removed_from_admin_list_loses_access_immediately(admin, monkeypatch):
     monkeypatch.setattr(config, "admin_emails", lambda: set())
     assert admin.get("/api/admin/dashboard").status_code == 404
     assert admin.me()["user"]["role"] is None
+
+
+def _pending_registration(db, *, review_status="Unreviewed", face_review_status="Verified", suffix="one"):
+    row = User(google_id=f"registration-{suffix}", name="Pat Applicant", email=f"pat-{suffix}@gmail.com",
+               role=None, approval_status="Pending", registration_type="student", student_id="S-123",
+               verification_document=b"school-id", verification_content_type="image/png",
+               verification_filename="school-id.png", face_image=b"selfie",
+               face_image_content_type="image/jpeg", face_image_filename="selfie.jpg",
+               face_review_status=face_review_status, review_status=review_status)
+    db.add(row)
+    db.commit()
+    return row
+
+
+def test_account_approval_refusal_returns_missing_requirements(admin, db):
+    row = _pending_registration(db, review_status="Unreviewed", face_review_status="AI Pose Passed")
+    response = admin.post(f"/api/admin/accounts/{row.id}/approve", json={})
+    assert response.status_code == 400
+    assert response.json()["success"] is False
+    assert "First-level check not done" in response.json()["missing"]
+    assert "Selfie not verified yet" in response.json()["missing"]
+
+
+def test_ai_pose_passed_alone_does_not_allow_approval(admin, db):
+    row = _pending_registration(db, review_status="Checked", face_review_status="AI Pose Passed")
+    response = admin.post(f"/api/admin/accounts/{row.id}/approve", json={})
+    assert response.status_code == 400
+    assert response.json()["missing"] == ["Selfie not verified yet"]
+
+
+def test_account_queue_returns_review_fields_and_file_flags(admin, db):
+    row = _pending_registration(db)
+    result = admin.get("/api/admin/accounts").json()["rows"][0]
+    assert result["id"] == row.id
+    assert result["reviewed_by"] is None and result["reviewed_at"] is None
+    assert result["review_note"] is None and result["face_review_status"] == "Verified"
+    assert result["has_id_front"] is True and result["has_id_back"] is False
+    assert result["has_cor"] is False and result["has_selfie"] is True
+
+
+def test_rejection_reason_is_saved_and_audited(admin, db):
+    row = _pending_registration(db, suffix="reject")
+    response = admin.post(f"/api/admin/accounts/{row.id}/reject", json={"reason": "ID details do not match."})
+    assert response.status_code == 200
+    db.refresh(row)
+    assert row.rejection_reason == "ID details do not match."
+    event = db.scalar(select(AdminActivityLog).where(AdminActivityLog.action == "account_rejected"))
+    assert event and "ID details do not match." in event.details
+
+
+def test_checked_admin_can_approve_and_old_decision_routes_are_removed(admin, db):
+    row = _pending_registration(db, review_status="Checked", face_review_status="Verified")
+    assert admin.post(f"/api/admin/accounts/{row.id}/approve", json={}).status_code == 200
+    for action in ("approve", "reject", "face-review"):
+        assert admin.post(f"/api/admin/users/{row.id}/{action}", json={}).status_code == 404
+
+
+def test_super_admin_can_skip_check_but_cannot_approve_flagged_account(client, db, monkeypatch):
+    monkeypatch.setattr(config, "super_admin_emails", lambda: {"super@nemsu.edu.ph"})
+    super_admin = client()
+    super_admin.google_login("super@nemsu.edu.ph", "Sam Super")
+    assert super_admin.me()["user"]["role"] == "super_admin"
+    ready = _pending_registration(db, review_status="Unreviewed", face_review_status="Verified", suffix="ready")
+    assert super_admin.post(f"/api/admin/accounts/{ready.id}/approve", json={}).status_code == 200
+    flagged = _pending_registration(db, review_status="Flagged", face_review_status="Verified", suffix="flagged")
+    response = super_admin.post(f"/api/admin/accounts/{flagged.id}/approve", json={})
+    assert response.status_code == 400
+    assert "Account was flagged" in response.json()["missing"]
 
 
 # ------------------------------------------------------- admin password login

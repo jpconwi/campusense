@@ -3,9 +3,9 @@
 from datetime import datetime, timedelta
 
 from app import config
-from app.models import FacultyReport
+from app.models import FacultyReport, User
 from app.prompts.systemPrompt import OFF_TOPIC_RESPONSE
-from app.services import room_service
+from app.services import room_service, user_service
 
 TODAY = datetime.now().date().isoformat()
 TOMORROW = (datetime.now().date() + timedelta(days=1)).isoformat()
@@ -17,6 +17,20 @@ def concern_form(**over):
             "description": "The projector is broken.", "concern_date": TODAY}
     data.update(over)
     return data
+
+
+def test_account_requirements_distinguish_admin_and_super_admin(db):
+    user = User(google_id="account-check-test", name="Applicant", email="applicant@gmail.com",
+                approval_status="Pending", registration_type="student", student_id="S-1",
+                verification_document=b"id", face_image=b"selfie", face_review_status="Verified",
+                review_status="Unreviewed")
+    db.add(user)
+    db.commit()
+    assert "First-level check not done" in user_service.account_approval_missing(user)
+    assert "First-level check not done" not in user_service.account_approval_missing(user, is_super_admin=True)
+    user.review_status = "Flagged"
+    db.commit()
+    assert "Account was flagged" in user_service.account_approval_missing(user, is_super_admin=True)
 
 
 # ---------------------------------------------------------------- concerns

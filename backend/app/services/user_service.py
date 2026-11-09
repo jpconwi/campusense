@@ -209,20 +209,47 @@ def set_active(db: Session, user_id, active):
     return True
 
 
-def approve_personal_registration(db: Session, user_id, reviewer_email=None):
+def account_approval_missing(user, is_super_admin=False):
+    """List the account requirements that still block approval."""
+    if user is None:
+        return ["Account not found"]
+    return account_approval_missing_values(
+        approval_status=user.approval_status, deleted_at=user.deleted_at,
+        review_status=user.review_status, face_review_status=user.face_review_status,
+        student_id=user.student_id, registration_type=user.registration_type,
+        has_verification_document=bool(user.verification_document), department=user.department,
+        is_super_admin=is_super_admin)
+
+
+def account_approval_missing_values(*, approval_status, deleted_at, review_status, face_review_status,
+                                    student_id, registration_type, has_verification_document,
+                                    department, is_super_admin=False):
+    missing = []
+    if deleted_at:
+        missing.append("Account was deleted")
+    if approval_status != "Pending":
+        missing.append(f"Account is {str(approval_status or 'not pending').lower()}")
+    if review_status == "Flagged":
+        missing.append("Account was flagged")
+    elif not is_super_admin and review_status != "Checked":
+        missing.append("First-level check not done")
+    if face_review_status not in ("Verified", "Not required"):
+        missing.append("Selfie not verified yet")
+    if not student_id:
+        missing.append("Student ID missing")
+    if registration_type == "instructor":
+        if not department:
+            missing.append("Department missing")
+    elif not has_verification_document:
+        missing.append("Student ID document missing")
+    return missing
+
+
+def approve_personal_registration(db: Session, user_id, reviewer_email=None, is_super_admin=False):
     user = db.get(User, user_id)
-    if (user is None or user.approval_status != "Pending" or user.deleted_at
-            or (user.face_review_status != "Not required"
-                and (not user.face_image or user.face_review_status not in ("Verified", "AI Pose Passed")))):
+    if account_approval_missing(user, is_super_admin):
         return False
-    if user.registration_type == "instructor":
-        if not user.student_id or not user.department:
-            return False
-        role = "instructor"
-    else:
-        if not user.student_id or not user.verification_document:
-            return False
-        role = "student"
+    role = "instructor" if user.registration_type == "instructor" else "student"
     user.approval_status = "Approved"
     user.role = role
     user.is_active = True
@@ -236,13 +263,14 @@ def approve_student_registration(db: Session, user_id, reviewer_email=None):
     return approve_personal_registration(db, user_id, reviewer_email)
 
 
-def reject_student_registration(db: Session, user_id, reviewer_email=None):
+def reject_student_registration(db: Session, user_id, reviewer_email=None, reason=""):
     user = db.get(User, user_id)
     if user is None or user.approval_status != "Pending" or user.deleted_at:
         return False
     user.approval_status = "Rejected"
     user.role = None
     user.is_active = False
+    user.rejection_reason = (reason or "").strip()[:300] or None
     _stamp_review(user, reviewer_email)
     db.commit()
     return True
@@ -250,7 +278,6 @@ def reject_student_registration(db: Session, user_id, reviewer_email=None):
 
 def _stamp_review(user, reviewer_email):
     """Record who last acted on a registration account and when."""
-    user.review_status = "Checked"
     if reviewer_email:
         user.reviewed_by = reviewer_email
         user.reviewed_at = now()

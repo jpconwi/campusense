@@ -11,7 +11,8 @@ import json
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -73,7 +74,7 @@ def _log_admin_action(db, actor_email, action, target_email, details):
     db.commit()
 
 
-def _account_review_rows(db):
+def _account_review_rows(db, is_super_admin=False):
     """Registration accounts (student/instructor) for the first-level check queue."""
     rows = []
     for r in user_service.list_users(db):
@@ -86,6 +87,16 @@ def _account_review_rows(db):
         r["has_id_back_document"] = bool(r.get("verification_id_back_filename"))
         r["has_face_image"] = bool(r.get("face_image_filename"))
         r["has_face_scan_pdf"] = bool(r.get("face_scan_pdf_filename"))
+        r["has_id_front"] = r["has_verification_document"] and r.get("verification_document_kind") != "cor"
+        r["has_cor"] = r["has_cor_document"] or (r["has_verification_document"] and r.get("verification_document_kind") == "cor")
+        r["has_id_back"] = r["has_id_back_document"]
+        r["has_selfie"] = r["has_face_image"]
+        r["approval_missing"] = user_service.account_approval_missing_values(
+            approval_status=r.get("approval_status"), deleted_at=r.get("deleted_at"),
+            review_status=r.get("review_status"), face_review_status=r.get("face_review_status"),
+            student_id=r.get("student_id"), registration_type=r.get("registration_type"),
+            has_verification_document=r["has_verification_document"],
+            department=r.get("department"), is_super_admin=is_super_admin)
         rows.append(r)
     return rows
 
@@ -108,6 +119,10 @@ def _urgent_open(db):
 @router.get("/dashboard")
 def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     faculty = faculty_service.load_records(db)
+    pending_accounts = sum(
+        row["approval_status"] == "Pending"
+        or (row["review_status"] == "Unreviewed" and row["is_nemsu"])
+        for row in _account_review_rows(db))
     report_scope = db.query(Report)
     concern_scope = db.query(Concern)
     feedback_scope = db.query(Feedback)
@@ -147,6 +162,7 @@ def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(g
             ["Faculty Reports", len(faculty)],
             ["Total Feedback", common.count_rows(db, "feedback")],
             ["Total Reservations", common.count_rows(db, "reservations")],
+            ["Pending Accounts", pending_accounts],
         ]
         stat_cards = [
             stat("Total Students", stats[0][1], "/admin/users?filter=student", "slate", "users"),
@@ -159,6 +175,7 @@ def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(g
             stat("Faculty Reports", stats[7][1], "/admin/faculty", "blue", "faculty"),
             stat("Total Feedback", stats[8][1], "/admin/feedback?scope=all", "violet", "feedback"),
             stat("Total Reservations", stats[9][1], "/admin/reservations", "green", "reserve"),
+            stat("Pending Accounts", stats[10][1], "/admin/accounts?status=Pending", "amber", "users"),
         ]
     else:
         stats = [
@@ -171,6 +188,7 @@ def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(g
             ["Faculty Reports", len(faculty)],
             ["Campus Feedback", counts["feedback"]],
             ["Total Reservations", common.count_rows(db, "reservations")],
+            ["Pending Accounts", pending_accounts],
         ]
         stat_cards = [
             stat("Assigned Concerns", stats[0][1], "/admin/reports?type=concern", "blue", "concern"),
@@ -182,6 +200,7 @@ def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(g
             stat("Faculty Reports", stats[6][1], "/admin/faculty", "blue", "faculty"),
             stat("Campus Feedback", stats[7][1], "/admin/feedback?scope=campus", "violet", "feedback"),
             stat("Total Reservations", stats[8][1], "/admin/reservations", "green", "reserve"),
+            stat("Pending Accounts", stats[9][1], "/admin/accounts?status=Pending", "amber", "users"),
         ]
     recent_reports = common.list_rows(db, "reports", status="Pending")
     recent_concerns = common.list_rows(db, "concerns", status="Pending")
@@ -663,55 +682,22 @@ def user_face_scan_pdf(user_id: int, _me: CurrentUser = Depends(admin_required),
                              "Cache-Control": "no-store"})
 
 
-class FaceReviewBody(BaseModel):
-    status: str = ""
-
-
-@router.post("/users/{user_id}/face-review")
-def user_face_review(user_id: int, body: FaceReviewBody, me: CurrentUser = Depends(admin_required),
-                     db: Session = Depends(get_db)):
-    if body.status not in ("Verified", "Rejected"):
-        raise ValidationError("Choose Verified or Rejected.")
-    row = user_service.get_user(db, user_id)
-    if row is None or row.approval_status != "Pending" or not row.face_image:
-        raise ValidationError("That pending account has no selfie to review.")
-    row.face_review_status = body.status
-    db.commit()
-    _log_admin_action(db, me.email, "face_reviewed", row.email, f"Selfie marked {body.status.lower()}.")
-    return {"success": True, "message": f"Selfie marked {body.status.lower()}."}
-
-
-@router.post("/users/{user_id}/approve")
-def approve_user_registration(user_id: int, me: CurrentUser = Depends(admin_required),
-                              db: Session = Depends(get_db)):
-    target = user_service.get_user(db, user_id)
-    if user_id == me.id or target is None or not user_service.approve_personal_registration(db, user_id, me.email):
-        raise ValidationError("That personal-Gmail registration is not pending or is missing required details.")
-    _log_admin_action(db, me.email, "account_approved", target.email, "Approved personal-Gmail registration.")
-    return {"success": True, "message": "Account registration approved."}
-
-
-@router.post("/users/{user_id}/reject")
-def reject_user_registration(user_id: int, me: CurrentUser = Depends(admin_required),
-                             db: Session = Depends(get_db)):
-    target = user_service.get_user(db, user_id)
-    if user_id == me.id or target is None or not user_service.reject_student_registration(db, user_id, me.email):
-        raise ValidationError("That student registration is not pending.")
-    _log_admin_action(db, me.email, "account_rejected", target.email, "Rejected personal-Gmail registration.")
-    return {"success": True, "message": "Account registration rejected."}
-
-
 # ------------------------------------- account checks (reports managers)
 @router.get("/accounts")
-def review_accounts(_me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
+def review_accounts(me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     """First-level check queue: NEMSU and personal-Gmail student/instructor accounts.
     Report managers clear or flag these before the super admin's oversight view."""
-    rows = _account_review_rows(db)
+    rows = _account_review_rows(db, is_super_admin=me.role == "super_admin")
     return {"rows": rows, "counts": {
-        "pending": sum(r["approval_status"] == "Pending" for r in rows),
-        "unreviewed": sum(r["review_status"] == "Unreviewed" for r in rows),
+        "pending": sum(r["approval_status"] == "Pending"
+                        or (r["review_status"] == "Unreviewed" and r["is_nemsu"]) for r in rows),
+        "checked": sum(r["review_status"] == "Checked" for r in rows),
         "flagged": sum(r["review_status"] == "Flagged" for r in rows),
     }}
+
+
+def _account_action_refused(message, missing):
+    return JSONResponse({"success": False, "message": message, "missing": missing}, status_code=400)
 
 
 class AccountCheckBody(BaseModel):
@@ -719,21 +705,47 @@ class AccountCheckBody(BaseModel):
     flag: bool = False
 
 
+class AccountRejectBody(BaseModel):
+    reason: str = ""
+
+
+class AccountFaceReviewBody(BaseModel):
+    status: str = ""
+
+
 @router.post("/accounts/{user_id}/approve")
 def approve_account(user_id: int, me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     target = user_service.get_user(db, user_id)
-    if user_id == me.id or target is None or not user_service.approve_personal_registration(db, user_id, me.email):
-        raise ValidationError("That registration is not pending or is missing required details.")
-    _log_admin_action(db, me.email, "account_approved", target.email, "Approved personal-Gmail registration.")
+    is_super_admin = me.role == "super_admin"
+    missing = user_service.account_approval_missing(target, is_super_admin=is_super_admin)
+    if target is not None and user_id == me.id:
+        missing.append("You cannot approve your own account")
+    if missing:
+        return _account_action_refused("This account cannot be approved yet.", missing)
+    if not user_service.approve_personal_registration(db, user_id, me.email, is_super_admin=is_super_admin):
+        return _account_action_refused("This account cannot be approved yet.", ["Account requirements changed. Refresh and review again"])
+    _log_admin_action(db, me.email, "account_approved", target.email,
+                      f"Approved {target.registration_type} registration.")
     return {"success": True, "message": f"{target.email} approved. The account can sign in now."}
 
 
 @router.post("/accounts/{user_id}/reject")
-def reject_account(user_id: int, me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
+def reject_account(user_id: int, body: AccountRejectBody = Body(default=AccountRejectBody()), me: CurrentUser = Depends(admin_required),
+                   db: Session = Depends(get_db)):
     target = user_service.get_user(db, user_id)
-    if user_id == me.id or target is None or not user_service.reject_student_registration(db, user_id, me.email):
-        raise ValidationError("That registration is not pending.")
-    _log_admin_action(db, me.email, "account_rejected", target.email, "Rejected personal-Gmail registration.")
+    if target is None:
+        return _account_action_refused("This account could not be rejected.", ["Account not found"])
+    if user_id == me.id:
+        return _account_action_refused("You cannot reject your own account.", ["You cannot reject your own account"])
+    reason = (body.reason or "").strip()
+    if len(reason) > 300:
+        return _account_action_refused("The rejection reason is too long.", ["Reason must be 300 characters or fewer"])
+    if target.approval_status != "Pending" or target.deleted_at:
+        return _account_action_refused("This account is not awaiting approval.", ["Account is not pending approval"])
+    if not user_service.reject_student_registration(db, user_id, me.email, reason):
+        return _account_action_refused("This account is not awaiting approval.", ["Account is not pending approval"])
+    _log_admin_action(db, me.email, "account_rejected", target.email,
+                      "Rejected personal registration." + (f" Reason: {reason}" if reason else " No reason provided."))
     return {"success": True, "message": f"{target.email} was rejected."}
 
 
@@ -741,14 +753,32 @@ def reject_account(user_id: int, me: CurrentUser = Depends(admin_required), db: 
 def check_review_account(user_id: int, body: AccountCheckBody, me: CurrentUser = Depends(admin_required),
                          db: Session = Depends(get_db)):
     target = user_service.get_user(db, user_id)
+    note = (body.note or "").strip()[:500]
+    if body.flag and not note:
+        return _account_action_refused("Add a note before flagging this account.", ["Flag note is required"])
     if target is None or not user_service.check_account(db, user_id, me.email, body.note, body.flag):
-        raise ValidationError("That account cannot be checked.")
-    detail = (body.note or "").strip()[:200] or ("Reported to the super admin." if body.flag
-                                                 else "First-level check complete.")
+        return _account_action_refused("That account cannot be checked.", ["Account is not eligible for review"])
+    detail = note or ("Reported to the super admin." if body.flag
+                      else "First-level check complete.")
     _log_admin_action(db, me.email, "account_flagged" if body.flag else "account_checked", target.email, detail)
     return {"success": True,
             "message": (f"{target.email} reported to the super admin." if body.flag
                         else f"{target.email} checked and passed on to the super admin.")}
+
+
+@router.post("/accounts/{user_id}/face-review")
+def review_account_face(user_id: int, body: AccountFaceReviewBody,
+                        me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
+    if body.status not in ("Verified", "Rejected"):
+        return _account_action_refused("Choose a valid selfie decision.", ["Choose Verified or Rejected"])
+    target = user_service.get_user(db, user_id)
+    if target is None or target.deleted_at or target.approval_status != "Pending" or not target.face_image:
+        return _account_action_refused("This account has no pending selfie to review.", ["Pending selfie not found"])
+    target.face_review_status = body.status
+    db.commit()
+    _log_admin_action(db, me.email, "account_selfie_reviewed", target.email,
+                      f"Selfie marked {body.status.lower()}.")
+    return {"success": True, "message": f"Selfie marked {body.status.lower()}."}
 
 
 @router.post("/accounts/{user_id}/delete")

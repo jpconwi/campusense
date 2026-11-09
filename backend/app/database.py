@@ -106,6 +106,7 @@ def _add_student_registration_columns():
         "reviewed_by": "VARCHAR(255)",
         "reviewed_at": "TIMESTAMP",
         "review_note": "VARCHAR(500)",
+        "rejection_reason": "VARCHAR(300)",
         "deleted_at": "TIMESTAMP",
         "purge_after": "TIMESTAMP",
     }

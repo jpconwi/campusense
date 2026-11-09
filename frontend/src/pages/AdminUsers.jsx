@@ -4,7 +4,6 @@ import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import { Loading, SearchBox } from "../components/Ui.jsx";
 import AdminOnlineUsers from "./AdminOnlineUsers.jsx";
-import AdminAccounts from "./AdminAccounts.jsx";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -31,7 +30,7 @@ export default function AdminUsers() {
   const { user: me, setFlash } = useAuth();
   const [params] = useSearchParams();
   const viewParam = params.get("view");
-  const view = viewParam === "online" || viewParam === "checks" ? viewParam : "users";
+  const view = viewParam === "online" ? viewParam : "users";
   const [rows, setRows] = useState(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState(() => params.get("filter") || "all");
@@ -61,22 +60,6 @@ export default function AdminUsers() {
     load();
   }
 
-  async function decide(user, action) {
-    try {
-      const result = await api(`/api/admin/users/${user.id}/${action}`, { method: "POST", json: {} });
-      setFlash({ text: result.message, kind: "info" });
-    } catch (err) { setFlash({ text: err.message, kind: "error" }); }
-    load();
-  }
-
-  async function reviewFace(user, status) {
-    try {
-      const result = await api(`/api/admin/users/${user.id}/face-review`, { method: "POST", json: { status } });
-      setFlash({ text: result.message, kind: "info" });
-    } catch (err) { setFlash({ text: err.message, kind: "error" }); }
-    load();
-  }
-
   async function softDelete(user) {
     if (!window.confirm(`Disable ${user.name}'s account now? It will be permanently deleted after 7 days.`)) return;
     try {
@@ -87,26 +70,15 @@ export default function AdminUsers() {
   }
 
   if (view === "users" && !rows) return <Loading label="Loading users..." wide={1300} />;
-  if (view === "checks") {
-    return <div className="page admin-users-page">
-      <h2 className="page-title">Users</h2>
-      <nav className="admin-view-switch" aria-label="User management views">
-        <Link to="/admin/users?view=users" className="">All users</Link>
-        <Link to="/admin/users?view=online" className="">Online users</Link>
-        <Link to="/admin/users?view=checks" className="selected">Account checks</Link>
-      </nav>
-      <AdminAccounts scope="super_admin" embedded />
-    </div>;
-  }
   return <div className="page admin-users-page">
     <h2 className="page-title">Users</h2>
     <p className="page-intro">Manage accounts and check student and instructor presence.</p>
     <nav className="admin-view-switch" aria-label="User management views">
       <Link to="/admin/users?view=users" className={view === "users" ? "selected" : ""}>All users</Link>
       <Link to="/admin/users?view=online" className={view === "online" ? "selected" : ""}>Online users</Link>
-      <Link to="/admin/users?view=checks" className={view === "checks" ? "selected" : ""}>Account checks</Link>
+      <Link to="/admin/accounts?status=Pending">Review pending accounts</Link>
     </nav>
-    {view === "online" ? <AdminOnlineUsers embedded /> : view === "checks" ? <AdminAccounts scope="super_admin" embedded /> : <>
+    {view === "online" ? <AdminOnlineUsers embedded /> : <>
     <p className="admin-section-note">Users are sorted A-Z. Deleted accounts are disabled immediately and permanently removed after seven days.</p>
     <div className="admin-users-controls">
       <SearchBox value={search} onChange={setSearch} shown={visibleRows.length}
@@ -147,21 +119,12 @@ export default function AdminUsers() {
             <div className="admin-user-document-links">
               <a href={`${API_BASE}/api/admin/users/${user.id}/face-image`} target="_blank" rel="noreferrer">View selfie</a>
               {user.has_face_scan_pdf && <a href={`${API_BASE}/api/admin/users/${user.id}/face-scan-pdf`} target="_blank" rel="noreferrer">View selfie PDF</a>}
-              {user.approval_status === "Pending" && user.face_review_status !== "Verified" &&
-                <button className="btn small" type="button" onClick={() => reviewFace(user, "Verified")}>Confirm identity</button>}
-              {user.approval_status === "Pending" && user.face_review_status !== "Rejected" &&
-                <button className="btn small danger" type="button" onClick={() => reviewFace(user, "Rejected")}>Reject face</button>}
             </div>
           </div>}
         </div>
         <div className="admin-user-actions">
           {user.deleted_at ? <small>Permanent deletion: {user.purge_after}</small> : !['admin', 'super_admin'].includes(user.role) && user.id !== me.id && <>
-            {user.approval_status === 'Pending' ? <>
-              <button className="btn small" type="button"
-                disabled={user.has_face_image && !["Verified", "AI Pose Passed"].includes(user.face_review_status)}
-                onClick={() => decide(user, 'approve')}>Approve {user.registration_type === 'instructor' ? 'instructor' : 'student'}</button>
-              <button className="btn small danger" type="button" onClick={() => decide(user, 'reject')}>Reject</button>
-            </> : <>
+            {user.approval_status === 'Pending' ? <Link className="btn small" to="/admin/accounts?status=Pending">Review in Account Checks</Link> : <>
               {user.approval_status === 'Approved' && <RoleForm user={user} onChanged={load} />}
               <button className={'btn small' + (user.is_active ? ' danger' : '')} type="button" onClick={() => toggle(user)}>{user.is_active ? 'Deactivate' : 'Activate'}</button>
             </>}

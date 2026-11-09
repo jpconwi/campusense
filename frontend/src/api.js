@@ -16,9 +16,10 @@ export const setUnauthorizedHandler = (fn) => {
 };
 
 export class ApiError extends Error {
-  constructor(status, message) {
+  constructor(status, message, missing = []) {
     super(message);
     this.status = status;
+    this.missing = missing;
   }
 }
 
@@ -62,7 +63,8 @@ export async function api(path, { method = "GET", json, form } = {}) {
 
     throw new ApiError(
       response.status,
-      data.error || "Something went wrong. Please try again."
+      data.message || data.error || "Something went wrong. Please try again.",
+      Array.isArray(data.missing) ? data.missing : []
     );
   }
 

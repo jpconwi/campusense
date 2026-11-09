@@ -28,6 +28,7 @@ export default function AdminDashboard() {
     [stat("Urgent Photo Reports (open)"), "possible hazard", "possible hazards", "/admin/reports?urgent=1", "red"],
     [stat("Pending Concerns"), "concern waiting", "concerns waiting", "/admin/reports?type=concern&status=Pending", "amber"],
     [stat("Pending Reports"), "report waiting", "reports waiting", "/admin/reports?status=Pending", "amber"],
+    [stat("Pending Accounts"), "account waiting for review", "accounts waiting for review", "/admin/accounts?status=Pending", "amber"],
   ].filter(([n]) => n > 0);
 
   return (
