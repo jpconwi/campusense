@@ -83,10 +83,47 @@ function AdminUpdateForm({ row, kind, onChanged }) {
   </form>;
 }
 
+function adminActivityLabel(admin) {
+  if (!admin.account_active) return "Admin account inactive";
+  if (admin.online) return "Active now";
+  if (!admin.last_active_at) return "No activity recorded";
+  const elapsed = Math.max(0, Date.now() - new Date(admin.last_active_at).getTime());
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 1) return "Last active less than a minute ago";
+  if (minutes < 60) return `Last active ${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Last active ${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  const days = Math.floor(hours / 24);
+  return `Last active ${days} ${days === 1 ? "day" : "days"} ago`;
+}
+
+function AdminPicker({ id, admins, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const selected = admins.find((admin) => admin.email === value);
+  return <div className="admin-picker">
+    <button id={id} className="admin-picker-trigger" type="button" aria-haspopup="listbox" aria-expanded={open}
+      onClick={() => setOpen((current) => !current)}>
+      {selected ? <><i className={`admin-picker-dot${selected.online ? " is-online" : ""}`} />{selected.name}</> : "Choose an administrator"}
+      <span aria-hidden="true">⌄</span>
+    </button>
+    {open && <div className="admin-picker-options" role="listbox" aria-label="Available administrators">
+      {admins.length ? admins.map((admin) => <button key={admin.id} type="button" role="option"
+        aria-selected={admin.email === value} disabled={!admin.account_active}
+        className="admin-picker-option" onClick={() => { onChange(admin.email); setOpen(false); }}>
+        <i className={`admin-picker-dot${admin.online ? " is-online" : ""}`} />
+        <span className="admin-picker-person"><strong>{admin.name}</strong><small>{admin.email}</small></span>
+        <span className="admin-picker-activity">{adminActivityLabel(admin)}</span>
+      </button>) : <p className="muted admin-picker-empty">No configured admin accounts were found.</p>}
+    </div>}
+    {selected && <small className="admin-picker-selected-activity">{adminActivityLabel(selected)}</small>}
+  </div>;
+}
+
 function ReviewWorkflow({ row, kind, assignees, onChanged }) {
   const { setFlash } = useAuth();
   const [note, setNote] = useState(row.workflow_review_note || "");
   const [assignee, setAssignee] = useState(row.assigned_admin_email || "");
+  const canAssign = assignees.some((admin) => admin.email === assignee && admin.account_active);
   async function decide(decision) {
     try {
       const result = await api(`/api/admin/records/${kind}/${row.id}/decision`, {
@@ -116,13 +153,10 @@ function ReviewWorkflow({ row, kind, assignees, onChanged }) {
         <button className="btn small" type="button" onClick={() => decide("Accepted")}>Accept report</button>
         <button className="btn small danger" type="button" onClick={() => decide("Rejected")}>Reject report</button>
       </div>
-    </> : row.workflow_review === "Accepted" && <form className="inline" onSubmit={assign}>
+    </> : row.workflow_review === "Accepted" && <form className="admin-assignment-form" onSubmit={assign}>
       <label htmlFor={`assign-review-${kind}-${row.id}`}>Assign to administrator</label>
-      <select id={`assign-review-${kind}-${row.id}`} required value={assignee} onChange={(event) => setAssignee(event.target.value)}>
-        <option value="">Choose an administrator</option>
-        {assignees.map((email) => <option key={email} value={email}>{email}</option>)}
-      </select>
-      <button className="btn small" type="submit" disabled={!assignee}>Assign</button>
+      <AdminPicker id={`assign-review-${kind}-${row.id}`} admins={assignees} value={assignee} onChange={setAssignee} />
+      <button className="btn small" type="submit" disabled={!canAssign}>Assign</button>
     </form>}
   </section>;
 }
@@ -389,6 +423,11 @@ export default function AdminList({ kind }) {
     api(`/api/admin/records/${kind}` + (q.toString() ? `?${q}` : "")).then(setData).catch(() => {});
   }, [kind, status, activeUrgent]);
   useEffect(() => { setData(null); setQ(""); load(); }, [load]);
+  useEffect(() => {
+    if (!superAdmin || kind !== "reports") return undefined;
+    const timer = window.setInterval(load, 30_000);
+    return () => window.clearInterval(timer);
+  }, [load, superAdmin, kind]);
   useEffect(() => { if (data) document.title = `${data.spec.title} | NEMSU`; }, [data]);
 
   if (!data) return <Loading wide={1400} />;

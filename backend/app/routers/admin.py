@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from zoneinfo import ZoneInfo
 
 from app import config
 from app.database import get_db
@@ -231,6 +232,25 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
                 and (r.get("assigned_admin_email") or "").lower() == me.email.lower()]
         rows = _without_cost_estimates(rows)
     rows = _without_sentiment(rows)
+    assignees = []
+    if kind in ("reports", "concerns") and me.role == "super_admin":
+        eligible_emails = config.admin_emails() - config.super_admin_emails()
+        admins = db.scalars(select(User).where(User.email.in_(eligible_emails), User.role == "admin")
+                            .order_by(User.name)).all() if eligible_emails else []
+        presence = {row.user_id: row.last_seen_at for row in db.scalars(select(UserPresence)).all()}
+        now_utc = datetime.utcnow().replace(microsecond=0)
+        for admin in admins:
+            seen = presence.get(admin.id)
+            account_active = bool(admin.is_active and admin.deleted_at is None
+                                  and admin.approval_status == "Approved")
+            assignees.append({
+                "id": admin.id, "name": admin.name, "email": admin.email,
+                "account_active": account_active,
+                "online": bool(account_active and seen and seen >= now_utc - timedelta(seconds=120)),
+                "last_active_at": (seen.isoformat() + "Z" if seen else
+                                   admin.last_login.replace(tzinfo=ZoneInfo("Asia/Manila")).isoformat()),
+            })
+        assignees.sort(key=lambda row: (not row["online"], row["name"].lower()))
     return {
         "kind": kind, "spec": ({**SECTIONS[kind], "title": "Reports and Concerns"}
                                  if kind == "reports" else SECTIONS[kind]), "current": status,
@@ -238,8 +258,7 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
         "statuses": common.TABLE_STATUSES[kind],
         "columns": [[h, k] for h, k, _ in common.COLUMNS[kind]],
         "rows": rows,
-        "assignees": sorted(config.admin_emails() - config.super_admin_emails())
-                     if kind in ("reports", "concerns") else [],
+        "assignees": assignees,
     }
 
 
@@ -299,6 +318,10 @@ def assign_record(kind: str, row_id: int, body: ReportAssignmentBody,
         raise ValidationError("Accept the report before assigning it.")
     if requested not in (config.admin_emails() - config.super_admin_emails()):
         raise ValidationError("Choose a configured administrator email.")
+    assignee = db.scalars(select(User).where(User.email == requested, User.role == "admin")).first()
+    if (assignee is None or not assignee.is_active or assignee.deleted_at is not None
+            or assignee.approval_status != "Approved"):
+        raise ValidationError("That administrator account is inactive and cannot be assigned reports.")
     row.assigned_admin_email = requested
     row.updated_at = common.now()
     db.commit()
@@ -368,6 +391,10 @@ def assign_report(report_id: int, body: ReportAssignmentBody,
     email = (body.assigned_admin_email or "").strip().lower()
     if row.workflow_review != "Accepted" or email not in (config.admin_emails() - config.super_admin_emails()):
         raise ValidationError("Accept the report and choose a configured administrator.")
+    assignee = db.scalars(select(User).where(User.email == email, User.role == "admin")).first()
+    if (assignee is None or not assignee.is_active or assignee.deleted_at is not None
+            or assignee.approval_status != "Approved"):
+        raise ValidationError("That administrator account is inactive and cannot be assigned reports.")
     row.assigned_admin_email = email
     row.updated_at = common.now()
     db.commit()

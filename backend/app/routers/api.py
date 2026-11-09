@@ -54,10 +54,10 @@ def activity_heartbeat(user: CurrentUser = Depends(login_required), db: Session 
 
 @router.post("/activity/offline")
 def activity_offline(user: CurrentUser = Depends(login_required), db: Session = Depends(get_db)):
-    """Clear online presence immediately when a user signs out."""
+    """Record the last foreground activity when a user signs out."""
     presence = db.get(UserPresence, user.id)
     if presence is not None:
-        db.delete(presence)
+        presence.last_seen_at = datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
         db.commit()
     return {"success": True}
 
