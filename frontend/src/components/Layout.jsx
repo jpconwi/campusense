@@ -187,7 +187,7 @@ function groupNav(nav, role) {
     const superAdminGroups = {
       "/admin/help-messages": "Inbox", "/admin/reports": "Inbox", "/admin/faculty": "Inbox",
       "/admin/feedback": "Inbox", "/admin/reservations": "Inbox",
-      "/admin/users": "People",
+      "/admin/users": "People", "/admin/accounts": "People",
       "/admin/rooms": "Campus data", "/admin/campus": "Campus data", "/admin/announcements": "Campus data",
       "/admin": "System", "/ai": "System", "/admin/system": "System",
     };
