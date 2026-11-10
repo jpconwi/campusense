@@ -112,7 +112,8 @@ def is_room_location_question(question):
     q = " ".join(re.sub(r"[^a-z0-9]+", " ", (question or "").lower()).split())
     return (any(word in q.split() for word in ("where", "wheres", "were", "wher", "located", "locate", "location",
                                                 "find", "found", "asa", "nasaan", "diin", "saan", "dapit","hain"))
-            and any(word in q.split() for word in ("room", "classroom", "this", "that", "it")))
+            and any(word in q.split() for word in ("room", "classroom", "laboratory", "laboratories",
+                                                    "lab", "labs", "this", "that", "it")))
 
 
 def is_room_details_question(question):
@@ -209,6 +210,28 @@ def room_location_reply(room):
         return (f"**{name}** ({room_label}) is in **{building}**. The room record doesn't "
                 "include a floor or nearby landmark, so I can't give a more precise location.")
     return f"I found **{name}** ({room_label}), but its building location hasn't been added yet."
+
+
+def room_locations_reply(rooms):
+    """List locations for matching rooms when a name refers to more than one room."""
+    unique = {}
+    for room in rooms:
+        key = (room.get("room_id") or room.get("name") or "").lower()
+        if key:
+            unique[key] = room
+    rooms = list(unique.values())
+    if len(rooms) == 1:
+        return room_location_reply(rooms[0])
+    locations = sorted({room.get("building") for room in rooms if room.get("building")})
+    if not locations:
+        names = ", ".join(f"**{room.get('name') or room.get('room_id')}**" for room in rooms)
+        return f"I found {names}, but their building locations haven't been added yet."
+    location_text = ", ".join(f"**{location}**" for location in locations)
+    listing = "\n".join(
+        f"- **{room.get('name') or room.get('room_id')}** (Room {room.get('room_id')})"
+        for room in rooms)
+    return (f"These rooms are listed in {location_text}:\n{listing}\n"
+            "The room records don't include a floor or nearby landmark.")
 
 
 def room_reply(room):

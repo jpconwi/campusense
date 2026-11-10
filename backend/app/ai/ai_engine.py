@@ -359,6 +359,8 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         return _data(room_service.room_reply(room))
     if room_lookup_request and room is None:
         retrieved_rooms = room_service.retrieve_rooms(db, question, limit=5)
+        if room_service.is_room_location_question(question) and retrieved_rooms:
+            return _data(room_service.room_locations_reply(retrieved_rooms))
         if retrieved_rooms:
             role = user.role if user else "student"
             prompt = build_system_prompt(db, role, rooms=retrieved_rooms)
@@ -381,7 +383,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     recent_user = next((normalize(m.get("text", "")) for m in reversed(conversation or [])
                         if m.get("role") == "user"), "")
     wants_concern_form = bool(re.search(
-        r"\b(?:give|show|open|bring) me (?:the )?(?:concern )?form\b|"
+        r"\b(?:give|show|open|bring) (?:me )?(?:(?:the|a|an) )?(?:concern )?form\b|"
         r"\b(?:concern|campus issue) form\b|\b(?:file|submit) (?:a )?concern\b", normalized))
     concern_context = ("what is your concern about" in recent_ai
                        or "report this campus concern" in recent_ai
