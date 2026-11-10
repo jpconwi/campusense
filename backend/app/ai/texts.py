@@ -138,6 +138,14 @@ TEXTS = {
         "gigikanan, pero naa ra ko diri sa website sa campus. Pangutana ra mahitungod sa mga "
         "lokasyon sa campus, kwarto, pasilidad, kagamitan, concern, report, feedback o "
         "availability sa instructor."),
+    "about_user": (
+        "I can follow what you've shared in this chat, but I don't know you personally. Tell me "
+        "what you'd like me to know, and I'll keep it in mind as we talk.",
+        "Naiintindihan ko ang mga ibinahagi mo sa chat na ito, pero hindi kita personal na "
+        "kilala. Sabihin mo kung ano ang gusto mong malaman ko at isasaalang-alang ko iyon "
+        "habang nag-uusap tayo.",
+        "Masabtan nako ang imong gipaambit dinhi sa chat, pero wala tika nailhi sa personal. "
+        "Sultihi ko unsay gusto nimong mahibaw-an nako ug akong hinumdoman samtang nag-istorya ta."),
     "about_system": (
         "This is NEMSAI, the NEMSU Tandag Main Campus assistant. It helps students, instructors "
         "and admins find campus locations, rooms and facilities, check instructor availability, "

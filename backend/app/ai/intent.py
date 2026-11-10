@@ -294,6 +294,11 @@ def place_request(q):
         return None
     if _looks_like_form(q) or rooms_request(q, q):
         return None
+    # An informational question about what's at a college/building is not a request
+    # for its map, even when it is short (e.g. "what's in CBM?" / "unsay naa sa CBM?").
+    if has(q, "what", "whats", "what is", "what are", "what can", "what does",
+           "unsay", "unsa", "naa ba", "mayroon", "meron", "inside"):
+        return None
     asks_where = (has(q, *LOCATION_ASK, "maps", "google map", "google maps")
                   or has(q, "i mean", "i meant", "not the main", "not nemsu main", "not the department",
                          "not department", "wrong map", "main campus not"))
@@ -446,6 +451,8 @@ ABOUT_ME = ["taga asa ka", "taga saan ka", "where are you from", "where do you l
             "unsa ngalan nimo", "ano pangalan mo", "ano ang pangalan mo", "are you a robot",
             "are you ai", "are you a bot", "are you real", "kinsa ka", "unsa ka", "sino ka",
             "kinsay naghimo nimo", "sino gumawa sayo"]
+ABOUT_USER = ["do you know me", "do you remember me", "what do you know about me",
+              "do you know who i am", "you know me"]
 GREETING_PHRASES = ["hi", "hello", "hey", "hi there", "hello there", "good morning",
                     "good afternoon", "good evening", "what can you do", "who are you",
                     "good day", "kumusta", "kamusta", "musta", "kumusta ka", "maayong buntag",
@@ -579,6 +586,11 @@ def detect(db, question, role):
     if (has(q, "confusing", "confused", "confuse", "confusion")
             and has(q, "system", "chat", "nemsai", "answer", "source", "article", "response")):
         return {"intent": "system_feedback"}
+    if (has(q, "cannot understand me", "cant understand me", "don't understand me",
+            "dont understand me", "does not understand me", "doesnt understand me",
+            "not understanding me")
+            or (has(q, "chatgpt", "chat gpt") and has(q, "like", "respond", "response", "want"))):
+        return {"intent": "system_feedback"}
     if vague_concern(q):
         return {"intent": "concern_ask"}
     if (has(q, *CONCERN_WORDS, "problem", "issue", "upset")
@@ -664,6 +676,9 @@ def detect(db, question, role):
     # greetings / help
     if q in GREETING_PHRASES or " ".join(t for t in tokens if t not in GREETING_FILLER) in GREETING_PHRASES:
         return {"intent": "greeting"}
+
+    if has(q, *ABOUT_USER):
+        return {"intent": "about_user"}
 
     # "taga asa ka?", "what is your name?", "are you a robot?"
     if has(q, *ABOUT_ME):

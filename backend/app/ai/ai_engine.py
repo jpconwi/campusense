@@ -330,6 +330,52 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if not normalize(question) and style.EMOJI.search(question):   # "😊😊", "👍"
         return response.message(texts.en("emoji_only"))
     normalized = normalize(question)
+    role = user.role if user else "student"
+    recent_ai_for_admin = next((normalize(m.get("text", "")) for m in reversed(conversation or [])
+                                if m.get("role") == "ai" and m.get("text")), "")
+    recent_user_for_admin = next((normalize(m.get("text", "")) for m in reversed(conversation or [])
+                                  if m.get("role") == "user" and m.get("text")), "")
+    admin_dataset_question = bool(
+        role in ("admin", "super_admin")
+        and intents.has(normalized, "how do i", "how to", "where can i", "where do i",
+                        "how can i", "steps to", "add or edit", "manage")
+        and intents.has(normalized, "room", "rooms", "campus information", "campus data",
+                        "dataset", "datasets"))
+    if admin_dataset_question:
+        return _data(
+            "To manage rooms, open **Campus data → Rooms**. Use the search box to find a room "
+            "by ID or name, then choose **Edit** to update it. To add one, enter its room ID, "
+            "name, building, department, type, capacity, equipment, and availability, then "
+            "select **Add**.\n\n"
+            "For campus information, open **Campus data → Campus**. Search existing entries, "
+            "or add a topic, semicolon-separated keywords, and its answer. The campus entries "
+            "currently have add and delete actions; to replace an entry, delete it and add the "
+            "updated version."
+        )
+    room_entry_match = re.match(r"^\s*(?:room\s*)?([a-z]?\d{1,4}[a-z]?)\b", question, re.I)
+    room_entry_code = (room_service.extract_room_code(question)
+                       or (room_entry_match.group(1).upper() if room_entry_match else None))
+    room_entry_followup = bool(
+        role in ("admin", "super_admin")
+        and conversation
+        and intents.has(recent_user_for_admin, "add or edit rooms", "manage rooms",
+                        "add rooms", "edit rooms", "campus information", "campus data")
+        and ("which room or room feature" in recent_ai_for_admin
+             or "campus data → rooms" in recent_ai_for_admin
+             or "campus data -> rooms" in recent_ai_for_admin)
+        and room_entry_code
+        and len(normalized.split()) <= 8
+    )
+    if room_entry_followup:
+        code = room_entry_code
+        room_name = re.sub(rf"\b(?:room\s*)?{re.escape(code)}\b\s*[,\-:]?\s*", "", question,
+                           flags=re.I).strip(" .,:;-")
+        detail = f" and name it **{room_name}**" if room_name else ""
+        return _data(
+            f"Got it—you want to add Room ID **{code}**{detail}. In **Campus data → Rooms**, "
+            "enter the room details and select **Add**. I haven't added it; this chat can't "
+            "save room records."
+        )
     if re.fullmatch(r"(?:i am|im) (?:worried|concerned) about", normalized):
         last_ai = next((normalize(m.get("text", "")) for m in reversed(conversation or [])
                         if m.get("role") == "ai"), "")
@@ -592,6 +638,8 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
             "clearly request them.")
     if name == "system_feedback":
         return response.message(texts.en("system_feedback"))
+    if name == "about_user":
+        return response.message(texts.en("about_user"))
     if name == "personal_relationship_concern":
         return response.message(
             "I'm sorry you're dealing with that. I can listen or help you think through what to "
@@ -782,7 +830,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         if view and view["kind"] == "campus" and normalize(view["english"]) != normalize(question):
             return _answer(db, view["english"], user, earlier, lang,
                            rewritten=True, original=question, conversation=conversation)
-        if view and view["kind"] == "smalltalk" and not related:
+        if view and view["kind"] == "smalltalk":
             chat = understand.smalltalk(question, ask_model, conversation=conversation)
             return response.message(chat or texts.en("help_ask"))
         if not related:

@@ -37,6 +37,9 @@ Use the conversation (if any) to understand references and short follow-ups. Res
 named campus; never replace Bislig or Cantilan with Tandag. Treat reactions, corrections, and
 complaints about the chatbot as conversational feedback, not as new requests to file a campus
 report. Do not turn "I have a concern" alone into a form request; ask what the user means.
+Classify the current message by what it asks now. A prior mention of NEMSU or campus information
+does not make a personal question or casual chat a campus request. Questions like "do you know me?"
+are small talk, not questions about NEMSU officials, campuses, or university facts.
 Fix typos and slang in "english". Keep names, room codes and acronyms unless the surrounding
 words clearly show that a course or program name is misspelled or abbreviated. Do not answer the
 question.
@@ -53,6 +56,7 @@ Examples:
 "asa ang cr dapit sa cite" -> {"kind":"campus","english":"Where is the comfort room near CITE?"}
 "wheres the room 601?" -> {"kind":"campus","english":"Where is Room 601?"}
 "naa bay wifi sa library" -> {"kind":"campus","english":"Is there wifi in the library?"}
+"unsay naa sa CBM?" -> {"kind":"campus","english":"What programs or services are available at CBM?"}
 "gusto ko mag reklamo sa aircon" -> {"kind":"campus","english":"I want to file a concern about the aircon."}
 If the last assistant reply mentions programs and the message is "like what?", resolve it as a
 request for named examples from that college's programs or curriculum.
