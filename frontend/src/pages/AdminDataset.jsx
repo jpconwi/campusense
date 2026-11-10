@@ -66,6 +66,20 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
                       <option value="">Choose...</option>
                       {[...new Set([...(options || []), ...(values[name] && !(options || []).includes(values[name]) ? [values[name]] : [])])].map((o) => <option key={o} value={o}>{o}</option>)}
                     </select>
+                  ) : type === "multiselect" ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 6 }}>
+                      {[...new Set([...(options || []), ...String(values[name] || "").split(",").map((item) => item.trim()).filter((item) => item && !(options || []).includes(item))])].map((option) => {
+                        const selected = String(values[name] || "").split(",").map((item) => item.trim()).filter(Boolean);
+                        return <label key={option} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <input type="checkbox" checked={selected.includes(option)} onChange={(event) => {
+                            const next = event.target.checked
+                              ? option === "None" ? [option] : [...selected.filter((item) => item !== "None"), option]
+                              : selected.filter((item) => item !== option);
+                            setValues((v) => ({ ...v, [name]: next.join(", ") }));
+                          }} />{option}
+                        </label>;
+                      })}
+                    </div>
                   ) : (
                     <input type={type === "date" ? "date" : "text"} required={required}
                            value={values[name] || ""} onChange={set} />

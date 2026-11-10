@@ -44,7 +44,8 @@ SECTIONS = {
 
 def _strings(body):
     """JSON values -> text, so the validators always receive strings."""
-    return {str(k): ("" if v is None else str(v)) for k, v in (body or {}).items()}
+    return {str(k): ("" if v is None else ", ".join(str(item) for item in v)
+                     if isinstance(v, list) else str(v)) for k, v in (body or {}).items()}
 
 
 def _without_sentiment(rows):
@@ -1054,7 +1055,7 @@ ROOM_FIELDS = [["room_id", "Room ID", True], ["name", "Name", True],
                ["building", "Building", False, "select", ["ICT Building", "CITE", "CBM", "CAS", "CTE", "College of Law", "Midwifery", "Administration", "Library", "Gymnasium", "Other"]],
                ["room_type", "Type", False, "select", ["Classroom", "Computer Laboratory", "Laboratory", "Lecture Hall", "Office", "Conference Room", "Other"]],
                ["capacity", "Capacity", False, "select", ["1-10", "11-20", "21-30", "31-40", "40-50", "51-100", "100+" ]],
-               ["equipment", "Equipment", False, "select", ["TV Screen, Computers", "Projector", "Computers", "TV Screen", "Air Conditioning", "Whiteboard", "Sound System", "None", "Other"]],
+               ["equipment", "Equipment", False, "multiselect", ["Projector", "Computers", "TV Screen", "Air Conditioning", "Whiteboard", "Sound System", "None", "Other"]],
                ["status", "Availability", False, "select", ["Available", "In Use", "Under Maintenance", "Not Available"]]]
 CAMPUS_FIELDS = [["topic", "Topic", True], ["keywords", "Keywords (use ; between them)", True],
                  ["answer", "Answer", True]]

@@ -74,6 +74,7 @@ function UserReportDetails({ row, onClose }) {
             <div><span>Type</span><strong>{row.record_category || (isConcern ? "Concern" : "Problem")}</strong></div>
             <div><span>Status</span><strong><span className={`badge s-${slug(row.status)}`}>{row.status || "Pending"}</span></strong></div>
             <div><span>Submitted</span><strong>{row.created_at || "Not available"}</strong></div>
+            {row.record_kind && <div><span>Assigned admin</span><strong>{row.assigned_admin || "Not assigned yet"}</strong></div>}
             <div><span>Location</span><strong>{row.location || "Not provided"}</strong></div>
             {row.room && <div><span>Room</span><strong>{row.room}</strong></div>}
             {row.area && <div><span>Area</span><strong>{row.area}</strong></div>}
@@ -204,6 +205,7 @@ export default function MyList({ kind, hideForm = false }) {
                 <div className="user-report-summary">
                   <strong>{r.record_category || (isConcern ? "Concern" : "Problem")}</strong>
                   <span>{r.location || "Location not provided"}</span>
+                  <small>Assigned admin: {r.assigned_admin || "Not assigned yet"}</small>
                   <p>{r.description || "No description provided."}</p>
                 </div>
                 <WorkflowProgress row={r} />

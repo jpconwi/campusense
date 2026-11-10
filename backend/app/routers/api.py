@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app import config
 from app.ai.ai_engine import ask_ai
 from app.database import get_db
-from app.models import PhotoDraft, UserDailyActivity, UserPresence
+from app.models import PhotoDraft, User, UserDailyActivity, UserPresence
 from app.security import CurrentUser, csrf_protect, login_required, role_required
 from app.services import (announcement_service, chat_history_service, common, concern_service, faculty_service, feedback_service,
                           pdf_service, photo_report_service, report_service, reservation_service)
@@ -373,6 +373,16 @@ def my_records(kind: str, user: CurrentUser = Depends(role_required("student", "
     if kind == "reservations" and user.role != "instructor":
         raise HTTPException(403, NO_STUDENT_RESERVATION)
     rows = common.list_rows(db, kind, user_id=user.id)
+    if kind in ("concerns", "reports"):
+        assigned_emails = {row["assigned_admin_email"].lower() for row in rows
+                           if row.get("assigned_admin_email")}
+        if assigned_emails:
+            admin_names = {email.lower(): name for email, name in db.execute(
+                select(User.email, User.name).where(User.email.in_(assigned_emails))).all()}
+            for row in rows:
+                email = row.get("assigned_admin_email")
+                if email:
+                    row["assigned_admin"] = admin_names.get(email.lower()) or email
     if kind == "feedback":
         for row in rows:
             row.pop("forwarded_by", None)

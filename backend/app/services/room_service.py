@@ -84,6 +84,45 @@ def find_room(db: Session, code):
     return None
 
 
+def find_mentioned_room(db: Session, question):
+    """Find a room by its ID or full name when either appears in a message."""
+    normalized = " ".join(re.sub(r"[^a-z0-9]+", " ", (question or "").lower()).split())
+    for room in list_rooms(db):
+        aliases = [room.get("name", "")]
+        room_id = (room.get("room_id") or "").strip()
+        if room_id:
+            aliases.append(room_id)
+        for alias in aliases:
+            alias = " ".join(re.sub(r"[^a-z0-9]+", " ", alias.lower()).split())
+            if alias and re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", normalized):
+                return room
+    return None
+
+
+def is_room_location_question(question):
+    """Recognize common location wording, including the typo 'were' for 'where'."""
+    q = " ".join(re.sub(r"[^a-z0-9]+", " ", (question or "").lower()).split())
+    return (any(word in q.split() for word in ("where", "were", "wher", "located", "locate", "find", "found",
+                                                "asa", "nasaan", "diin", "saan", "dapit"))
+            and any(word in q.split() for word in ("room", "classroom", "this", "that", "it")))
+
+
+def is_room_details_question(question):
+    q = " ".join(re.sub(r"[^a-z0-9]+", " ", (question or "").lower()).split())
+    return any(term in q.split() for term in (
+        "capacity", "equipment", "available", "availability", "status", "type", "details", "information"))
+
+
+def room_location_reply(room):
+    room_id = room.get("room_id") or ""
+    room_label = room_id if room_id.lower().startswith("room ") else f"Room {room_id}"
+    name = room.get("name") or room_label
+    building = room.get("building")
+    if building:
+        return f"**{name}** ({room_label}) is located in **{building}**."
+    return f"I found **{name}** ({room_label}), but its building location hasn't been added yet."
+
+
 def room_reply(room):
     parts = [f'**{room["name"] or room["room_id"]}**']
     for label, key in (("Building", "building"), ("Type", "room_type"),

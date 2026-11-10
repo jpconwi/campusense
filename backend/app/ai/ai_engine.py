@@ -403,6 +403,28 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if not normalize(question) and style.EMOJI.search(question):   # "😊😊", "👍"
         return response.message(texts.en("emoji_only"))
     normalized = normalize(question)
+    room_lookup_request = (room_service.is_room_location_question(question)
+                           or room_service.is_room_details_question(question))
+    room = room_service.find_mentioned_room(db, question) if room_lookup_request else None
+    room_code = room_service.extract_room_code(question)
+    if room_lookup_request and room is None and room_code:
+        room = room_service.find_room(db, room_code)
+        if room is None:
+            return response.message(texts.en("no_room", code=room_code))
+    if room_lookup_request and room is None and room_service.is_room_location_question(question):
+        prior_user_messages = [m.get("text", "") for m in reversed(conversation or [])
+                               if m.get("role") == "user"]
+        prior_user_messages.extend(earlier or [])
+        for old in prior_user_messages:
+            room = room_service.find_mentioned_room(db, old)
+            if room:
+                break
+        if room is None:
+            return response.message("Which room do you mean? Please include its room number or name.")
+    if room_lookup_request and room is not None:
+        if room_service.is_room_location_question(question):
+            return _data(room_service.room_location_reply(room))
+        return _data(room_service.room_reply(room))
     contact_reply = _campus_contact_reply(db, question, conversation)
     if contact_reply:
         return contact_reply
