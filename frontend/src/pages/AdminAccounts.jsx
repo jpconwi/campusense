@@ -233,7 +233,7 @@ function AccountMobileCard({ row, onOpen }) {
     </button>
 }
 
-export default function AdminAccounts() {
+export default function AdminAccounts({ embedded = false }) {
   const { user, setFlash } = useAuth();
   const isSuperAdmin = user?.role === "super_admin";
   const [params, setParams] = useSearchParams();
@@ -250,10 +250,16 @@ export default function AdminAccounts() {
     try { setData(await api("/api/admin/accounts")); }
     catch (error) { setLoadError(error.message || "Could not load accounts."); }
   }, []);
-  useEffect(() => { document.title = "Account Checks | NEMSU"; load(); }, [load]);
+  useEffect(() => { document.title = `${embedded ? "Users · Account Checks" : "Account Checks"} | NEMSU`; load(); }, [load, embedded]);
   useEffect(() => {
-    if (!params.has("status") || !STATUSES.includes(params.get("status"))) setParams({ status: "Pending" }, { replace: true });
-  }, [params, setParams]);
+    if (!params.has("status") || !STATUSES.includes(params.get("status"))) {
+      setParams((previous) => {
+        const next = embedded ? new URLSearchParams(previous) : new URLSearchParams();
+        next.set("status", "Pending");
+        return next;
+      }, { replace: true });
+    }
+  }, [params, setParams, embedded]);
   useEffect(() => {
     if (openId === null) return undefined;
     const before = document.body.style.overflow;
@@ -285,7 +291,11 @@ export default function AdminAccounts() {
   }), [rows, activeStatus, query]);
   const opened = rows.find((row) => row.id === openId);
 
-  function chooseStatus(status) { setParams({ status }); }
+  function chooseStatus(status) {
+    const next = embedded ? new URLSearchParams(params) : new URLSearchParams();
+    next.set("status", status);
+    setParams(next);
+  }
 
   if (loadError) return <div className="page account-checks-page"><h2 className="page-title">Account Checks</h2>
     <div className="account-load-error" role="alert"><Icon d={PATHS.alert} /><div><b>Accounts could not be loaded</b><p>{loadError}</p>

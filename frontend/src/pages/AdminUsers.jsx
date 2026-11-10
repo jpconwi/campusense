@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import { Loading, SearchBox } from "../components/Ui.jsx";
 import AdminOnlineUsers from "./AdminOnlineUsers.jsx";
+import AdminAccounts from "./AdminAccounts.jsx";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -30,7 +31,7 @@ export default function AdminUsers() {
   const { user: me, setFlash } = useAuth();
   const [params] = useSearchParams();
   const viewParam = params.get("view");
-  const view = viewParam === "online" ? viewParam : "users";
+  const view = ["online", "checks"].includes(viewParam) ? viewParam : "users";
   const [rows, setRows] = useState(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState(() => params.get("filter") || "all");
@@ -69,6 +70,15 @@ export default function AdminUsers() {
     load();
   }
 
+  if (view === "checks") return <div className="page admin-users-page">
+    <nav className="admin-view-switch" aria-label="User management views">
+      <Link to="/admin/users?view=users">All users</Link>
+      <Link to="/admin/users?view=online">Online users</Link>
+      <Link to="/admin/users?view=checks" className="selected" aria-current="page">Account checks</Link>
+    </nav>
+    <AdminAccounts embedded />
+  </div>;
+
   if (view === "users" && !rows) return <Loading label="Loading users..." wide={1300} />;
   return <div className="page admin-users-page">
     <h2 className="page-title">Users</h2>
@@ -76,6 +86,7 @@ export default function AdminUsers() {
     <nav className="admin-view-switch" aria-label="User management views">
       <Link to="/admin/users?view=users" className={view === "users" ? "selected" : ""}>All users</Link>
       <Link to="/admin/users?view=online" className={view === "online" ? "selected" : ""}>Online users</Link>
+      <Link to="/admin/users?view=checks" className={view === "checks" ? "selected" : ""}>Account checks</Link>
     </nav>
     {view === "online" ? <AdminOnlineUsers embedded /> : <>
     <p className="admin-section-note">Users are sorted A-Z. Deleted accounts are disabled immediately and permanently removed after seven days.</p>

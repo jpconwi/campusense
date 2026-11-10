@@ -36,6 +36,12 @@ function Guard({ roles, children }) {
   return children;
 }
 
+function AccountChecksRoute() {
+  const { user } = useAuth();
+  if (user?.role === "super_admin") return <Navigate to="/admin/users?view=checks" replace />;
+  return <Guard roles={["admin"]}><AdminAccounts /></Guard>;
+}
+
 export default function App() {
   const { loading } = useAuth();
   if (loading) return <AppSkeleton />;
@@ -64,7 +70,7 @@ export default function App() {
         <Route path="/faculty" element={page(<Faculty />, ["instructor"])} />
 
         <Route path="/admin" element={page(<AdminDashboard />, ["admin"])} />
-        <Route path="/admin/accounts" element={page(<AdminAccounts />, ["admin"])} />
+        <Route path="/admin/accounts" element={<AccountChecksRoute />} />
         <Route path="/admin/users" element={page(<AdminUsers />, ["super_admin"])} />
         <Route path="/admin/system" element={page(<SuperAdmin />, ["super_admin"])} />
         <Route path="/admin/online-users" element={<Navigate to="/admin/users?view=online" replace />} />
