@@ -1051,6 +1051,18 @@ def registration_help_resolve(message_id: int, _me: CurrentUser = Depends(super_
 
 
 # ------------------------------------------------------ rooms / campus
+TANDAG_DEPARTMENTS = [
+    ("COA", "College of Accountancy"),
+    ("CAS", "College of Arts and Sciences"),
+    ("CBM", "College of Business and Management"),
+    ("CET", "College of Engineering and Technology"),
+    ("CITE", "College of Information Technology Education"),
+    ("CTE", "College of Teacher Education"),
+    ("COL", "College of Law"),
+    ("COM", "College of Medicine"),
+    ("GS", "Graduate Studies"),
+]
+
 ROOM_FIELDS = [["room_id", "Room ID", True], ["name", "Name", True],
                ["building", "Building", False, "select", ["ICT Building", "CITE", "CBM", "CAS", "CTE", "College of Law", "Midwifery", "Administration", "Library", "Gymnasium", "Other"]],
                ["department", "Department", False, "select", []],
@@ -1066,12 +1078,20 @@ CAMPUS_FIELDS = [["topic", "Topic", True], ["keywords", "Keywords (use ; between
 def rooms(_me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     rows = room_service.list_rooms(db)
     fields = [field.copy() for field in ROOM_FIELDS]
-    department_options = {row.name for row in db.scalars(
-        select(CampusDepartment).order_by(CampusDepartment.name)).all()}
-    department_options.update(row.get("department") or row.get("building") for row in rows
-                              if row.get("department") or row.get("building"))
-    next(field for field in fields if field[0] == "department")[4] = sorted(department_options) + ["Other"]
+    known = dict(TANDAG_DEPARTMENTS)
+    department_options = [{"value": code,
+                           "label": f"{college} ({code})"}
+                          for code, college in TANDAG_DEPARTMENTS]
+    extra_departments = {row.get("department") or row.get("building") for row in rows
+                         if row.get("department") or row.get("building")}
+    for value in sorted(extra_departments):
+        if value not in known:
+            department_options.append({"value": value, "label": value})
+    if "Other" not in {option["value"] for option in department_options}:
+        department_options.append({"value": "Other", "label": "Other"})
+    next(field for field in fields if field[0] == "department")[4] = department_options
     return {"title": "Rooms", "fields": fields, "rows": rows,
+            "department_options": department_options,
             "empty": "No rooms yet. Add the real rooms so the AI never has to guess."}
 
 

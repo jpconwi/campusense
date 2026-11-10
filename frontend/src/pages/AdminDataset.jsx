@@ -49,9 +49,16 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
   const rows = data?.rows || [];
   const empty = data?.empty || "No entries yet.";
   const searchable = kind === "rooms" || kind === "campus";
-  const departments = useMemo(() => [...new Set(rows
-    .map((row) => row.department || row.building)
-    .filter(Boolean))].sort((a, b) => a.localeCompare(b)), [rows]);
+  const departments = useMemo(() => {
+    const values = [
+      ...(data?.department_options || []).map((option) => typeof option === "string"
+        ? { value: option, label: option } : option),
+      ...rows.map((row) => row.department || row.building).filter(Boolean)
+        .map((value) => ({ value, label: value })),
+    ];
+    return [...new Map(values.map((option) => [option.value, option])).values()]
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [rows, data?.department_options]);
   const visibleRows = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     return rows.filter((row) => {
@@ -75,6 +82,15 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: "0 14px" }}>
             {fields.map(([name, label, required, type, options]) => {
               const set = (e) => setValues((v) => ({ ...v, [name]: e.target.value }));
+              const selectOptions = type === "select" ? [...new Map((options || []).map((option) => {
+                const normalized = typeof option === "string"
+                  ? { value: option, label: option } : option;
+                return [normalized.value, normalized];
+              })).values()] : [];
+              if (type === "select" && values[name]
+                  && !selectOptions.some((option) => option.value === values[name])) {
+                selectOptions.push({ value: values[name], label: values[name] });
+              }
               return (
                 <div key={name} style={type === "textarea" || type === "multiselect" ? { gridColumn: "1 / -1" } : undefined}>
                   <label>{label}{required ? " *" : ""}</label>
@@ -83,7 +99,7 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
                   ) : type === "select" ? (
                     <select required={required} value={values[name] || ""} onChange={set}>
                       <option value="">Choose...</option>
-                      {[...new Set([...(options || []), ...(values[name] && !(options || []).includes(values[name]) ? [values[name]] : [])])].map((o) => <option key={o} value={o}>{o}</option>)}
+                      {selectOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
                   ) : type === "multiselect" ? (
                     <div className="equipment-options">
@@ -133,7 +149,7 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
               <span>Department</span>
               <select value={department} onChange={(event) => setDepartment(event.target.value)}>
                 <option value="">All departments</option>
-                {departments.map((value) => <option key={value} value={value}>{value}</option>)}
+                {departments.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>}
             {(search || department) && <button className="btn secondary dataset-clear" type="button"
