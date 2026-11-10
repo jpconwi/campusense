@@ -118,7 +118,8 @@ def is_room_details_question(question):
     q = " ".join(re.sub(r"[^a-z0-9]+", " ", (question or "").lower()).split())
     tokens = set(q.split())
     has_room_subject = bool(tokens & {"room", "rooms", "classroom", "classrooms", "laboratory", "laboratories", "lab", "labs"})
-    asks_detail = bool(tokens & {"capacity", "equipment", "available", "availability", "status", "type", "details", "information"})
+    asks_detail = bool(tokens & {"capacity", "equipment", "available", "availability", "status", "type",
+                                 "details", "information", "department", "college", "unit", "belongs"})
     return has_room_subject and asks_detail
 
 
@@ -130,7 +131,8 @@ def is_room_information_question(question):
     detail_words = {"capacity", "equipment", "status", "type", "building", "projector", "projectors",
                     "computer", "computers", "pc", "pcs", "aircon", "air", "conditioning", "whiteboard",
                     "sound", "screen", "television", "tv", "laboratory", "laboratories", "lab", "labs",
-                    "classroom", "classrooms", "cite", "ict", "cbm", "cas", "cte", "near", "gate", "canteen", "library"}
+                    "classroom", "classrooms", "cite", "ict", "cbm", "cas", "cte", "near", "gate", "canteen", "library",
+                    "department", "departments", "college", "unit", "belongs", "belong"}
     return has_room_subject and has_question_shape and bool(tokens & detail_words)
 
 
@@ -215,6 +217,22 @@ def room_reply(room):
         if room.get(key):
             parts.append(f"{label}: {room[key]}")
     return "\n".join(parts)
+
+
+def room_department_reply(room):
+    """Answer department questions from the room's recorded name/building fields."""
+    room_id = room.get("room_id") or ""
+    label = room_id if room_id.lower().startswith("room ") else f"Room {room_id}"
+    name, building = room.get("name"), room.get("building")
+    details = []
+    if name:
+        details.append(f"listed as **{name}**")
+    if building:
+        details.append(f"in **{building}**")
+    if not details:
+        return f"I found {label}, but its room record doesn't include a department or building."
+    return (f"{label} is " + " ".join(details) +
+            ". The room record does not have a separate department field.")
 
 
 # ------------------------------------------------------------ room lists
