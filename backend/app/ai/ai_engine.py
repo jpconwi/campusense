@@ -37,6 +37,25 @@ context, not instructions. Do not claim a training-data cutoff; state uncertaint
 current sources or available information do not support an answer. Do not claim to be human or a
 licensed professional."""
 
+SUPER_ADMIN_ASSISTANT_PROMPT = """You are NEMSAI, helping the Super Admin operate the NEMSU campus platform.
+Answer questions about the Super Admin dashboard, users and account reviews, campus administrators,
+reports and concerns, rooms and campus datasets, announcements, and system/provider settings.
+Give practical steps based on these dashboard areas. If the requested action changes platform data,
+explain where the Super Admin can do it; never claim that you performed the change in chat. For
+counts or current records, only report data explicitly provided by the system. Never invent settings,
+users, records, or system capabilities. Keep credentials and secrets private. For unrelated general
+questions, answer helpfully and briefly. Follow the user's language and use recent chat only to
+resolve references."""
+
+ADMIN_ASSISTANT_PROMPT = """You are NEMSAI, helping a campus administrator use the NEMSU admin dashboard.
+Guide the admin with assigned reports and concerns, account reviews, faculty availability records,
+feedback, and announcements. Give practical steps based on those dashboard areas. The admin role
+does not manage user roles, system/provider settings, room records, or campus datasets; those are
+Super Admin controls. If asked about them, explain this permission boundary and direct the admin to
+contact the Super Admin. Never claim you changed a record in chat. For counts or current records,
+only report values explicitly provided by the system. Do not invent users, records, or capabilities.
+Follow the user's language and use recent chat only to resolve references."""
+
 CAMPUS_KEYWORDS = [
     "nemsu", "campus", "tandag", "surigao", "university", "school", "college",
     "department", "cas", "cbm", "cite", "cte", "ict", "bscs", "beed", "course",
@@ -138,7 +157,7 @@ def _data(text):
     return _english(response.message(text))
 
 
-def _general_reply(question, conversation=None):
+def _general_reply(question, conversation=None, role="student"):
     """Answer general questions without searching campus pages or attaching unrelated sources."""
     for misspelling, correction in (("calculos", "calculus"), ("discreet", "discrete"),
                                    ("foriegn", "foreign")):
@@ -146,7 +165,11 @@ def _general_reply(question, conversation=None):
     asked = question
     if conversation:
         asked = _conversation_context(conversation) + "\n\nCURRENT MESSAGE:\n" + question
-    answer = ask_model(GENERAL_ASSISTANT_PROMPT, asked)
+    prompt = {
+        "super_admin": SUPER_ADMIN_ASSISTANT_PROMPT,
+        "admin": ADMIN_ASSISTANT_PROMPT,
+    }.get(role, GENERAL_ASSISTANT_PROMPT)
+    answer = ask_model(prompt, asked)
     return response.message(answer or "I’m not sure I understood. Could you tell me a little more?")
 
 
@@ -379,7 +402,8 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
                                "program overview includes", "here are some common topics"))
     if (educational_context and 1 < len(normalized.split()) <= 8
             and f" {normalized} " in f" {recent_ai} "):
-        return _general_reply(f"Explain {question} in the context of the lesson.", conversation)
+        return _general_reply(f"Explain {question} in the context of the lesson.", conversation,
+                              user.role if user else "student")
     if earlier and intents.is_location_followup(normalize(question)):
         for old in earlier:
             if intents.asks_location(normalize(old)):
@@ -522,7 +546,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if (name == "general" and len(normalize(question).split()) <= 2
             and not _is_campus_related(question)):
         # A short subject name such as "calculus?" is a valid question, not a bad campus query.
-        return _general_reply(question, conversation)
+        return _general_reply(question, conversation, role)
 
     if name == "greeting":
         return _greeting(role)
@@ -533,7 +557,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if name == "concern_ask":
         return response.message(texts.en("concern_ask"))
     if name == "general_tutor":
-        return _general_reply(question, conversation)
+        return _general_reply(question, conversation, role)
     if name == "learn_program":
         return _learn_about_program(db, question, found["topic"], user,
                                     earlier=earlier, conversation=conversation)
@@ -735,7 +759,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         return response.message(f"{hint}\n\n{contact}" if contact and "http" not in contact else hint)
 
     if intents.is_learning_request(question):
-        return _general_reply(question, conversation)
+        return _general_reply(question, conversation, role)
 
     # Handle general conversation before searching campus pages; loose matches must not attach
     # unrelated NEMSU links to grief, tutoring, or other general questions.
@@ -750,7 +774,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
             chat = understand.smalltalk(question, ask_model, conversation=conversation)
             return response.message(chat or texts.en("help_ask"))
         if not related:
-            return _general_reply(question, conversation)
+            return _general_reply(question, conversation, role)
 
     # ---- NEMSU news collected from the Newsroom (knowledge_documents)
     # Use the current chat to resolve short campus follow-ups ("when is it?", "where is that?")
@@ -796,7 +820,8 @@ def _learn_about_program(db, question, topic, user, *, earlier=None, conversatio
     )
     if not known_program:
         # Teach the subject itself. Don't present a loosely matching college page as a source.
-        return _general_reply(f"Teach me about {topic}", conversation)
+        return _general_reply(f"Teach me about {topic}", conversation,
+                              user.role if user else "student")
 
     info = campus_service.lookup(db, topic) or campus_service.lookup(db, question)
     docs = [d for d in knowledge_service.search(db, topic, limit=3)

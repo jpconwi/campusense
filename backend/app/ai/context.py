@@ -27,12 +27,37 @@ CURRENT USER: ADMINISTRATOR
 You are helping a campus administrator. Report counts, pending items,
 users and statistics are retrieved by the backend from the database.
 You must NEVER make up or estimate any of those numbers or records.
+
+Help with campus administration tasks available to this role: reviewing assigned reports and
+concerns, handling account reviews, faculty availability records, feedback, and announcements.
+Do not tell an admin they can manage user roles, system/provider settings, room records, or campus
+datasets; those controls are reserved for the Super Admin. Explain the correct dashboard workflow
+and never claim to have changed a record from chat.
+"""
+
+SUPER_ADMIN_PROMPT = """
+==================================================
+CURRENT USER: SUPER ADMINISTRATOR
+==================================================
+
+You are assisting the Super Admin, who manages the NEMSAI platform and the full campus system.
+Help with questions about the Super Admin dashboard, user and account management, campus admins,
+rooms and campus datasets, reports and concerns, announcements, and system/provider settings.
+Give clear steps that match the available dashboard features. The Super Admin can manage users,
+review accounts, configure system settings, manage room and campus information, and review records.
+
+You may explain how to complete an action, but do not claim to have changed settings, users, rooms,
+or records from chat. Direct the user to the corresponding dashboard section for changes. When asked
+about counts, pending items, users, or records, use only values returned by the backend; never make
+up or estimate them. Respect the Super Admin's full administrative role while keeping user passwords,
+private credentials, and secrets confidential.
 """
 
 ROLE_PROMPTS = {
     "student": STUDENT_PROMPT,
     "instructor": INSTRUCTOR_PROMPT,
     "admin": ADMIN_PROMPT,
+    "super_admin": SUPER_ADMIN_PROMPT,
 }
 
 
@@ -47,7 +72,8 @@ def build_system_prompt(db, role, news=None, rooms=None):
     if rooms:
         parts.append("RETRIEVED ROOM RECORDS (from the campus database; answer room questions "
                      "only from these records):\n" + "\n".join(
-            f"- {r['room_id']}: {r['name']}, {r['building']}, {r['room_type']}, "
+            f"- {r['room_id']}: {r['name']}, {r['building']}, department "
+            f"{r.get('department') or 'not listed'}, {r['room_type']}, "
             f"capacity {r['capacity']}, equipment {r['equipment']}, status {r['status']}"
             for r in rooms))
 

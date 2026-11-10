@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.models import Room
 from app.services.common import ValidationError, clean_text, row_to_dict
 
-FIELDS = ["room_id", "name", "building", "room_type", "capacity", "equipment", "status"]
+FIELDS = ["room_id", "name", "building", "department", "room_type", "capacity", "equipment", "status"]
 
 
 def list_rooms(db: Session):
@@ -41,6 +41,7 @@ def _room_values(form):
         "room_id": clean_text(form.get("room_id"), "Room ID", 30),
         "name": clean_text(form.get("name"), "Name", 80),
         "building": clean_text(form.get("building"), "Building", 80, required=False),
+        "department": clean_text(form.get("department"), "Department", 80, required=False),
         "room_type": clean_text(form.get("room_type"), "Room type", 60, required=False),
         "capacity": clean_text(form.get("capacity"), "Capacity", 10, required=False),
         "equipment": clean_text(form.get("equipment"), "Equipment", 200, required=False),
@@ -165,7 +166,7 @@ _ROOM_SYNONYMS = {
     "aircon": {"ac", "air conditioning"}, "air": {"aircon", "ac"},
     "vacant": {"available", "free"}, "free": {"available", "vacant"},
 }
-_ROOM_SEARCH_FIELDS = ((Room.room_id, 12), (Room.name, 8), (Room.building, 5),
+_ROOM_SEARCH_FIELDS = ((Room.room_id, 12), (Room.name, 8), (Room.building, 5), (Room.department, 5),
                        (Room.room_type, 4), (Room.equipment, 4), (Room.status, 2), (Room.capacity, 2))
 
 
@@ -212,7 +213,7 @@ def room_location_reply(room):
 
 def room_reply(room):
     parts = [f'**{room["name"] or room["room_id"]}**']
-    for label, key in (("Building", "building"), ("Type", "room_type"),
+    for label, key in (("Building", "building"), ("Department", "department"), ("Type", "room_type"),
                        ("Capacity", "capacity"), ("Equipment", "equipment"),
                        ("Status", "status")):
         if room.get(key):
@@ -221,19 +222,24 @@ def room_reply(room):
 
 
 def room_department_reply(room):
-    """Answer department questions from the room's recorded name/building fields."""
+    """Answer department questions from the room's recorded fields."""
     room_id = room.get("room_id") or ""
     label = room_id if room_id.lower().startswith("room ") else f"Room {room_id}"
     name, building = room.get("name"), room.get("building")
+    department = room.get("department")
     details = []
     if name:
         details.append(f"listed as **{name}**")
     if building:
         details.append(f"in **{building}**")
+    if department:
+        details.append(f"assigned to **{department}**")
     if not details:
         return f"I found {label}, but its room record doesn't include a department or building."
-    return (f"{label} is " + " ".join(details) +
-            ". The room record does not have a separate department field.")
+    reply = f"{label} is " + " ".join(details) + "."
+    if not department:
+        reply += " Its department has not been recorded separately."
+    return reply
 
 
 # ------------------------------------------------------------ room lists
@@ -254,7 +260,10 @@ def _is_free(room):
 
 
 def _room_line(r):
-    details = [x for x in (r.get("building"), r.get("room_type"),
+    department = r.get("department")
+    building = r.get("building")
+    details = [x for x in (f"department {department}" if department and department.lower() != (building or "").lower() else "",
+                           building, r.get("room_type"),
                            f"capacity {r['capacity']}" if r.get("capacity") else "",
                            r.get("equipment")) if x]
     status = r.get("status") or "status not set"
@@ -275,7 +284,7 @@ def rooms_answer(rooms, question_words, wants_available):
             match_words.update(_ROOM_SYNONYMS.get(word, ()))
         match_words = {part for word in match_words for part in word.split()}
         def matches(r):
-            text = f" {r['building']} {r['name']} {r['room_id']} {r['room_type']} {r['equipment']} {r['capacity']} {r['status']} ".lower()
+            text = f" {r['building']} {r.get('department', '')} {r['name']} {r['room_id']} {r['room_type']} {r['equipment']} {r['capacity']} {r['status']} ".lower()
             text = " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
             return any(f" {w} " in f" {text} " for w in match_words)
         found = [r for r in rooms if matches(r)]

@@ -32,6 +32,7 @@ def init_db():
     from app import models  # noqa: F401  (registers the tables)
     Base.metadata.create_all(engine)
     _allow_super_admin_role()
+    _add_room_department_column()
     _add_student_registration_columns()
     _add_help_message_category()
     _widen_campus_info_columns()
@@ -78,6 +79,19 @@ def _add_announcement_author_columns():
                 conn.execute(text(f"ALTER TABLE announcements ADD COLUMN IF NOT EXISTS {name} {kind}"))
             elif name not in columns:
                 conn.execute(text(f"ALTER TABLE announcements ADD COLUMN {name} {kind}"))
+
+
+def _add_room_department_column():
+    """Add the optional room department field to existing installations."""
+    from sqlalchemy import inspect, text
+    columns = {column["name"] for column in inspect(engine).get_columns("rooms")}
+    if "department" in columns:
+        return
+    with engine.begin() as conn:
+        if engine.dialect.name == "postgresql":
+            conn.execute(text("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS department VARCHAR(80) NOT NULL DEFAULT ''"))
+        else:
+            conn.execute(text("ALTER TABLE rooms ADD COLUMN department VARCHAR(80) NOT NULL DEFAULT ''"))
 
 
 def _widen_campus_info_columns():

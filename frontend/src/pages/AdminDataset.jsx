@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import { Loading } from "../components/Ui.jsx";
@@ -9,9 +9,11 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
   const [data, setData] = useState(null);
   const [values, setValues] = useState({});
   const [editing, setEditing] = useState(null);
+  const [search, setSearch] = useState("");
+  const [department, setDepartment] = useState("");
 
   const load = useCallback(() => { api(`/api/admin/${kind}`).then(setData).catch(() => {}); }, [kind]);
-  useEffect(() => { setData(null); setValues({}); load(); }, [load]);
+  useEffect(() => { setData(null); setValues({}); setSearch(""); setDepartment(""); load(); }, [load]);
   useEffect(() => { if (data) document.title = `${data.title} | NEMSU`; }, [data]);
 
   async function save(e) {
@@ -42,8 +44,25 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
     load();
   }
 
+  const title = data?.title || "";
+  const fields = data?.fields || [];
+  const rows = data?.rows || [];
+  const empty = data?.empty || "No entries yet.";
+  const searchable = kind === "rooms" || kind === "campus";
+  const departments = useMemo(() => [...new Set(rows
+    .map((row) => row.department || row.building)
+    .filter(Boolean))].sort((a, b) => a.localeCompare(b)), [rows]);
+  const visibleRows = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return rows.filter((row) => {
+      const rowDepartment = row.department || row.building || "";
+      if (kind === "rooms" && department && rowDepartment !== department) return false;
+      if (!query) return true;
+      return fields.some(([field]) => String(row[field] ?? "").toLocaleLowerCase().includes(query))
+        || (kind === "rooms" && String(rowDepartment).toLocaleLowerCase().includes(query));
+    });
+  }, [rows, fields, kind, search, department]);
   if (!data) return <Loading label="Loading..." wide={1300} />;
-  const { title, fields, rows, empty } = data;
   // announcements carry a computed Active / Scheduled / Expired status (rooms already have their own field)
   const extraStatus = rows.length > 0 && rows[0].status !== undefined && !fields.some(([n]) => n === "status");
 
@@ -93,7 +112,52 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
         </form>
       </div>
 
-      {rows.length ? (
+      {searchable && (
+        <section className="card dataset-list-card">
+          <div className="dataset-list-heading">
+            <div>
+              <h3>{kind === "rooms" ? "Room directory" : "Campus knowledge"}</h3>
+              <p>{kind === "rooms"
+                ? "Find a room by name, room ID, department, or building. Select a row to edit it."
+                : "Search campus topics, keywords, and answers."}</p>
+            </div>
+            <span className="dataset-count">{visibleRows.length} of {rows.length}</span>
+          </div>
+          <div className="dataset-toolbar">
+            <label className="dataset-search">
+              <span className="sr-only">{kind === "rooms" ? "Search rooms" : "Search campus information"}</span>
+              <input type="search" value={search} onChange={(event) => setSearch(event.target.value)}
+                placeholder={kind === "rooms" ? "Search room name or ID..." : "Search topics, keywords, or answers..."} />
+            </label>
+            {kind === "rooms" && <label className="dataset-department-filter">
+              <span>Department</span>
+              <select value={department} onChange={(event) => setDepartment(event.target.value)}>
+                <option value="">All departments</option>
+                {departments.map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </label>}
+            {(search || department) && <button className="btn secondary dataset-clear" type="button"
+              onClick={() => { setSearch(""); setDepartment(""); }}>Clear filters</button>}
+          </div>
+          {rows.length === 0 ? <p className="empty">{empty}</p>
+            : visibleRows.length === 0 ? <p className="empty">No entries match this search and department.</p>
+              : <div className="table-wrap"><table>
+                <thead><tr>{fields.map(([name, label]) => <th key={name}>{label.split(" (")[0]}</th>}{kind === "announcements" && <th>Posted by</th>}{extraStatus && <th>Status</th>}<th>Actions</th></tr></thead>
+                <tbody>
+                  {visibleRows.map((r) => (
+                    <tr key={r.id}>
+                      {fields.map(([name]) => <td key={name} className="desc">{r[name] || "-"}</td>)}
+                      {kind === "announcements" && <td>{r.created_by_name || "Administration"} ({r.created_by_role === "super_admin" ? "Super Admin" : "Admin"})</td>}
+                      {extraStatus && <td>{r.status}</td>}
+                      <td className="dataset-actions">{kind === "rooms" && <button className="btn small" type="button" onClick={() => edit(r)}>Edit</button>} <button className="btn small danger" type="button" onClick={() => remove(r)}>Delete</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table></div>}
+        </section>
+      )}
+
+      {!searchable && rows.length ? (
         <div className="table-wrap"><table>
           <thead><tr>{fields.map(([name, label]) => <th key={name}>{label.split(" (")[0]}</th>)}{kind === "announcements" && <th>Posted by</th>}{extraStatus && <th>Status</th>}<th></th></tr></thead>
           <tbody>
@@ -107,7 +171,7 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
             ))}
           </tbody>
         </table></div>
-      ) : <p className="empty">{empty}</p>}
+      ) : !searchable && <p className="empty">{empty}</p>}
     </div>
   );
 }

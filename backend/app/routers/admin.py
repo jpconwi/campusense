@@ -1053,6 +1053,7 @@ def registration_help_resolve(message_id: int, _me: CurrentUser = Depends(super_
 # ------------------------------------------------------ rooms / campus
 ROOM_FIELDS = [["room_id", "Room ID", True], ["name", "Name", True],
                ["building", "Building", False, "select", ["ICT Building", "CITE", "CBM", "CAS", "CTE", "College of Law", "Midwifery", "Administration", "Library", "Gymnasium", "Other"]],
+               ["department", "Department", False, "select", []],
                ["room_type", "Type", False, "select", ["Classroom", "Computer Laboratory", "Laboratory", "Lecture Hall", "Office", "Conference Room", "Other"]],
                ["capacity", "Capacity", False, "select", ["1-10", "11-20", "21-30", "31-40", "40-50", "51-100", "100+" ]],
                ["equipment", "Equipment", False, "multiselect", ["Projector", "Computers", "TV Screen", "Air Conditioning", "Whiteboard", "Sound System", "None", "Other"]],
@@ -1063,7 +1064,14 @@ CAMPUS_FIELDS = [["topic", "Topic", True], ["keywords", "Keywords (use ; between
 
 @router.get("/rooms")
 def rooms(_me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
-    return {"title": "Rooms", "fields": ROOM_FIELDS, "rows": room_service.list_rooms(db),
+    rows = room_service.list_rooms(db)
+    fields = [field.copy() for field in ROOM_FIELDS]
+    department_options = {row.name for row in db.scalars(
+        select(CampusDepartment).order_by(CampusDepartment.name)).all()}
+    department_options.update(row.get("department") or row.get("building") for row in rows
+                              if row.get("department") or row.get("building"))
+    next(field for field in fields if field[0] == "department")[4] = sorted(department_options) + ["Other"]
+    return {"title": "Rooms", "fields": fields, "rows": rows,
             "empty": "No rooms yet. Add the real rooms so the AI never has to guess."}
 
 

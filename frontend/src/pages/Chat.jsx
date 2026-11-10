@@ -343,9 +343,21 @@ export default function Chat() {
   }
 
   const canPhoto = !["admin", "super_admin"].includes(user.role);
-  const extra = ["admin", "super_admin"].includes(user.role)
-    ? ["Show pending reports", "Show pending concerns"] : ["Show my pending concerns"];
-  const CARDS = [
+  const extra = user.role === "super_admin"
+    ? ["Show pending reports", "Show pending concerns", "How do I review pending accounts?"]
+    : user.role === "admin"
+      ? ["Show pending reports", "Show pending concerns"] : ["Show my pending concerns"];
+  const CARDS = user.role === "super_admin" ? [
+    ["Manage users", "How do I manage users and review accounts?"],
+    ["Update campus data", "How do I add or edit rooms and campus information?"],
+    ["System settings", "Where can I manage NEMSAI system settings?"],
+    ["Review reports", "Show pending reports and concerns"],
+  ] : user.role === "admin" ? [
+    ["Review assigned work", "How do I review my assigned reports and concerns?"],
+    ["Review accounts", "How do I review a pending account?"],
+    ["Faculty availability", "How do I review a faculty availability report?"],
+    ["Post an announcement", "How do I post a campus announcement?"],
+  ] : [
     ...(user.role === "instructor" ? [["Reserve a facility", RESERVE_QUICK]] : []),
     ["Report a concern", "How do I report a broken facility?"],
     ["Find a campus location", "Where is the NEMSU Tandag campus?"],
@@ -366,7 +378,11 @@ export default function Chat() {
               <div className="welcome">
                 <img src="/logo.png" alt="" />
                 <h2>How can I help you today?</h2>
-                <p className="sub">Your NEMSU Tandag Main Campus Assistant</p>
+                <p className="sub">{user.role === "super_admin"
+                  ? "Your NEMSAI Super Admin assistant"
+                  : user.role === "admin"
+                    ? "Your NEMSAI Campus Admin assistant"
+                    : "Your NEMSU Tandag Main Campus Assistant"}</p>
                 <div className="cards">
                   {CARDS.map(([title, q]) => (
                     <button key={title} type="button" className="card-btn" onClick={() => send(q)}>

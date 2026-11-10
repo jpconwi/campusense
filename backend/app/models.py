@@ -278,6 +278,7 @@ class Room(Base):
     room_id: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(80), nullable=False)
     building: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    department: Mapped[str] = mapped_column(String(80), default="", nullable=False)
     room_type: Mapped[str] = mapped_column(String(60), default="", nullable=False)
     capacity: Mapped[str] = mapped_column(String(10), default="", nullable=False)
     equipment: Mapped[str] = mapped_column(String(200), default="", nullable=False)
