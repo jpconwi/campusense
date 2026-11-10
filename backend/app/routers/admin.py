@@ -1050,9 +1050,11 @@ def registration_help_resolve(message_id: int, _me: CurrentUser = Depends(super_
 
 
 # ------------------------------------------------------ rooms / campus
-ROOM_FIELDS = [["room_id", "Room ID", True], ["name", "Name", True], ["building", "Building", False],
+ROOM_FIELDS = [["room_id", "Room ID", True], ["name", "Name", True],
+               ["building", "Building", False, "select", ["ICT Building", "CITE", "CBM", "CAS", "CTE", "College of Law", "Midwifery", "Administration", "Library", "Gymnasium", "Other"]],
                ["room_type", "Type", False, "select", ["Classroom", "Computer Laboratory", "Laboratory", "Lecture Hall", "Office", "Conference Room", "Other"]],
-               ["capacity", "Capacity", False], ["equipment", "Equipment", False],
+               ["capacity", "Capacity", False, "select", ["1-10", "11-20", "21-30", "31-40", "40-50", "51-100", "100+" ]],
+               ["equipment", "Equipment", False, "select", ["TV Screen, Computers", "Projector", "Computers", "TV Screen", "Air Conditioning", "Whiteboard", "Sound System", "None", "Other"]],
                ["status", "Availability", False, "select", ["Available", "In Use", "Under Maintenance", "Not Available"]]]
 CAMPUS_FIELDS = [["topic", "Topic", True], ["keywords", "Keywords (use ; between them)", True],
                  ["answer", "Answer", True]]
