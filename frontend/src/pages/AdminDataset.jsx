@@ -142,7 +142,7 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
           {rows.length === 0 ? <p className="empty">{empty}</p>
             : visibleRows.length === 0 ? <p className="empty">No entries match this search and department.</p>
               : <div className="table-wrap"><table>
-                <thead><tr>{fields.map(([name, label]) => <th key={name}>{label.split(" (")[0]}</th>}{kind === "announcements" && <th>Posted by</th>}{extraStatus && <th>Status</th>}<th>Actions</th></tr></thead>
+                <thead><tr>{fields.map(([name, label]) => <th key={name}>{label.split(" (")[0]}</th>)}{kind === "announcements" && <th>Posted by</th>}{extraStatus && <th>Status</th>}<th>Actions</th></tr></thead>
                 <tbody>
                   {visibleRows.map((r) => (
                     <tr key={r.id}>
