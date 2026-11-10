@@ -21,6 +21,7 @@ export default function Notifications() {
       {rows.length ? <div className="announcement-list">{rows.map((item) => (
         <article className="card announcement-item" key={item.id}>
           <div><strong>{item.title}</strong><span className="announcement-category">{item.category}</span></div>
+          <small>Posted by {item.created_by_name || "Administration"} ({item.created_by_role === "super_admin" ? "Super Admin" : "Admin"})</small>
           <p>{item.body}</p>
           {(item.start_date || item.end_date) && <small>{item.start_date ? `Date: ${item.start_date}` : ""}{item.start_date && item.end_date ? " · " : ""}{item.end_date ? `Until: ${item.end_date}` : ""}</small>}
         </article>

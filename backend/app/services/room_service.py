@@ -22,7 +22,17 @@ def list_rooms(db: Session):
 
 
 def add_room(db: Session, form):
-    values = {
+    values = _room_values(form)
+    exists = db.execute(select(Room.id).where(
+        func.lower(Room.room_id) == values["room_id"].lower())).first()
+    if exists:
+        raise ValidationError("That room ID already exists.")
+    db.add(Room(**values))
+    db.commit()
+
+
+def _room_values(form):
+    return {
         "room_id": clean_text(form.get("room_id"), "Room ID", 30),
         "name": clean_text(form.get("name"), "Name", 80),
         "building": clean_text(form.get("building"), "Building", 80, required=False),
@@ -31,11 +41,19 @@ def add_room(db: Session, form):
         "equipment": clean_text(form.get("equipment"), "Equipment", 200, required=False),
         "status": clean_text(form.get("status"), "Status", 40, required=False),
     }
+
+
+def update_room(db: Session, row_id, form):
+    row = db.get(Room, row_id)
+    if row is None:
+        raise ValidationError("Room not found.")
+    values = _room_values(form)
     exists = db.execute(select(Room.id).where(
-        func.lower(Room.room_id) == values["room_id"].lower())).first()
+        func.lower(Room.room_id) == values["room_id"].lower(), Room.id != row_id)).first()
     if exists:
         raise ValidationError("That room ID already exists.")
-    db.add(Room(**values))
+    for key, value in values.items():
+        setattr(row, key, value)
     db.commit()
 
 

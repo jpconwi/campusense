@@ -304,6 +304,8 @@ class Announcement(Base):
     body: Mapped[str] = mapped_column(String(1000), nullable=False)
     start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)   # show from
     end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)     # show until
+    created_by_name: Mapped[str] = mapped_column(String(200), default="Administration", nullable=False)
+    created_by_role: Mapped[str] = mapped_column(String(20), default="admin", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
 
 

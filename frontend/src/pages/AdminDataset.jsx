@@ -8,19 +8,29 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
   const { setFlash } = useAuth();
   const [data, setData] = useState(null);
   const [values, setValues] = useState({});
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(() => { api(`/api/admin/${kind}`).then(setData).catch(() => {}); }, [kind]);
   useEffect(() => { setData(null); setValues({}); load(); }, [load]);
   useEffect(() => { if (data) document.title = `${data.title} | NEMSU`; }, [data]);
 
-  async function add(e) {
+  async function save(e) {
     e.preventDefault();
     try {
-      const r = await api(`/api/admin/${kind}`, { method: "POST", json: values });
+      const r = await api(editing ? `/api/admin/${kind}/${editing.id}` : `/api/admin/${kind}`, {
+        method: editing ? "PUT" : "POST", json: values,
+      });
       setFlash({ text: r.message, kind: "info" });
       setValues({});
+      setEditing(null);
     } catch (err) { setFlash({ text: err.message, kind: "error" }); }
     load();
+  }
+
+  function edit(row) {
+    setEditing(row);
+    setValues(Object.fromEntries(fields.map(([name]) => [name, row[name] ?? ""])));
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function remove(row) {
@@ -41,8 +51,8 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
     <div className="page" style={{ maxWidth: 1300 }}>
       <h2 className="page-title">{title}</h2>
       <div className="card">
-        <h3>Add</h3>
-        <form className="inline-form" style={{ width: "100%" }} onSubmit={add}>
+        <h3>{editing ? "Edit room" : "Add"}</h3>
+        <form className="inline-form" style={{ width: "100%" }} onSubmit={save}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: "0 14px" }}>
             {fields.map(([name, label, required, type, options]) => {
               const set = (e) => setValues((v) => ({ ...v, [name]: e.target.value }));
@@ -54,7 +64,7 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
                   ) : type === "select" ? (
                     <select required={required} value={values[name] || ""} onChange={set}>
                       <option value="">Choose...</option>
-                      {options.map((o) => <option key={o} value={o}>{o}</option>)}
+                      {[...new Set([...(options || []), ...(values[name] && !(options || []).includes(values[name]) ? [values[name]] : [])])].map((o) => <option key={o} value={o}>{o}</option>)}
                     </select>
                   ) : (
                     <input type={type === "date" ? "date" : "text"} required={required}
@@ -64,19 +74,21 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
               );
             })}
           </div>
-          <button className="btn" style={{ marginTop: 14 }} type="submit">Add</button>
+          <button className="btn" style={{ marginTop: 14 }} type="submit">{editing ? "Save changes" : "Add"}</button>
+          {editing && <button className="btn secondary" style={{ margin: "14px 0 0 8px" }} type="button" onClick={() => { setEditing(null); setValues({}); }}>Cancel</button>}
         </form>
       </div>
 
       {rows.length ? (
         <div className="table-wrap"><table>
-          <thead><tr>{fields.map(([name, label]) => <th key={name}>{label.split(" (")[0]}</th>)}{extraStatus && <th>Status</th>}<th></th></tr></thead>
+          <thead><tr>{fields.map(([name, label]) => <th key={name}>{label.split(" (")[0]}</th>)}{kind === "announcements" && <th>Posted by</th>}{extraStatus && <th>Status</th>}<th></th></tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id}>
                 {fields.map(([name]) => <td key={name} className="desc">{r[name]}</td>)}
+                {kind === "announcements" && <td>{r.created_by_name || "Administration"} ({r.created_by_role === "super_admin" ? "Super Admin" : "Admin"})</td>}
                 {extraStatus && <td>{r.status}</td>}
-                <td><button className="btn small danger" type="button" onClick={() => remove(r)}>Delete</button></td>
+                <td>{kind === "rooms" && <button className="btn small" type="button" onClick={() => edit(r)}>Edit</button>} <button className="btn small danger" type="button" onClick={() => remove(r)}>Delete</button></td>
               </tr>
             ))}
           </tbody>

@@ -1010,8 +1010,9 @@ def registration_help_resolve(message_id: int, _me: CurrentUser = Depends(super_
 
 # ------------------------------------------------------ rooms / campus
 ROOM_FIELDS = [["room_id", "Room ID", True], ["name", "Name", True], ["building", "Building", False],
-               ["room_type", "Type", False], ["capacity", "Capacity", False],
-               ["equipment", "Equipment", False], ["status", "Status", False]]
+               ["room_type", "Type", False, "select", ["Classroom", "Computer Laboratory", "Laboratory", "Lecture Hall", "Office", "Conference Room", "Other"]],
+               ["capacity", "Capacity", False], ["equipment", "Equipment", False],
+               ["status", "Availability", False, "select", ["Available", "In Use", "Under Maintenance", "Not Available"]]]
 CAMPUS_FIELDS = [["topic", "Topic", True], ["keywords", "Keywords (use ; between them)", True],
                  ["answer", "Answer", True]]
 
@@ -1026,6 +1027,12 @@ def rooms(_me: CurrentUser = Depends(super_admin_required), db: Session = Depend
 def rooms_add(body: dict, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     room_service.add_room(db, _strings(body))
     return {"success": True, "message": "Room added."}
+
+
+@router.put("/rooms/{row_id}")
+def rooms_update(row_id: int, body: dict, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+    room_service.update_room(db, row_id, _strings(body))
+    return {"success": True, "message": "Room updated."}
 
 
 @router.delete("/rooms/{row_id}")
@@ -1070,8 +1077,8 @@ def announcements(db: Session = Depends(get_db)):
 
 
 @router.post("/announcements")
-def announcements_add(body: dict, db: Session = Depends(get_db)):
-    announcement_service.add_announcement(db, _strings(body))
+def announcements_add(body: dict, me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
+    announcement_service.add_announcement(db, _strings(body), me.name, me.role)
     return {"success": True, "message": "Announcement posted."}
 
 

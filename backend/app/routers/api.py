@@ -396,7 +396,7 @@ def active_announcements(user: CurrentUser = Depends(login_required),
                          db: Session = Depends(get_db)):
     """Current announcements for every signed-in user (web and mobile app)."""
     return {"rows": [{k: r[k] for k in ("id", "title", "category", "body", "start_date",
-                                         "end_date")}
+                                         "end_date", "created_by_name", "created_by_role")}
                      for r in announcement_service.list_active(db)]}
 
 

@@ -43,6 +43,7 @@ def init_db():
     _add_report_workflow_review_columns()
     _add_feedback_routing_columns()
     _add_faculty_reservation_review_columns()
+    _add_announcement_author_columns()
     from app.services import campus_service, sentiment_service
     with SessionLocal() as db:
         from app.model import systemAi
@@ -61,6 +62,22 @@ def _allow_super_admin_role():
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check"))
         conn.execute(text("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('student','instructor','admin','super_admin'))"))
+
+
+def _add_announcement_author_columns():
+    """Keep existing announcement tables usable after adding creator attribution."""
+    from sqlalchemy import inspect, text
+    columns = {column["name"] for column in inspect(engine).get_columns("announcements")}
+    additions = {
+        "created_by_name": "VARCHAR(200) NOT NULL DEFAULT 'Administration'",
+        "created_by_role": "VARCHAR(20) NOT NULL DEFAULT 'admin'",
+    }
+    with engine.begin() as conn:
+        for name, kind in additions.items():
+            if engine.dialect.name == "postgresql":
+                conn.execute(text(f"ALTER TABLE announcements ADD COLUMN IF NOT EXISTS {name} {kind}"))
+            elif name not in columns:
+                conn.execute(text(f"ALTER TABLE announcements ADD COLUMN {name} {kind}"))
 
 
 def _widen_campus_info_columns():
