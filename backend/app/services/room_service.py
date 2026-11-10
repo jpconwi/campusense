@@ -21,6 +21,11 @@ def list_rooms(db: Session):
     return [row_to_dict(r) for r in rows]
 
 
+def count_rooms(db: Session):
+    """Return the number of room records saved in the system."""
+    return db.scalar(select(func.count(Room.id))) or 0
+
+
 def add_room(db: Session, form):
     values = _room_values(form)
     exists = db.execute(select(Room.id).where(

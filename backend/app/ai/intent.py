@@ -243,15 +243,17 @@ def announcements_request(q):
 
 
 def rooms_request(q, original):
-    """'what are available rooms', 'available rooms in cbm', 'list of rooms'."""
+    """Room listing and count questions, such as 'how many rooms are recorded?'"""
     if _looks_like_form(q) or room_service.extract_room_code(original):
         return None
     if not has(q, "room", "rooms", "classroom", "classrooms"):
         return None
-    if not has(q, "available", "availability", "vacant", "free", "list", "show", "what",
-               "which", "all", "any", "open", "unoccupied", "rooms"):
+    count = has(q, "how many", "count", "number", "total")
+    if not count and not has(q, "available", "availability", "vacant", "free", "list", "show", "what",
+                             "which", "all", "any", "open", "unoccupied", "rooms"):
         return None
     return {"words": q.split(),
+            "count": count,
             "available": has(q, "available", "availability", "vacant", "free",
                              "open", "unoccupied")}
 

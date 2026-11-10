@@ -703,6 +703,12 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         return _data(text)
 
     if name == "rooms_list":                    # real rooms from the admin's room list
+        if found.get("count"):
+            total = room_service.count_rooms(db)
+            return _data(
+                f"I have **{total} room{'s' if total != 1 else ''} recorded** in NEMSAI's room database. "
+                "This is the number of records currently entered, not a verified count of every room on the NEMSU Tandag campus."
+            )
         candidates = room_service.retrieve_rooms(db, question, limit=20)
         if not candidates:
             candidates = room_service.list_room_preview(db, limit=20)
