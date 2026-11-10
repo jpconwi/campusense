@@ -8,6 +8,7 @@ All numbers on the dashboard are real counts from the database.
 """
 
 import json
+import shutil
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 
@@ -15,11 +16,11 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, text
 from zoneinfo import ZoneInfo
 
 from app import config
-from app.database import get_db
+from app.database import engine, get_db
 from app.models import (AIProviderSetting, AdminActivityLog, CampusDepartment, User, Feedback,
                         UserDailyActivity, UserPresence, FacultyReport, Reservation, Concern, Report)
 from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_email,
@@ -852,6 +853,7 @@ def system_overview(_me: CurrentUser = Depends(super_admin_required), db: Sessio
     review_audit.sort(key=lambda item: item["submitted_at"] or datetime.min, reverse=True)
     departments = [{"id": r.id, "name": r.name, "office": r.office}
                    for r in db.scalars(select(CampusDepartment).order_by(CampusDepartment.name)).all()]
+    storage = _system_storage(db)
     return {
         "role_counts": [[role, user_service.count_role(db, role)]
                         for role in ("student", "instructor", "admin", "super_admin")],
@@ -860,6 +862,7 @@ def system_overview(_me: CurrentUser = Depends(super_admin_required), db: Sessio
             ("Feedback", "feedback"))],
         "analytics": chart_service.dashboard_charts(db),
         "ai_providers": systemAi.chain_status(),
+        "storage": storage,
         "departments": departments,
         "activity": [{"id": r.id, "actor_email": r.actor_email, "action": r.action,
                       "target_email": r.target_email, "details": r.details,
@@ -870,22 +873,60 @@ def system_overview(_me: CurrentUser = Depends(super_admin_required), db: Sessio
     }
 
 
-class AccessRoleBody(BaseModel):
-    role: str = ""
+def _system_storage(db: Session):
+    """Report local uploads, generated files, database size, and local disk headroom."""
+    def folder_size(folder):
+        if not folder.exists():
+            return 0
+        total = 0
+        for path in folder.rglob("*"):
+            try:
+                if path.is_file() and not path.is_symlink():
+                    total += path.stat().st_size
+            except OSError:
+                continue
+        return total
+
+    uploads = folder_size(config.UPLOAD_DIR)
+    reports = folder_size(config.REPORTS_DIR)
+    database_bytes = None
+    try:
+        if db.bind.dialect.name == "postgresql":
+            database_bytes = int(db.execute(text(
+                "SELECT pg_database_size(current_database())")).scalar_one())
+        elif db.bind.dialect.name == "sqlite":
+            db_path = db.bind.url.database
+            if db_path and db_path != ":memory:":
+                from pathlib import Path
+                database_bytes = Path(db_path).stat().st_size
+    except Exception:
+        database_bytes = None
+    try:
+        disk = shutil.disk_usage(config.UPLOAD_DIR if config.UPLOAD_DIR.exists() else config.BACKEND_DIR)
+        disk_total, disk_used, disk_free = disk.total, disk.used, disk.free
+    except OSError:
+        disk_total = disk_used = disk_free = None
+    return {
+        "uploads_bytes": uploads,
+        "generated_files_bytes": reports,
+        "database_bytes": database_bytes,
+        "disk_total_bytes": disk_total,
+        "disk_used_bytes": disk_used,
+        "disk_free_bytes": disk_free,
+        "cloud_storage_configured": bool(config.CLOUDINARY_CLOUD_NAME),
+        "cloud_storage_note": "Remote Cloudinary usage is not included in local disk totals." if config.CLOUDINARY_CLOUD_NAME else None,
+    }
 
 
-@router.post("/system/users/{user_id}/role")
-def system_user_role(user_id: int, body: AccessRoleBody, me: CurrentUser = Depends(super_admin_required),
-                     db: Session = Depends(get_db)):
-    if user_id == me.id:
-        raise ValidationError("You cannot change your own access level.")
-    target = user_service.get_user(db, user_id)
-    if target is None or not user_service.super_admin_set_role(db, user_id, body.role):
-        raise ValidationError("Choose an approved account and a valid role.")
-    db.add(AdminActivityLog(actor_email=me.email, action="role_changed", target_email=target.email,
-                            details=f"Role set to {body.role}", created_at=common.now()))
-    db.commit()
-    return {"success": True, "message": f"{target.email} is now {body.role.replace('_', ' ')}."}
+@router.get("/system/admins")
+def system_admin_accounts(_me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+    rows = db.scalars(select(User).where(User.role.in_(("admin", "super_admin")))
+                      .order_by(User.role, User.name)).all()
+    return {"rows": [{"id": row.id, "name": row.name, "email": row.email,
+                       "department": row.department, "role": row.role,
+                       "is_allowlisted_admin": is_admin_email(row.email),
+                       "deleted_at": row.deleted_at, "is_active": row.is_active,
+                       "approval_status": row.approval_status} for row in rows]}
 
 
 class CreateAdminBody(BaseModel):

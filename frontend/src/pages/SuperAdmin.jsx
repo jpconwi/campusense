@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import { Loading } from "../components/Ui.jsx";
 
 export default function SuperAdmin() {
-  const { user: me, setFlash } = useAuth();
+  const { setFlash } = useAuth();
   const [data, setData] = useState(null);
-  const [users, setUsers] = useState([]);
+  const [admins, setAdmins] = useState([]);
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
@@ -15,23 +15,15 @@ export default function SuperAdmin() {
   const load = useCallback(async () => {
     setLoadError("");
     try {
-      const [system, people] = await Promise.all([api("/api/admin/system"), api("/api/admin/users")]);
+      const [system, people] = await Promise.all([api("/api/admin/system"), api("/api/admin/system/admins")]);
       setData(system);
-      setUsers(Array.isArray(people.rows) ? people.rows : []);
+      setAdmins(Array.isArray(people.rows) ? people.rows : []);
     } catch (error) {
       setLoadError(error.message || "Could not load system control.");
       throw error;
     }
   }, []);
   useEffect(() => { document.title = "System Control | NEMSU"; load().catch(() => {}); }, [load]);
-
-  async function setRole(person, role) {
-    try {
-      const result = await api(`/api/admin/system/users/${person.id}/role`, { method: "POST", json: { role } });
-      setFlash({ text: result.message, kind: "info" });
-      await load();
-    } catch (error) { setFlash({ text: error.message, kind: "error" }); }
-  }
 
   async function createAdmin(event) {
     event.preventDefault();
@@ -61,6 +53,15 @@ export default function SuperAdmin() {
 
   if (!data && loadError) return <div className="page"><h2 className="page-title">System Control</h2><p role="alert" className="error">{loadError}</p><button className="btn" type="button" onClick={() => load().catch(() => {})}>Try again</button></div>;
   if (!data) return <Loading label="Loading system control..." wide={1200} />;
+  const formatBytes = (bytes) => {
+    if (bytes == null) return "Unavailable";
+    if (bytes === 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    const unit = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    return `${(bytes / (1024 ** unit)).toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+  };
+  const storage = data.storage || {};
+  const diskPercent = storage.disk_total_bytes ? Math.min(100, Math.round(storage.disk_used_bytes * 100 / storage.disk_total_bytes)) : 0;
   return <div className="page">
     <h2 className="page-title">System Control</h2>
     <p className="page-intro">Manage privileged access, review system activity, and monitor campus-wide services.</p>
@@ -81,22 +82,30 @@ export default function SuperAdmin() {
     <p className="muted">Admins manage reports and use the password assigned during account creation on the private admin sign-in page. Keep at least one super administrator configured in SUPER_ADMIN_EMAILS.</p>
     <button className="btn" type="button" onClick={() => setShowAdminForm(true)}>Create admin account</button>
     <div className="table-wrap"><table className="data-table">
-      <thead><tr><th>Name</th><th>Email</th><th>Department</th><th>Access</th><th>Update access</th><th>Admin account</th></tr></thead>
-      <tbody>{users.map((person) => <tr key={person.id}>
+      <thead><tr><th>Name</th><th>Email</th><th>Department</th><th>Role</th><th>Admin account</th></tr></thead>
+      <tbody>{admins.map((person) => <tr key={person.id}>
         <td>{person.name}</td><td>{person.email}</td><td>{person.department || "—"}</td>
-        <td>{(person.role || "No role").replaceAll("_", " ")}</td>
-        <td>{person.id === me.id || person.is_allowlisted_admin || person.deleted_at || person.approval_status !== "Approved"
-          ? <span className="muted">{person.is_allowlisted_admin ? "Protected by deployment settings" : person.id === me.id ? "Your own account" : "Account must be approved and active"}</span> :
-          <select aria-label={`Access for ${person.email}`} value={person.role || ""} onChange={(event) => setRole(person, event.target.value)}>
-            <option value="" disabled>No role</option>
-            <option value="student">student</option><option value="instructor">instructor</option>
-            <option value="admin">admin</option>
-          </select>}</td>
-        <td>{person.role === "admin" && !person.is_allowlisted_admin && person.id !== me.id && !person.deleted_at
+        <td>{(person.role || "").replaceAll("_", " ")}</td>
+        <td>{person.deleted_at || !person.is_active ? <span className="muted">Disabled</span> : person.role === "super_admin" || person.is_allowlisted_admin
+          ? <span className="muted">Protected</span> : person.role === "admin"
           ? <button className="btn small danger" type="button" onClick={() => deleteAdmin(person)}>Delete admin</button>
-          : person.role === "admin" ? <span className="muted">Configured account</span> : "—"}</td>
+          : <span className="muted">Configured account</span>}</td>
       </tr>)}</tbody>
     </table></div>
+
+    <h3>Storage</h3>
+    <p className="muted">Monitor storage used by uploaded files, generated reports, and the database on this server.</p>
+    <section className="record-card-list" aria-label="Storage usage">
+      <article className="record-card"><strong>Uploaded files</strong><h3>{formatBytes(storage.uploads_bytes)}</h3></article>
+      <article className="record-card"><strong>Generated reports</strong><h3>{formatBytes(storage.generated_files_bytes)}</h3></article>
+      <article className="record-card"><strong>Database</strong><h3>{formatBytes(storage.database_bytes)}</h3></article>
+      <article className="record-card"><strong>Server disk free</strong><h3>{formatBytes(storage.disk_free_bytes)}</h3></article>
+    </section>
+    <section className="card" aria-label="Server disk capacity">
+      <strong>Server disk usage</strong><p>{formatBytes(storage.disk_used_bytes)} used of {formatBytes(storage.disk_total_bytes)} ({diskPercent}%)</p>
+      <progress max="100" value={diskPercent} style={{ width: "100%" }} aria-label={`Server disk ${diskPercent}% used`} />
+      {storage.cloud_storage_note && <p className="muted">{storage.cloud_storage_note}</p>}
+    </section>
 
     <h3>AI integrations</h3>
     <p className="muted">Provider keys and model names remain in server configuration. Disable a provider here to remove it from both text and photo-analysis fallback chains.</p>
@@ -109,16 +118,16 @@ export default function SuperAdmin() {
     {data.activity.length ? <div className="table-wrap"><table className="data-table">
       <thead><tr><th>Time</th><th>Administrator</th><th>Action</th><th>Account</th><th>Details</th></tr></thead>
       <tbody>{data.activity.map((entry) => <tr key={entry.id}><td>{entry.created_at}</td><td>{entry.actor_email}</td>
-        <td>{entry.action.replaceAll("_", " ")}</td><td>{entry.target_email || "—"}</td><td>{entry.details || "—"}</td></tr>)}</tbody>
+        <td>{entry.action.replaceAll("_", " ")}</td><td>{entry.target_email || "â€”"}</td><td>{entry.details || "â€”"}</td></tr>)}</tbody>
     </table></div> : <p className="muted">No privileged changes have been recorded yet.</p>}
     <h3>Faculty reports and reservation reviews</h3>
     <p className="muted">Review status, assigned administrator, and decision notes for the latest submissions.</p>
     {data.review_audit?.length ? <div className="table-wrap"><table className="data-table">
       <thead><tr><th>Type</th><th>Reference</th><th>Submitted</th><th>Requester</th><th>Status</th><th>Handled by</th><th>Reviewed</th><th>Note</th></tr></thead>
       <tbody>{data.review_audit.map((entry) => <tr key={`${entry.kind}-${entry.id}`}>
-        <td>{entry.kind}</td><td>#{String(entry.id).padStart(4, "0")}</td><td>{entry.submitted_at || "—"}</td>
-        <td>{entry.requester || "—"}</td><td><span className={`badge s-${String(entry.status || "").toLowerCase().replaceAll(" ", "-")}`}>{entry.status || "Pending"}</span></td>
-        <td>{entry.handler || <span className="muted">Awaiting review</span>}</td><td>{entry.reviewed_at || "—"}</td><td>{entry.note || "—"}</td>
+        <td>{entry.kind}</td><td>#{String(entry.id).padStart(4, "0")}</td><td>{entry.submitted_at || "â€”"}</td>
+        <td>{entry.requester || "â€”"}</td><td><span className={`badge s-${String(entry.status || "").toLowerCase().replaceAll(" ", "-")}`}>{entry.status || "Pending"}</span></td>
+        <td>{entry.handler || <span className="muted">Awaiting review</span>}</td><td>{entry.reviewed_at || "â€”"}</td><td>{entry.note || "â€”"}</td>
       </tr>)}</tbody>
     </table></div> : <p className="muted">No faculty reports or reservation requests have been submitted.</p>}
     {showAdminForm && <div className="system-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowAdminForm(false); }}>
