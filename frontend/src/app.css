@@ -203,6 +203,9 @@ button.send:hover { background: var(--blue-deep); } button.send:disabled { backg
 .inline-form label { display: block; font-weight: 600; font-size: .92rem; margin: 12px 0 5px; }
 .inline-form input, .inline-form textarea, .inline-form select { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px 11px; color: var(--ink); background: #fff; outline: none; }
 .inline-form input:focus, .inline-form textarea:focus, .inline-form select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(22,135,248,.14); }
+.equipment-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 4px 14px; padding: 4px 0; }
+.inline-form .equipment-option { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0; font-size: .86rem; font-weight: 500; }
+.inline-form .equipment-option input[type="checkbox"] { flex: 0 0 16px; width: 16px; height: 16px; margin: 0; padding: 0; accent-color: var(--blue); }
 .inline-form input[readonly] { background: var(--paper); color: var(--muted); }
 .inline-form .invalid { border-color: var(--error); }
 .inline-form textarea { min-height: 80px; resize: vertical; }

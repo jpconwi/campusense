@@ -186,10 +186,9 @@ function groupNav(nav, role) {
     const path = item.path.split("?", 1)[0];
     const superAdminGroups = {
       "/admin/help-messages": "Inbox", "/admin/reports": "Inbox", "/admin/faculty": "Inbox",
-      "/admin/feedback": "Inbox", "/admin/accounts": "Inbox",
+      "/admin/feedback": "Inbox", "/admin/reservations": "Inbox",
       "/admin/users": "People",
       "/admin/rooms": "Campus data", "/admin/campus": "Campus data", "/admin/announcements": "Campus data",
-      "/admin/reservations": "Campus data",
       "/admin": "System", "/ai": "System", "/admin/system": "System",
     };
     // NEMSAI Assistant sits with the overview for admins

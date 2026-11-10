@@ -57,7 +57,7 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
             {fields.map(([name, label, required, type, options]) => {
               const set = (e) => setValues((v) => ({ ...v, [name]: e.target.value }));
               return (
-                <div key={name} style={type === "textarea" ? { gridColumn: "1 / -1" } : undefined}>
+                <div key={name} style={type === "textarea" || type === "multiselect" ? { gridColumn: "1 / -1" } : undefined}>
                   <label>{label}{required ? " *" : ""}</label>
                   {type === "textarea" ? (
                     <textarea rows={4} required={required} value={values[name] || ""} onChange={set} />
@@ -67,10 +67,10 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
                       {[...new Set([...(options || []), ...(values[name] && !(options || []).includes(values[name]) ? [values[name]] : [])])].map((o) => <option key={o} value={o}>{o}</option>)}
                     </select>
                   ) : type === "multiselect" ? (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 6 }}>
+                    <div className="equipment-options">
                       {[...new Set([...(options || []), ...String(values[name] || "").split(",").map((item) => item.trim()).filter((item) => item && !(options || []).includes(item))])].map((option) => {
                         const selected = String(values[name] || "").split(",").map((item) => item.trim()).filter(Boolean);
-                        return <label key={option} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        return <label className="equipment-option" key={option}>
                           <input type="checkbox" checked={selected.includes(option)} onChange={(event) => {
                             const next = event.target.checked
                               ? option === "None" ? [option] : [...selected.filter((item) => item !== "None"), option]

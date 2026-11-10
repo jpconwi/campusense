@@ -76,7 +76,6 @@ export default function AdminUsers() {
     <nav className="admin-view-switch" aria-label="User management views">
       <Link to="/admin/users?view=users" className={view === "users" ? "selected" : ""}>All users</Link>
       <Link to="/admin/users?view=online" className={view === "online" ? "selected" : ""}>Online users</Link>
-      <Link to="/admin/accounts?status=Pending">Review pending accounts</Link>
     </nav>
     {view === "online" ? <AdminOnlineUsers embedded /> : <>
     <p className="admin-section-note">Users are sorted A-Z. Deleted accounts are disabled immediately and permanently removed after seven days.</p>
@@ -124,7 +123,7 @@ export default function AdminUsers() {
         </div>
         <div className="admin-user-actions">
           {user.deleted_at ? <small>Permanent deletion: {user.purge_after}</small> : !['admin', 'super_admin'].includes(user.role) && user.id !== me.id && <>
-            {user.approval_status === 'Pending' ? <Link className="btn small" to="/admin/accounts?status=Pending">Review in Account Checks</Link> : <>
+            {user.approval_status === 'Pending' ? <span className="muted">Pending account review</span> : <>
               {user.approval_status === 'Approved' && <RoleForm user={user} onChanged={load} />}
               <button className={'btn small' + (user.is_active ? ' danger' : '')} type="button" onClick={() => toggle(user)}>{user.is_active ? 'Deactivate' : 'Activate'}</button>
             </>}
