@@ -39,8 +39,8 @@ from app.models import KnowledgeDocument
 NEWS = "nemsu_news"
 MEMO = "nemsu_memo"
 PAGE = "nemsu_page"
-# Public NEMSU subdomains approved for bounded, same-host page crawling.
-EXTRA_OFFICIAL_HOSTS = {"sdg.nemsu.edu.ph"}
+# Any NEMSU subdomain may be followed when linked from a public official page.
+# The crawl remains bounded and each origin's robots.txt is checked by Fetcher.
 USER_AGENT = "Mozilla/5.0 (compatible; NEMSAI-Collector/1.0; NEMSU student project; public pages only)"
 
 _MONTHS = ("January|February|March|April|May|June|July|August|September|October|"
@@ -171,9 +171,11 @@ def canonical_url(href, base, relative_to=None):
 
 
 def _same_site(url, base):
-    host = _host_key(urlsplit(url).netloc)
-    base_host = _host_key(urlsplit(base).netloc)
-    return host == base_host or (base_host == "nemsu.edu.ph" and host in EXTRA_OFFICIAL_HOSTS)
+    host = _host_key(urlsplit(url).hostname or "")
+    base_host = _host_key(urlsplit(base).hostname or "")
+    if base_host == "nemsu.edu.ph":
+        return host == "nemsu.edu.ph" or host.endswith(".nemsu.edu.ph")
+    return host == base_host
 
 
 # ------------------------------------------------------------------ HTTP (polite)

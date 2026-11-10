@@ -7,7 +7,7 @@ so the AI never has to guess room details.
 
 import re
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import Room
@@ -76,18 +76,20 @@ def extract_room_code(question):
 
 
 def find_room(db: Session, code):
-    code = (code or "").lower()
-    for r in list_rooms(db):
-        if code and (r["room_id"].lower() == code or r["room_id"].lower() == f"room {code}"
-                     or code in r["name"].lower().split()):
-            return r
-    return None
+    code = (code or "").strip().lower()
+    if not code:
+        return None
+    row = db.execute(select(Room).where(func.lower(Room.room_id).in_((code, f"room {code}")))).scalar_one_or_none()
+    if row is not None:
+        return row_to_dict(row)
+    candidates = retrieve_rooms(db, code, limit=10)
+    return next((r for r in candidates if code in (r.get("name") or "").lower().split()), None)
 
 
 def find_mentioned_room(db: Session, question):
     """Find a room by its ID or full name when either appears in a message."""
     normalized = " ".join(re.sub(r"[^a-z0-9]+", " ", (question or "").lower()).split())
-    for room in list_rooms(db):
+    for room in retrieve_rooms(db, question, limit=20):
         aliases = [room.get("name", "")]
         room_id = (room.get("room_id") or "").strip()
         if room_id:
@@ -102,15 +104,92 @@ def find_mentioned_room(db: Session, question):
 def is_room_location_question(question):
     """Recognize common location wording, including the typo 'were' for 'where'."""
     q = " ".join(re.sub(r"[^a-z0-9]+", " ", (question or "").lower()).split())
-    return (any(word in q.split() for word in ("where", "were", "wher", "located", "locate", "find", "found",
-                                                "asa", "nasaan", "diin", "saan", "dapit"))
+    return (any(word in q.split() for word in ("where", "wheres", "were", "wher", "located", "locate", "location",
+                                                "find", "found", "asa", "nasaan", "diin", "saan", "dapit","hain"))
             and any(word in q.split() for word in ("room", "classroom", "this", "that", "it")))
 
 
 def is_room_details_question(question):
     q = " ".join(re.sub(r"[^a-z0-9]+", " ", (question or "").lower()).split())
-    return any(term in q.split() for term in (
-        "capacity", "equipment", "available", "availability", "status", "type", "details", "information"))
+    tokens = set(q.split())
+    has_room_subject = bool(tokens & {"room", "rooms", "classroom", "classrooms", "laboratory", "laboratories", "lab", "labs"})
+    asks_detail = bool(tokens & {"capacity", "equipment", "available", "availability", "status", "type", "details", "information"})
+    return has_room_subject and asks_detail
+
+
+def is_room_information_question(question):
+    q = " ".join(re.sub(r"[^a-z0-9]+", " ", (question or "").lower()).split())
+    tokens = set(q.split())
+    has_room_subject = bool(tokens & {"room", "rooms", "classroom", "classrooms", "laboratory", "laboratories", "lab", "labs"})
+    has_question_shape = bool(tokens & {"what", "which", "where", "wheres", "were", "how", "do", "does", "is", "are", "can", "have", "has", "available", "availability", "list", "show", "find", "tell"})
+    detail_words = {"capacity", "equipment", "status", "type", "building", "projector", "projectors",
+                    "computer", "computers", "pc", "pcs", "aircon", "air", "conditioning", "whiteboard",
+                    "sound", "screen", "television", "tv", "laboratory", "laboratories", "lab", "labs",
+                    "classroom", "classrooms", "cite", "ict", "cbm", "cas", "cte", "near", "gate", "canteen", "library"}
+    return has_room_subject and has_question_shape and bool(tokens & detail_words)
+
+
+def is_room_list_question(question):
+    q = " ".join(re.sub(r"[^a-z0-9]+", " ", (question or "").lower()).split())
+    tokens = set(q.split())
+    has_room_subject = bool(tokens & {"room", "rooms", "classroom", "classrooms", "laboratory", "laboratories", "lab", "labs"})
+    asks_for_set = bool(tokens & {"available", "availability", "vacant", "free", "open", "list", "show", "all", "which", "any", "unoccupied"})
+    specific_detail = bool(tokens & {"projector", "projectors", "computer", "computers", "pc", "pcs", "ac", "air", "aircon", "conditioning", "capacity", "equipment", "status", "type"})
+    explicit_list = bool(tokens & {"list", "show", "all"})
+    return has_room_subject and asks_for_set and (explicit_list or not specific_detail)
+
+
+def list_room_preview(db: Session, limit=20):
+    return [row_to_dict(row) for row in db.scalars(select(Room).order_by(Room.id).limit(limit)).all()]
+
+
+_ROOM_RETRIEVAL_STOPWORDS = {
+    "a", "about", "all", "an", "and", "are", "at", "can", "classroom",
+    "classrooms", "do", "does", "find", "for", "have", "how", "i", "in", "is", "it", "me", "my",
+    "of", "on", "or", "our", "please", "room", "rooms", "show", "the", "there", "this", "to",
+    "today", "tell", "what", "when", "where", "wheres", "were", "which", "with", "you", "your",
+    "capacity", "equipment", "status", "type", "details", "information", "located", "location", "near",
+    "asa", "saan", "nasaan", "diin", "dapit", "ang", "sa", "naa", "naay", "ba", "bay", "mga", "nga", "unsa", "unsay",
+}
+_ROOM_SYNONYMS = {
+    "labs": {"lab", "laboratory"}, "lab": {"laboratory"}, "laboratories": {"laboratory", "lab"},
+    "computers": {"computer", "pcs", "pc"}, "computer": {"computers", "pcs"},
+    "projectors": {"projector"}, "projector": {"projectors"}, "ac": {"air conditioning", "aircon"},
+    "aircon": {"ac", "air conditioning"}, "air": {"aircon", "ac"},
+    "vacant": {"available", "free"}, "free": {"available", "vacant"},
+}
+_ROOM_SEARCH_FIELDS = ((Room.room_id, 12), (Room.name, 8), (Room.building, 5),
+                       (Room.room_type, 4), (Room.equipment, 4), (Room.status, 2), (Room.capacity, 2))
+
+
+def retrieve_rooms(db: Session, question, limit=5):
+    """Lexically retrieve a small, ranked set of room records for grounded answers."""
+    normalized = " ".join(re.sub(r"[^a-z0-9]+", " ", (question or "").lower()).split())
+    terms = []
+    for word in normalized.split():
+        if word in _ROOM_RETRIEVAL_STOPWORDS or len(word) < 2:
+            continue
+        terms.append(word)
+        terms.extend(_ROOM_SYNONYMS.get(word, ()))
+    terms = list(dict.fromkeys(terms))[:12]
+    if not terms:
+        return []
+
+    matches = []
+    score = None
+    for term in terms:
+        for column, weight in _ROOM_SEARCH_FIELDS:
+            condition = column.ilike(f"%{term}%")
+            matches.append(condition)
+            weighted_hit = case((condition, weight), else_=0)
+            score = weighted_hit if score is None else score + weighted_hit
+    query = (select(Room).where(or_(*matches)).order_by(score.desc(), Room.id).limit(max(1, min(int(limit), 100))))
+    rows = [row_to_dict(row) for row in db.scalars(query).all()]
+    if any(word in normalized.split() for word in ("available", "availability", "vacant", "free", "open", "unoccupied")):
+        available = [row for row in rows if _is_free(row)]
+        if available:
+            return available
+    return rows
 
 
 def room_location_reply(room):
@@ -167,10 +246,14 @@ def rooms_answer(rooms, question_words, wants_available):
     words = [w for w in question_words if w not in _ROOM_STOPWORDS and len(w) > 1]
     scope = ""
     if words:
+        match_words = set(words)
+        for word in words:
+            match_words.update(_ROOM_SYNONYMS.get(word, ()))
+        match_words = {part for word in match_words for part in word.split()}
         def matches(r):
-            text = f" {r['building']} {r['name']} {r['room_id']} {r['room_type']} ".lower()
+            text = f" {r['building']} {r['name']} {r['room_id']} {r['room_type']} {r['equipment']} {r['capacity']} {r['status']} ".lower()
             text = " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
-            return any(f" {w} " in f" {text} " for w in words)
+            return any(f" {w} " in f" {text} " for w in match_words)
         found = [r for r in rooms if matches(r)]
         if not found:
             buildings = sorted({r["building"] for r in rooms if r["building"]})

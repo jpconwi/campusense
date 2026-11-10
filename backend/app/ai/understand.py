@@ -51,6 +51,7 @@ about it. Do not repeat the mistaken answer or argue with the correction.
 
 Examples:
 "asa ang cr dapit sa cite" -> {"kind":"campus","english":"Where is the comfort room near CITE?"}
+"wheres the room 601?" -> {"kind":"campus","english":"Where is Room 601?"}
 "naa bay wifi sa library" -> {"kind":"campus","english":"Is there wifi in the library?"}
 "gusto ko mag reklamo sa aircon" -> {"kind":"campus","english":"I want to file a concern about the aircon."}
 If the last assistant reply mentions programs and the message is "like what?", resolve it as a

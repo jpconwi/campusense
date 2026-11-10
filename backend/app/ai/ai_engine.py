@@ -403,8 +403,10 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if not normalize(question) and style.EMOJI.search(question):   # "😊😊", "👍"
         return response.message(texts.en("emoji_only"))
     normalized = normalize(question)
-    room_lookup_request = (room_service.is_room_location_question(question)
-                           or room_service.is_room_details_question(question))
+    room_list_request = room_service.is_room_list_question(question)
+    room_lookup_request = (not room_list_request and (room_service.is_room_location_question(question)
+                           or room_service.is_room_details_question(question)
+                           or room_service.is_room_information_question(question)))
     room = room_service.find_mentioned_room(db, question) if room_lookup_request else None
     room_code = room_service.extract_room_code(question)
     if room_lookup_request and room is None and room_code:
@@ -419,12 +421,24 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
             room = room_service.find_mentioned_room(db, old)
             if room:
                 break
-        if room is None:
-            return response.message("Which room do you mean? Please include its room number or name.")
     if room_lookup_request and room is not None:
         if room_service.is_room_location_question(question):
             return _data(room_service.room_location_reply(room))
         return _data(room_service.room_reply(room))
+    if room_lookup_request and room is None:
+        retrieved_rooms = room_service.retrieve_rooms(db, question, limit=5)
+        if retrieved_rooms:
+            role = user.role if user else "student"
+            prompt = build_system_prompt(db, role, rooms=retrieved_rooms)
+            asked = question
+            if conversation:
+                asked = _conversation_context(conversation) + "\n\nCURRENT QUESTION:\n" + question
+            answer = ask_model(prompt, asked)
+            if answer and response.NO_INFO.lower() not in answer.lower() and not _is_echo(answer, question):
+                return _data(answer)
+        if room_service.is_room_location_question(question):
+            return response.message("Which room do you mean? Please include its room number or name.")
+        return response.message("Which room or room feature are you asking about? Please include a room number, name, or detail such as its building or equipment.")
     contact_reply = _campus_contact_reply(db, question, conversation)
     if contact_reply:
         return contact_reply
@@ -689,8 +703,13 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         return _data(text)
 
     if name == "rooms_list":                    # real rooms from the admin's room list
-        return _data(room_service.rooms_answer(
-            room_service.list_rooms(db), found["words"], found["available"]))
+        candidates = room_service.retrieve_rooms(db, question, limit=20)
+        if not candidates:
+            candidates = room_service.list_room_preview(db, limit=20)
+        answer = room_service.rooms_answer(candidates, found["words"], found["available"])
+        if len(candidates) == 20:
+            answer += "\nShowing up to 20 matching room records."
+        return _data(answer)
 
     if name == "other_campus_location":         # map card for another NEMSU campus
         text, title, url, embed = other_campus_map(found["campus"])

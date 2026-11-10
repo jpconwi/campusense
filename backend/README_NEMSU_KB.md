@@ -1,7 +1,9 @@
-# NEMSU Knowledge Base - Phase 1 (data collection)
+# NEMSU Knowledge Base
 
-Collects PUBLIC, official NEMSU announcements into the PostgreSQL table `knowledge_documents`.
-No Facebook. No login. Nothing private.
+Collects PUBLIC, official NEMSU announcements and linked pages into the PostgreSQL table
+`knowledge_documents`. This table is NEMSAI's retrieval dataset: the chatbot searches its saved
+content when answering, so a sync can make newly published public information available without
+retraining the language model. No Facebook. No login. Nothing private.
 
 ## Files
 | File | What it is |
@@ -42,17 +44,18 @@ Configure these repository Actions secrets:
 * `NEMSU_SYNC_URL`: the deployed backend URL ending in `/api/nemsu/sync/scheduled`.
 * `NEMSU_SYNC_TOKEN`: the same long random value configured as `NEMSU_SYNC_TOKEN` in the backend environment.
 
-The collector checks up to 30 Newsroom and memo list pages and crawls up to `NEMSU_CRAWL_MAX_PAGES` linked public pages from NEMSU, including campus profiles for Tandag, Bislig, Cantilan, Tagbina, Lianga, San Miguel, and Cagwait, following links up to `NEMSU_CRAWL_MAX_DEPTH` levels. It also crawls linked pages on the explicitly approved `sdg.nemsu.edu.ph` host. It extracts text from linked PDFs such as program prospectuses (up to 20 MB), adds them to `knowledge_documents`, and refreshes changed records on later syncs. Program availability answers compare the official college program pages with each campus's program-offering list; a course absent from Tandag's complete list can be reported as unavailable there, with its listed campuses named. The collector obeys each site's `robots.txt`, stays on the main NEMSU host and approved SDG host for discovery, and skips private/admin routes and unrelated downloadable assets. Private, unlinked, scanned/image-only, or JavaScript-only pages that expose no page text or links cannot be discovered this way.
+The collector checks up to 30 Newsroom and memo list pages and crawls up to `NEMSU_CRAWL_MAX_PAGES` linked public pages from NEMSU, including campus profiles for Tandag, Bislig, Cantilan, Tagbina, Lianga, San Miguel, and Cagwait, following links up to `NEMSU_CRAWL_MAX_DEPTH` levels. It follows linked pages on the main `nemsu.edu.ph` host and any `*.nemsu.edu.ph` subdomain, including the SDG site. It extracts text from linked PDFs such as program prospectuses (up to 20 MB), adds them to `knowledge_documents`, and refreshes changed records on later syncs. Program availability answers compare the official college program pages with each campus's program-offering list; a course absent from Tandag's complete list can be reported as unavailable there, with its listed campuses named. The collector obeys each origin's `robots.txt`, stays within the NEMSU domain family for discovered pages, and skips private/admin routes and unrelated downloadable assets. It discovers pages through public links; unlinked subdomains, scanned/image-only pages, and JavaScript-only pages that expose no page text or links cannot be discovered this way. The crawl remains bounded by the configured page and depth limits.
 
-## Later
-* Phase 3 (RAG): chunk `content`, embed, vector search (pgvector), inject into the Hugging Face prompt, cite `source_url`.
-* Facebook / PDFs: add a function that returns `CollectedDoc(... source_type="facebook")` and append it to `SOURCES`
-  in `nemsu_collector.py`. The table needs no change.
+## Retrieval
+The current RAG path uses keyword retrieval over saved documents and includes matching passages in
+the model prompt. It does not train or fine-tune the model. Vector embeddings can be added later if
+semantic search is needed. Answers can only use content that was successfully collected and saved;
+the configured page/depth limits, public links, robots.txt, and readable page text affect coverage.
 
 ## Official website pages (source `page`)
 
 The chatbot also reads fixed pages of nemsu.edu.ph (leadership, colleges, research, campuses),
-plus linked public pages on the approved `sdg.nemsu.edu.ph` host. The list is
+plus linked public pages on any `*.nemsu.edu.ph` subdomain. The list is
 `app/services/official_pages.py` - add a link there to teach the AI a new page.
 Run a sync (`POST /api/nemsu/sync?sources=page`, add `&dry_run=true` to test without saving).
 The scheduled sync rereads these pages and updates their existing records when their content changes.

@@ -17,7 +17,7 @@ from app.prompts.reservationPrompt import RESERVATION_PROMPT
 from app.prompts.roomPrompt import ROOM_PROMPT
 from app.prompts.studentPrompt import STUDENT_PROMPT
 from app.prompts.systemPrompt import SYSTEM_PROMPT
-from app.services import announcement_service, campus_service, room_service
+from app.services import announcement_service, campus_service
 
 ADMIN_PROMPT = """
 ==================================================
@@ -41,12 +41,12 @@ def build_user_context(user):
     return {"role": user.role if user else "student"}
 
 
-def build_system_prompt(db, role, news=None):
+def build_system_prompt(db, role, news=None, rooms=None):
     parts = [SYSTEM_PROMPT, NEMSU_PROMPT, LOCATION_PROMPT, AREA_PROMPT, ROOM_PROMPT]
 
-    rooms = room_service.list_rooms(db)
     if rooms:
-        parts.append("ROOM LIST (from the campus database):\n" + "\n".join(
+        parts.append("RETRIEVED ROOM RECORDS (from the campus database; answer room questions "
+                     "only from these records):\n" + "\n".join(
             f"- {r['room_id']}: {r['name']}, {r['building']}, {r['room_type']}, "
             f"capacity {r['capacity']}, equipment {r['equipment']}, status {r['status']}"
             for r in rooms))
