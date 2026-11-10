@@ -205,7 +205,8 @@ def room_location_reply(room):
     name = room.get("name") or room_label
     building = room.get("building")
     if building:
-        return f"**{name}** ({room_label}) is located in **{building}**."
+        return (f"**{name}** ({room_label}) is in **{building}**. The room record doesn't "
+                "include a floor or nearby landmark, so I can't give a more precise location.")
     return f"I found **{name}** ({room_label}), but its building location hasn't been added yet."
 
 

@@ -584,6 +584,17 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
             "The official University Directory is here: https://nemsu.edu.ph/directory")
 
     if name == "nemsu_vice_presidents":
+        directory_person = knowledge_service.directory_lookup(db, question)
+        if directory_person and directory_person.get("matches"):
+            answer = "The NEMSU University Directory lists these vice-presidential officials:\n"
+            for person in directory_person["matches"]:
+                answer += f"\n- **{person['name']}** — {person['designation']}"
+                if person.get("email"):
+                    answer += f"; {person['email']}"
+            return _data(answer + f"\n\nSource: [NEMSU University Directory]({directory_person['source_url']})")
+        directory_facts = campus_service.lookup(db, question)
+        if directory_facts:
+            return _data(directory_facts)
         return response.message(
             "I couldn't verify the current NEMSU vice presidents in my indexed University Directory. "
             "Please check the official directory: https://nemsu.edu.ph/directory")

@@ -314,6 +314,11 @@ def is_campus_location(q):
     """'where is nemsu', 'map of tandag campus', 'how do i get to the campus'."""
     if rejects_map(q):
         return False
+    # Questions about the university's name or history can contain "where" and
+    # "NEMSU"; they are not requests for a campus map.
+    if has(q, "name", "history", "origin", "begin", "began", "start", "started",
+           "founded", "established", "mean", "stands for", "acronym"):
+        return False
     if has(q, *SUB_AREA_WORDS):
         return False
     if has(q, *OTHER_CAMPUS_WORDS):
