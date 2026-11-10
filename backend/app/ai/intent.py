@@ -98,6 +98,7 @@ AREA_MAP = [
 TYPE_MAP = [
     ("Equipment", ["projector", "fan", "aircon", "air conditioner", "computer", "pc",
                    "printer", "tv", "monitor", "keyboard", "mouse", "wifi", "internet"]),
+    ("Cleanliness", ["trash", "trash can", "trashcan", "garbage", "rubbish", "waste", "litter", "bin"]),
     ("Plumbing", ["faucet", "toilet", "sink", "leak", "leaking", "clogged", "no water",
                   "comfort room", "cr", "restroom"]),
     ("Electrical", ["light", "lights", "bulb", "socket", "outlet", "no electricity",

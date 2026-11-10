@@ -330,6 +330,16 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if not normalize(question) and style.EMOJI.search(question):   # "😊😊", "👍"
         return response.message(texts.en("emoji_only"))
     normalized = normalize(question)
+    if re.fullmatch(r"(?:i am|im) (?:worried|concerned) about", normalized):
+        last_ai = next((normalize(m.get("text", "")) for m in reversed(conversation or [])
+                        if m.get("role") == "ai"), "")
+        last_user = next((normalize(m.get("text", "")) for m in reversed(conversation or [])
+                          if m.get("role") == "user"), "")
+        if ("concern form" in last_ai or "complete the form" in last_ai) and \
+                intents.concern_request(last_user):
+            return response.message(
+                "What specifically worries you about it? You can describe the issue in the "
+                "concern form already shown below.")
     room_code = room_service.extract_room_code(question)
     bare_room_reference = bool(room_code and normalized in {f"room {room_code.lower()}",
                                                             f"room {room_code.lower()} details"})
