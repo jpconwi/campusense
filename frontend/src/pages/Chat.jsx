@@ -185,7 +185,6 @@ function restore(messages) {
 }
 
 const QUICK = [
-  "What equipment can I borrow?",
   "How do I report a broken facility?", "Where is the NEMSU Tandag campus?", "Where is the library?",
   "Which canteen is near the CBM area?",
 ];
@@ -373,7 +372,7 @@ export default function Chat() {
     ["Check instructor availability", "Is Sir JP available today?"],
     ["Track my concerns", "Show my pending concerns"],
     ["Share campus feedback", "How do I share feedback about a campus facility?"],
-  ] : [["Borrow equipment", "What equipment can I borrow?"]]),
+  ] : []),
   ];
 
   return (
