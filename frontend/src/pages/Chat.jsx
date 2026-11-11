@@ -55,7 +55,7 @@ function Inline({ text }) {
 
 function Markdown({ text }) {
   const blocks = [];
-  let para = [], list = null, code = null;
+  let para = [], list = null, code = null, sourceSection = false;
   const flushPara = () => {
     if (para.length) {
       blocks.push(<p key={blocks.length}>{para.map((l, i) => <Fragment key={i}>{i > 0 && <br />}<Inline text={l} /></Fragment>)}</p>);
@@ -65,7 +65,9 @@ function Markdown({ text }) {
   const closeList = () => {
     if (list) {
       const items = list.items.map((t, i) => <li key={i}><Inline text={t} /></li>);
-      blocks.push(list.type === "ol" ? <ol key={blocks.length} start={list.start}>{items}</ol> : <ul key={blocks.length}>{items}</ul>);
+      blocks.push(list.type === "ol"
+        ? <ol key={blocks.length} start={list.start}>{items}</ol>
+        : <ul key={blocks.length} className={sourceSection ? "source-list" : undefined}>{items}</ul>);
       list = null;
     }
   };
@@ -80,6 +82,12 @@ function Markdown({ text }) {
       continue;
     }
     if (code) { code.push(raw); continue; }
+    if (/^sources?:\s*$/i.test(line)) {
+      flushPara(); closeList();
+      sourceSection = true;
+      blocks.push(<div className="answer-sources-title" key={blocks.length}>Sources</div>);
+      continue;
+    }
     const heading = line.match(/^(#{1,6})\s+(.*)$/);
     if (heading) {
       flushPara(); closeList();
