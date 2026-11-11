@@ -335,7 +335,8 @@ export default function MyList({ kind, hideForm = false }) {
       ) : (
         <EmptyState title="Nothing yet"
                     action={hideForm ? <Link className="btn" to="/feedback">Send feedback</Link>
-                      : <button className="btn" type="button" onClick={() => setOpen(true)}>{combined ? "New report" : `New ${spec.form}`}</button>}>
+                      : kind === "reservations" ? null
+                        : <button className="btn" type="button" onClick={() => setOpen(true)}>{combined ? "New report" : `New ${spec.form}`}</button>}>
           You have not submitted anything here yet.
         </EmptyState>
       )}
