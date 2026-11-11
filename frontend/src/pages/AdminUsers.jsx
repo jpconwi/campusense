@@ -7,6 +7,15 @@ import AdminOnlineUsers from "./AdminOnlineUsers.jsx";
 import AdminAccounts from "./AdminAccounts.jsx";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
+const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
+
+function deletionCountdownLabel(purgeAfter) {
+  if (!purgeAfter) return "Deletion date unavailable";
+  const purgeTime = Date.parse(purgeAfter);
+  if (!Number.isFinite(purgeTime)) return "Deletion date unavailable";
+  const days = Math.max(0, Math.ceil((purgeTime - Date.now()) / DAY_IN_MILLISECONDS));
+  return `${days} day${days === 1 ? "" : "s"} left`;
+}
 
 function RoleForm({ user, onChanged }) {
   const { setFlash } = useAuth();
@@ -110,7 +119,9 @@ export default function AdminUsers() {
           <div><h3>{user.name}</h3><a href={`mailto:${user.email}`}>{user.email}</a></div>
           <div className="admin-user-card-badges">
             <span className={'badge ' + (user.approval_status === 'Approved' ? 's-available' : user.approval_status === 'Rejected' || user.deleted_at ? 's-rejected' : 's-pending')}>{user.approval_status || 'Approved'}</span>
-            <span className={'badge ' + (user.is_active ? 's-available' : 's-rejected')}>{user.deleted_at ? 'Soft deleted' : user.is_active ? 'Active' : 'Deactivated'}</span>
+            <span className={'badge ' + (user.is_active ? 's-available' : 's-rejected')}>{user.deleted_at
+              ? deletionCountdownLabel(user.purge_after)
+              : user.is_active ? 'Active' : 'Deactivated'}</span>
           </div>
         </div>
         <div className="admin-user-card-meta">

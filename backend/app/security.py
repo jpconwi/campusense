@@ -39,7 +39,7 @@ NAV = {
     "instructor": [
         ("Home", "/"), ("Notifications", "/notifications"), ("NEMSAI Assistant", "/ai"), ("My Reports", "/reports"),
         ("Faculty Availability", "/faculty"),
-        ("Feedback & Suggestions", "/feedback"), ("My Feedback", "/my-feedback"),
+        ("Feedback & Suggestions", "/feedback"),
         ("Reservations", "/reservations"), ("Profile", "/profile"),
     ],
     "admin": [
