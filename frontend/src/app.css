@@ -216,6 +216,10 @@ button.send:hover { background: var(--blue-deep); } button.send:disabled { backg
 .inline-form .invalid { border-color: var(--error); }
 .inline-form textarea { min-height: 80px; resize: vertical; }
 .inline-form .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.record-photo-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.record-photo-actions .btn { min-height: 40px; }
+.record-photo-selected { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: .9rem; }
+.record-photo-selected span { min-width: 0; overflow-wrap: anywhere; }
 .form-error { color: var(--error); font-size: .9rem; margin-top: 10px; min-height: 1.2em; }
 .form-submit { width: 100%; margin-top: 6px; padding: 11px 16px; border: none; border-radius: 9px; background: var(--blue); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
 .form-submit:hover { background: var(--blue-deep); } .form-submit:disabled { background: #8d8fb8; cursor: not-allowed; }

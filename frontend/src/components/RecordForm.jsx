@@ -4,7 +4,7 @@
  * Name and email are NOT typed by the user: the server takes them from the
  * signed-in Google account.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
 
@@ -110,12 +110,18 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
   const spec = FORMS[kind];
   const [values, setValues] = useState(() => initialValues(kind, prefill));
   const [file, setFile] = useState(null);
+  const cameraInput = useRef(null);
+  const uploadInput = useRef(null);
   const [invalid, setInvalid] = useState({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
 
   const set = (name, value) => setValues((v) => ({ ...v, [name]: value }));
+  const selectPhoto = (event) => {
+    setFile(event.target.files?.[0] || null);
+    event.target.value = "";
+  };
 
   async function submit() {
     const missing = {};
@@ -180,8 +186,18 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
         </>
       );
     if (f.type === "file")
-      return <input {...common} type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
-                    onChange={(e) => setFile(e.target.files[0] || null)} />;
+      return <div className="record-photo-picker">
+        <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden
+               disabled={done} onChange={selectPhoto} />
+        <input ref={uploadInput} type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" hidden
+               disabled={done} onChange={selectPhoto} />
+        <div className="record-photo-actions">
+          <button type="button" className="btn ghost" disabled={done} onClick={() => cameraInput.current?.click()}>Take or scan photo</button>
+          <button type="button" className="btn ghost" disabled={done} onClick={() => uploadInput.current?.click()}>Upload photo</button>
+        </div>
+        {file && <div className="record-photo-selected"><span>{file.name}</span>
+          <button type="button" className="chip" disabled={done} onClick={() => setFile(null)}>Remove</button></div>}
+      </div>;
     return (
       <input {...common} type={f.type} value={values[f.name]} list={f.list ? "facility-list" : undefined}
              onChange={(e) => set(f.name, e.target.value)} />
