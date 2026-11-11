@@ -381,21 +381,15 @@ function PhotoDetail({ row, apiKind, onChanged }) {
             </section>
           </>
         )}
-        <section className="verify-form">
-          <h4>Administrator verification</h4>
-          {user?.role === "admin" ? <form onSubmit={save}>
-            <label htmlFor={`v-${row.id}`}>Your verdict on NEMSAI's findings</label>
-            <select id={`v-${row.id}`} value={choice} onChange={(e) => setChoice(e.target.value)}>
-              <option>Unverified</option><option>Confirmed</option><option>Not confirmed</option>
-            </select>
-            <textarea rows={2} maxLength={500} placeholder="Reason or onsite observations (optional)" aria-label="Reason for your verdict" value={note} onChange={(e) => setNote(e.target.value)} />
-            <button className="btn small" type="submit">Save verdict</button>
-          </form> : <div className="photo-verification-readonly">
-            <span className={`badge ver-${slug(choice)}`}>{choice}</span>
-            {note && <p>{note}</p>}
-          </div>}
-          {row.verified_by && <span className="muted">Last set by {row.verified_by}{row.verified_at ? ` on ${row.verified_at}` : ""}</span>}
-        </section>
+        {user?.role === "admin" && <form className="verify-form" onSubmit={save}>
+          <label htmlFor={`v-${row.id}`}>Your verdict on NEMSAI's findings</label>
+          <select id={`v-${row.id}`} value={choice} onChange={(e) => setChoice(e.target.value)}>
+            <option>Unverified</option><option>Confirmed</option><option>Not confirmed</option>
+          </select>
+          <textarea rows={2} maxLength={500} placeholder="Reason or onsite observations (optional)" aria-label="Reason for your verdict" value={note} onChange={(e) => setNote(e.target.value)} />
+          <button className="btn small" type="submit">Save verdict</button>
+          {row.verified_by && <span className="muted">Last set by {row.verified_by}</span>}
+        </form>}
       </div>
     </div>
   );
@@ -414,11 +408,6 @@ function RecordDetail({ row, apiKind, assignees, statuses, onChanged, superAdmin
   const photoReport = ["reports", "concerns"].includes(apiKind) && row.source === "photo";
   return (
     <div className="report-detail">
-      <div className="report-detail-summary">
-        <span className={`badge record-kind-badge ${apiKind === "concerns" ? "record-kind-concern" : "record-kind-problem"}`}>{apiKind === "concerns" ? "Concern" : "Problem"}</span>
-        <span className={`badge priority-${slug(row.priority || "Medium")}`}>{row.priority || "Medium"} priority</span>
-        <span className={`badge s-${slug(row.status)}`}>{row.status}</span>
-      </div>
       {photoReport ? <PhotoDetail row={row} apiKind={apiKind} onChanged={onChanged} /> : (
         <div className="report-detail-body">
           <section className="report-detail-main">
@@ -441,15 +430,16 @@ function RecordDetail({ row, apiKind, assignees, statuses, onChanged, superAdmin
           </aside>
         </div>
       )}
-      {superAdmin ? <ReviewWorkflow row={row} kind={apiKind} assignees={assignees} onChanged={onChanged} /> : <div className="report-card-actions">
-        <div><label>Update status</label><StatusForm kind={apiKind} row={row} statuses={statuses} onChanged={onChanged} /></div>
-        <div className="report-actions-end">
+      {superAdmin ? <ReviewWorkflow row={row} kind={apiKind} assignees={assignees} onChanged={onChanged} /> : <section className="report-review-workflow">
+        <h4>Admin actions</h4>
+        <div className="report-admin-status"><label>Update status</label><StatusForm kind={apiKind} row={row} statuses={statuses} onChanged={onChanged} /></div>
+        <div className="report-review-actions">
           <a className="btn small ghost" href={`/api/pdf/${apiKind}/${row.id}`} target="_blank" rel="noopener noreferrer">Download PDF</a>
           <DeleteRecordButton row={row} onChanged={onChanged} />
         </div>
-      </div>}
-      {!superAdmin && <AdminUpdateForm row={row} kind={apiKind} onChanged={onChanged} />}
-      {row.admin_feedback && <p className="report-last-update">Last update sent to the reporter: {row.admin_feedback}</p>}
+        <AdminUpdateForm row={row} kind={apiKind} onChanged={onChanged} />
+        {row.admin_feedback && <p className="report-last-update">Last update sent to the reporter: {row.admin_feedback}</p>}
+      </section>}
     </div>
   );
 }
