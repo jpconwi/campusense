@@ -4,7 +4,7 @@
  * Name and email are NOT typed by the user: the server takes them from the
  * signed-in Google account.
  */
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
 
@@ -104,24 +104,86 @@ export function SuccessCard({ result }) {
   );
 }
 
+function ReportPhotoPicker({ disabled, file, onChange }) {
+  const [mode, setMode] = useState("");
+  const [error, setError] = useState("");
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const uploadRef = useRef(null);
+  const preview = useMemo(() => file ? URL.createObjectURL(file) : "", [file]);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+  useEffect(() => {
+    if (mode !== "scan" || file || disabled) return undefined;
+    let cancelled = false;
+    navigator.mediaDevices?.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false })
+      .then((stream) => {
+        if (cancelled) { stream.getTracks().forEach((track) => track.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play().catch(() => {}); }
+      })
+      .catch(() => setError("Camera access is unavailable. Allow camera access or choose Upload instead."));
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    };
+  }, [mode, file, disabled]);
+
+  function pick(fileValue) {
+    if (!fileValue) return;
+    if (!/^image\/(png|jpeg|webp)$/.test(fileValue.type)) { setError("Choose a PNG, JPG, or WEBP image."); return; }
+    if (fileValue.size > 5 * 1024 * 1024) { setError("The photo must be 5 MB or smaller."); return; }
+    setError(""); onChange(fileValue);
+  }
+  async function capture() {
+    const video = videoRef.current;
+    if (!video?.videoWidth) { setError("The camera is still starting. Try again in a moment."); return; }
+    const canvas = document.createElement("canvas");
+    const scale = Math.min(1, 1600 / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", .88));
+    if (!blob) { setError("Could not capture the photo. Please try again."); return; }
+    pick(new File([blob], `campus-report-${Date.now()}.jpg`, { type: "image/jpeg" }));
+  }
+
+  return <div className="record-photo-picker">
+    {!mode && <div className="record-photo-actions">
+      <button type="button" className="btn ghost" disabled={disabled} onClick={() => { setMode("upload"); uploadRef.current?.click(); }}>Upload photo</button>
+      <button type="button" className="btn ghost" disabled={disabled} onClick={() => { setError(""); setMode("scan"); }}>Scan with camera</button>
+    </div>}
+    <input ref={uploadRef} type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" hidden disabled={disabled}
+      onChange={(event) => { pick(event.target.files?.[0]); event.target.value = ""; }} />
+    {mode === "upload" && !file && <div className="record-photo-actions"><span className="muted">Choose an image from your device.</span>
+      <button type="button" className="btn ghost" disabled={disabled} onClick={() => uploadRef.current?.click()}>Choose photo</button>
+      <button type="button" className="chip" onClick={() => setMode("")}>Back</button></div>}
+    {mode === "scan" && !file && <div className="report-camera-scan">
+      <video ref={videoRef} playsInline muted autoPlay aria-label="Camera preview for campus report photo" />
+      <div className="record-photo-actions"><button type="button" className="btn" disabled={disabled} onClick={capture}>Capture photo</button>
+        <button type="button" className="btn ghost" onClick={() => { setMode(""); setError(""); }}>Back</button></div>
+    </div>}
+    {file && <div className="record-photo-preview"><img src={preview} alt="Preview of attached report photo" />
+      <p className="document-scan-status captured">Photo ready to attach.</p>
+      <div className="record-photo-actions"><button type="button" className="btn ghost" disabled={disabled} onClick={() => { onChange(null); setMode("scan"); }}>Retake / scan again</button>
+        <button type="button" className="btn ghost" disabled={disabled} onClick={() => { onChange(null); setMode("upload"); uploadRef.current?.click(); }}>Choose another upload</button>
+        <button type="button" className="chip" disabled={disabled} onClick={() => { onChange(null); setMode(""); }}>Remove</button></div>
+    </div>}
+    {error && <p className="document-scan-error" role="alert">{error}</p>}
+  </div>;
+}
+
 /** props: kind, prefill, onSuccess(result) */
 export default function RecordForm({ kind, prefill, onSuccess }) {
   const { user, facilities } = useAuth();
   const spec = FORMS[kind];
   const [values, setValues] = useState(() => initialValues(kind, prefill));
   const [file, setFile] = useState(null);
-  const cameraInput = useRef(null);
-  const uploadInput = useRef(null);
   const [invalid, setInvalid] = useState({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
 
   const set = (name, value) => setValues((v) => ({ ...v, [name]: value }));
-  const selectPhoto = (event) => {
-    setFile(event.target.files?.[0] || null);
-    event.target.value = "";
-  };
 
   async function submit() {
     const missing = {};
@@ -185,19 +247,7 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
           )}
         </>
       );
-    if (f.type === "file")
-      return <div className="record-photo-picker">
-        <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden
-               disabled={done} onChange={selectPhoto} />
-        <input ref={uploadInput} type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" hidden
-               disabled={done} onChange={selectPhoto} />
-        <div className="record-photo-actions">
-          <button type="button" className="btn ghost" disabled={done} onClick={() => cameraInput.current?.click()}>Take or scan photo</button>
-          <button type="button" className="btn ghost" disabled={done} onClick={() => uploadInput.current?.click()}>Upload photo</button>
-        </div>
-        {file && <div className="record-photo-selected"><span>{file.name}</span>
-          <button type="button" className="chip" disabled={done} onClick={() => setFile(null)}>Remove</button></div>}
-      </div>;
+    if (f.type === "file") return <ReportPhotoPicker disabled={done || busy} file={file} onChange={setFile} />;
     return (
       <input {...common} type={f.type} value={values[f.name]} list={f.list ? "facility-list" : undefined}
              onChange={(e) => set(f.name, e.target.value)} />

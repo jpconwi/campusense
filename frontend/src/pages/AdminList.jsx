@@ -250,7 +250,7 @@ function RecordCard({ row, columns, kind, spec, statuses, assignees = [], onChan
     nameKey, emailKey, "submitter_role"].includes(key) && row[key]);
   return <article className={`record-card${row.record_kind === "concern" ? " report-concern-card" : ""}`}>
     <div className="record-card-head">
-      <div><strong>{reference}</strong><DateCell value={row.created_at} /></div>
+      <div><span className={`badge record-kind-badge ${row.record_kind === "concern" || kind === "concerns" ? "record-kind-concern" : "record-kind-problem"}`}>{row.record_kind === "concern" || kind === "concerns" ? "Concern" : "Problem"}</span><strong>{reference}</strong><DateCell value={row.created_at} /></div>
       <span className={"badge s-" + slug(row.status)}>{row.status}</span>
     </div>
     <div className="record-card-person">
@@ -622,7 +622,8 @@ export default function AdminList({ kind }) {
                         <td className="report-ref"><strong>{reference}</strong></td>
                         <td className="report-when"><DateCell value={r.created_at} /></td>
                         <td className="report-type">
-                          <strong>{r.report_type || (isConcern ? "Concern" : "Campus report")}</strong>
+                          <span className={`badge record-kind-badge ${isConcern ? "record-kind-concern" : "record-kind-problem"}`}>{isConcern ? "Concern" : "Problem"}</span>
+                          <strong>{r.concern_type || r.report_type || (isConcern ? "Campus concern" : "Campus report")}</strong>
                           <small className="report-snippet">{shortText(r.description) || "No description provided."}</small>
                         </td>
                         <td className="report-where">{r.location || "Not provided"}
@@ -657,7 +658,7 @@ export default function AdminList({ kind }) {
                          onClick={(event) => event.stopPropagation()}>
                   <header className="report-dialog-header">
                     <div>
-                      <span className="report-dialog-eyebrow">Record details</span>
+                      <span className="report-dialog-eyebrow">{apiKind === "concerns" ? "Concern details" : "Problem report details"}</span>
                       <h3 id="report-dialog-title">{reference}</h3>
                     </div>
                     <button type="button" className="report-dialog-close" onClick={() => setOpen(null)}

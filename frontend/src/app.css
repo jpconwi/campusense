@@ -216,10 +216,16 @@ button.send:hover { background: var(--blue-deep); } button.send:disabled { backg
 .inline-form .invalid { border-color: var(--error); }
 .inline-form textarea { min-height: 80px; resize: vertical; }
 .inline-form .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.record-photo-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.record-photo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .record-photo-actions .btn { min-height: 40px; }
-.record-photo-selected { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: .9rem; }
-.record-photo-selected span { min-width: 0; overflow-wrap: anywhere; }
+.record-photo-preview { margin-top: 10px; }
+.record-photo-preview > img { display: block; width: min(100%, 480px); max-height: 360px; object-fit: contain; border: 1px solid var(--line); border-radius: 10px; background: #101a30; }
+.record-photo-preview .record-photo-actions { margin-top: 8px; }
+.report-camera-scan { display: grid; gap: 8px; margin-top: 10px; }
+.report-camera-scan video { display: block; width: min(100%, 480px); max-height: 360px; min-height: 220px; object-fit: cover; border-radius: 10px; background: #101a30; }
+.record-kind-badge { display: inline-flex !important; width: fit-content; margin-bottom: 3px; }
+.record-kind-concern { background: #e8f2ff; color: #174b8a; }
+.record-kind-problem { background: #fff0e4; color: #8a3c0c; }
 .form-error { color: var(--error); font-size: .9rem; margin-top: 10px; min-height: 1.2em; }
 .form-submit { width: 100%; margin-top: 6px; padding: 11px 16px; border: none; border-radius: 9px; background: var(--blue); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
 .form-submit:hover { background: var(--blue-deep); } .form-submit:disabled { background: #8d8fb8; cursor: not-allowed; }
