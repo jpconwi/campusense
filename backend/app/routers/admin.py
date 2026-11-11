@@ -589,6 +589,19 @@ def verify_photo_report(report_id: int, body: VerifyBody, me: CurrentUser = Depe
     return {"success": True, "message": f"Report #{report_id} marked {body.verification}."}
 
 
+@router.post("/concerns/{concern_id}/verify")
+def verify_photo_concern(concern_id: int, body: VerifyBody, me: CurrentUser = Depends(admin_required),
+                         db: Session = Depends(get_db)):
+    row = db.get(common.MODELS["concerns"], concern_id)
+    if row is None or me.role != "admin" or row.source != "photo" or row.workflow_review != "Accepted" \
+            or (row.assigned_admin_email or "").lower() != me.email.lower():
+        raise HTTPException(403, "Only the assigned administrator can review this concern.")
+    photo_report_service.verify_concern(db, me, concern_id, body.verification, body.note)
+    _log_admin_action(db, me.email, "concern_verified", None,
+                      f"Concern #{concern_id} marked {body.verification}.")
+    return {"success": True, "message": f"Concern #{concern_id} marked {body.verification}."}
+
+
 # ------------------------------------------------------------- faculty
 @router.get("/faculty")
 def faculty(_me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):

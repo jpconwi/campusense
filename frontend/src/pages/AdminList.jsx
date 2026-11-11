@@ -311,7 +311,7 @@ function Flags({ r }) {
 }
 
 /** Everything about one photo report: photo, student's words, NEMSAI notes, verification. */
-function PhotoDetail({ row, onChanged }) {
+function PhotoDetail({ row, apiKind, onChanged }) {
   const { setFlash } = useAuth();
   const { user } = useAuth();
   const ai = row.ai || {};
@@ -320,7 +320,7 @@ function PhotoDetail({ row, onChanged }) {
   async function save(e) {
     e.preventDefault();
     try {
-      const r = await api(`/api/admin/reports/${row.id}/verify`, { method: "POST", json: { verification: choice, note } });
+      const r = await api(`/api/admin/${apiKind}/${row.id}/verify`, { method: "POST", json: { verification: choice, note } });
       setFlash({ text: r.message, kind: "info" });
     } catch (err) { setFlash({ text: err.message, kind: "error" }); }
     onChanged();
@@ -387,10 +387,10 @@ const shortText = (text, limit = 110) => {
  * Photo reports keep the richer verification view; every other record shows its fields.
  */
 function RecordDetail({ row, apiKind, assignees, statuses, onChanged, superAdmin }) {
-  const photoReport = apiKind === "reports" && row.source === "photo";
+  const photoReport = ["reports", "concerns"].includes(apiKind) && row.source === "photo";
   return (
     <div className="report-detail">
-      {photoReport ? <PhotoDetail row={row} onChanged={onChanged} /> : (
+      {photoReport ? <PhotoDetail row={row} apiKind={apiKind} onChanged={onChanged} /> : (
         <div className="report-detail-body">
           <section className="report-detail-main">
             <h4>What was reported</h4>

@@ -216,6 +216,9 @@ def _add_photo_concern_columns():
     columns = [
         ("source", "VARCHAR(10) NOT NULL DEFAULT 'form'"), ("ai_status", "VARCHAR(15)"),
         ("ai_analysis", "TEXT"), ("ai_provider", "VARCHAR(80)"),
+        ("verification", "VARCHAR(20) DEFAULT 'Unverified'"),
+        ("verification_note", "VARCHAR(500)"), ("verified_by", "VARCHAR(255)"),
+        ("verified_at", "TIMESTAMP"),
         ("noticed_when", "VARCHAR(120)"), ("observed_cause", "VARCHAR(500)"),
     ]
     existing = {column["name"] for column in inspect(engine).get_columns("concerns")}

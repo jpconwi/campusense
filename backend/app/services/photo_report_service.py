@@ -237,6 +237,20 @@ def verify(db: Session, admin, report_id, verification, note=""):
     db.commit()
 
 
+def verify_concern(db: Session, admin, concern_id, verification, note=""):
+    if verification not in VERIFICATION_STATES:
+        raise ValidationError("Invalid verification.")
+    row = db.get(Concern, concern_id)
+    if row is None or row.source != "photo":
+        raise ValidationError("Photo concern not found.")
+    row.verification = verification
+    row.verification_note = clean_text(note, "Note", 500, required=False) or None
+    row.verified_by = admin.email if verification != "Unverified" else None
+    row.verified_at = now() if verification != "Unverified" else None
+    row.updated_at = now()
+    db.commit()
+
+
 def for_admin(row):
     """Row dict for the admin pages: the AI JSON becomes a real object under row["ai"]."""
     data = dict(row)
