@@ -368,7 +368,7 @@ function PhotoDetail({ row, apiKind, onChanged }) {
           <select id={`v-${row.id}`} value={choice} onChange={(e) => setChoice(e.target.value)}>
             <option>Unverified</option><option>Confirmed</option><option>Not confirmed</option>
           </select>
-          <input type="text" maxLength={500} placeholder="Note (optional)" aria-label="Verification note" value={note} onChange={(e) => setNote(e.target.value)} />
+          <textarea rows={2} maxLength={500} placeholder="Reason or onsite observations (optional)" aria-label="Reason for your verdict" value={note} onChange={(e) => setNote(e.target.value)} />
           <button className="btn small" type="submit">Save verdict</button>
           {row.verified_by && <span className="muted">Last set by {row.verified_by}</span>}
         </form>}
