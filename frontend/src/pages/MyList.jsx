@@ -9,15 +9,18 @@ const FEEDBACK_SCOPE_LABELS = { campus: "Campus services", system: "NEMSAI / app
 
 function RoomDirectory({ onReserve }) {
   const [rooms, setRooms] = useState(null);
+  const [departmentOptions, setDepartmentOptions] = useState([]);
   const [error, setError] = useState("");
   const [department, setDepartment] = useState("");
   const [building, setBuilding] = useState("");
 
   useEffect(() => {
-    api("/api/rooms").then((data) => setRooms(data.rows)).catch((loadError) => setError(loadError.message));
+    api("/api/rooms").then((data) => {
+      setRooms(data.rows);
+      setDepartmentOptions(data.department_options || []);
+    }).catch((loadError) => setError(loadError.message));
   }, []);
 
-  const departments = [...new Set((rooms || []).map((room) => room.department).filter(Boolean))].sort();
   const buildings = [...new Set((rooms || []).map((room) => room.building).filter(Boolean))].sort();
   const visibleRooms = (rooms || []).filter((room) =>
     (!department || room.department === department) && (!building || room.building === building));
@@ -31,7 +34,7 @@ function RoomDirectory({ onReserve }) {
       <label>Department
         <select value={department} onChange={(event) => setDepartment(event.target.value)}>
           <option value="">All departments</option>
-          {departments.map((value) => <option key={value} value={value}>{value}</option>)}
+          {departmentOptions.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
         </select>
       </label>
       <label>Building

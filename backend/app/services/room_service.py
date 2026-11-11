@@ -14,11 +14,37 @@ from app.models import Room
 from app.services.common import ValidationError, clean_text, row_to_dict
 
 FIELDS = ["room_id", "name", "building", "department", "room_type", "capacity", "equipment", "status"]
+TANDAG_DEPARTMENTS = [
+    ("COA", "College of Accountancy"),
+    ("CAS", "College of Arts and Sciences"),
+    ("CBM", "College of Business and Management"),
+    ("CET", "College of Engineering and Technology"),
+    ("CITE", "College of Information Technology Education"),
+    ("CTE", "College of Teacher Education"),
+    ("COL", "College of Law"),
+    ("COM", "College of Medicine"),
+    ("GS", "Graduate Studies"),
+]
 
 
 def list_rooms(db: Session):
     rows = db.execute(select(Room).order_by(Room.id)).scalars()
     return [row_to_dict(r) for r in rows]
+
+
+def list_department_options(db: Session):
+    """Return the Tandag campus departments plus any custom room departments."""
+    options = [{"value": code, "label": f"{name} ({code})"}
+               for code, name in TANDAG_DEPARTMENTS]
+    known = {code.casefold() for code, _ in TANDAG_DEPARTMENTS}
+    known.update(name.casefold() for _, name in TANDAG_DEPARTMENTS)
+    extra_departments = db.query(Room.department).distinct().all()
+    options.extend(
+        {"value": value, "label": value}
+        for value, in sorted(extra_departments, key=lambda row: (row[0] or "").casefold())
+        if value and value.casefold() not in known
+    )
+    return options
 
 
 def list_rooms_page(db: Session, page=1, page_size=100, search="", department=""):

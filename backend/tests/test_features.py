@@ -117,6 +117,10 @@ def test_instructors_can_browse_room_directory(instructor, student, db):
 
     response = instructor.get("/api/rooms")
     assert response.status_code == 200
+    departments = response.json()["department_options"]
+    assert {option["value"] for option in departments} >= {
+        "COA", "CAS", "CBM", "CET", "CITE", "CTE", "COL", "COM", "GS",
+    }
     assert response.json()["rows"] == [{
         "id": 1, "room_id": "CITE-204", "name": "Computer Laboratory", "building": "CITE",
         "department": "Computer Studies", "room_type": "Laboratory", "capacity": "31-40",

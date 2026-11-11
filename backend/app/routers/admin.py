@@ -1178,18 +1178,6 @@ def registration_help_resolve(message_id: int, _me: CurrentUser = Depends(super_
 
 
 # ------------------------------------------------------ rooms / campus
-TANDAG_DEPARTMENTS = [
-    ("COA", "College of Accountancy"),
-    ("CAS", "College of Arts and Sciences"),
-    ("CBM", "College of Business and Management"),
-    ("CET", "College of Engineering and Technology"),
-    ("CITE", "College of Information Technology Education"),
-    ("CTE", "College of Teacher Education"),
-    ("COL", "College of Law"),
-    ("COM", "College of Medicine"),
-    ("GS", "Graduate Studies"),
-]
-
 ROOM_FIELDS = [["room_id", "Room ID", True], ["name", "Name", True],
                ["building", "Building", False, "select", ["ICT Building", "CITE", "CBM", "CAS", "CTE", "College of Law", "Midwifery", "Administration", "Library", "Gymnasium", "Other"]],
                ["department", "Department", False, "select", []],
@@ -1207,13 +1195,9 @@ def rooms(page: int = Query(1, ge=1), page_size: int = Query(100, ge=1, le=250),
           _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     rows, total = room_service.list_rooms_page(db, page, page_size, search[:120], department[:120])
     fields = [field.copy() for field in ROOM_FIELDS]
-    known = dict(TANDAG_DEPARTMENTS)
-    department_options = [{"value": code,
-                           "label": f"{college} ({code})"}
-                          for code, college in TANDAG_DEPARTMENTS]
-    extra_departments = {value for value in db.query(Room.department).distinct().all()
-                         for value in [value[0]] if value}
-    extra_departments.update(value for value, in db.query(Room.building).distinct().all() if value)
+    department_options = room_service.list_department_options(db)
+    known = {option["value"] for option in department_options}
+    extra_departments = {value for value, in db.query(Room.building).distinct().all() if value}
     for value in sorted(extra_departments):
         if value not in known:
             department_options.append({"value": value, "label": value})
