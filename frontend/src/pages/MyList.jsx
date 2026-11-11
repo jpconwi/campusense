@@ -240,11 +240,6 @@ export default function MyList({ kind, hideForm = false }) {
       {!hideForm && kind !== "reservations" && <p><button className="btn" type="button" onClick={() => setOpen((o) => !o)}>
         {open ? "Close form" : combined ? "New report" : kind === "feedback" ? "New feedback or suggestion" : `New ${spec.form}`}
       </button></p>}
-      {kind === "reservations" && <RoomDirectory onReserve={(room) => {
-        setSelectedRoom(room);
-        setOpen(true);
-        setResult(null);
-      }} />}
       {!hideForm && open && (
         <div className="card" style={{ marginTop: 14 }}>
           {kind === "reservations" && <p><button className="btn ghost" type="button" onClick={() => {
@@ -340,6 +335,11 @@ export default function MyList({ kind, hideForm = false }) {
           You have not submitted anything here yet.
         </EmptyState>
       )}
+      {kind === "reservations" && <RoomDirectory onReserve={(room) => {
+        setSelectedRoom(room);
+        setOpen(true);
+        setResult(null);
+      }} />}
       {selectedRecord && <UserReportDetails row={selectedRecord} onClose={() => setSelectedRecord(null)} />}
     </div>
   );
