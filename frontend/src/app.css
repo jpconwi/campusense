@@ -472,7 +472,7 @@ tr.detail-row > td { background: var(--paper); }
 .severity-medium { background: #e8f2ff; color: #315f91; }
 .severity-high { background: #ffe2e2; color: #9f2020; }
 .severity-unclear { background: #ececf3; color: #55556b; }
-.verify-form { position: sticky; bottom: 0; z-index: 2; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; margin: 16px -8px -8px; padding: 12px 8px 8px; border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; background: rgba(255,255,255,.97); box-shadow: 0 -8px 18px rgba(24, 48, 76, .08); }
+.verify-form { position: sticky; bottom: 0; z-index: 2; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; margin: 16px -8px -8px; padding: 12px 8px 8px; border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; background: var(--card); box-shadow: 0 -8px 18px rgba(24, 48, 76, .08); }
 .verify-form label { grid-column: 1 / -1; color: var(--blue-deep); font-weight: 700; font-size: .9rem; }
 .verify-form select, .verify-form textarea { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); padding: 8px 10px; font: inherit; }
 .verify-form textarea { grid-column: 1 / -1; resize: vertical; }
