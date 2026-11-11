@@ -226,6 +226,8 @@ button.send:hover { background: var(--blue-deep); } button.send:disabled { backg
 .record-kind-badge { display: inline-flex !important; width: fit-content; margin-bottom: 3px; }
 .record-kind-concern { background: #e8f2ff; color: #174b8a; }
 .record-kind-problem { background: #fff0e4; color: #8a3c0c; }
+.report-detail-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 20px 0; }
+.photo-verification-readonly { margin: 8px 0; }
 .form-error { color: var(--error); font-size: .9rem; margin-top: 10px; min-height: 1.2em; }
 .form-submit { width: 100%; margin-top: 6px; padding: 11px 16px; border: none; border-radius: 9px; background: var(--blue); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
 .form-submit:hover { background: var(--blue-deep); } .form-submit:disabled { background: #8d8fb8; cursor: not-allowed; }
@@ -487,6 +489,8 @@ tr.detail-row > td { background: var(--paper); }
 .severity-high { background: #ffe2e2; color: #9f2020; }
 .severity-unclear { background: #ececf3; color: #55556b; }
 .verify-form { position: sticky; bottom: 0; z-index: 2; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; margin: 16px -8px -8px; padding: 12px 8px 8px; border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; background: var(--card); box-shadow: 0 -8px 18px rgba(24, 48, 76, .08); }
+.verify-form > h4 { grid-column: 1 / -1; margin: 0; color: var(--blue-deep); font-family: var(--serif); }
+.verify-form > form { display: grid; grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
 .verify-form label { grid-column: 1 / -1; color: var(--blue-deep); font-weight: 700; font-size: .9rem; }
 .verify-form select, .verify-form textarea { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); padding: 8px 10px; font: inherit; }
 .verify-form textarea { grid-column: 1 / -1; resize: vertical; }

@@ -360,7 +360,7 @@ function PhotoDetail({ row, apiKind, onChanged }) {
             {ai.observations && ai.observations.length > 0 && <ul>{ai.observations.map((o, i) => <li key={i}>{o}</li>)}</ul>}
             {row.description && !row.description.startsWith("(The student did not") &&
               <p className="muted">Description {CHECK[ai.description_check] || "was not compared"}. {ai.check_explanation}</p>}
-            {user?.role === "super_admin" && <section className="photo-admin-estimate">
+            <section className="photo-admin-estimate">
               <h4>Preliminary severity and repair estimate <span className="badge ai-guess">NEMSAI estimate · unverified</span></h4>
               <p><strong>Severity:</strong> <span className={`badge severity-${ai.severity || "unclear"}`}>{(ai.severity || "unclear").toUpperCase()}</span>
                 {ai.severity_reason ? ` ${ai.severity_reason}` : " Needs onsite review."}</p>
@@ -378,18 +378,24 @@ function PhotoDetail({ row, apiKind, onChanged }) {
                 <li key={`${source.url}-${i}`}><a href={source.url} target="_blank" rel="noreferrer">{source.title || source.url}</a></li>
               ))}</ul></div>}
               <small className="muted">NEMSAI screening only, not a diagnosis, quotation, or approved budget. Confirm onsite and price with current local supplier/labor rates.</small>
-            </section>}
+            </section>
           </>
         )}
-        {user?.role === "admin" && <form className="verify-form" onSubmit={save}>
-          <label htmlFor={`v-${row.id}`}>Your verdict on NEMSAI's findings</label>
-          <select id={`v-${row.id}`} value={choice} onChange={(e) => setChoice(e.target.value)}>
-            <option>Unverified</option><option>Confirmed</option><option>Not confirmed</option>
-          </select>
-          <textarea rows={2} maxLength={500} placeholder="Reason or onsite observations (optional)" aria-label="Reason for your verdict" value={note} onChange={(e) => setNote(e.target.value)} />
-          <button className="btn small" type="submit">Save verdict</button>
-          {row.verified_by && <span className="muted">Last set by {row.verified_by}</span>}
-        </form>}
+        <section className="verify-form">
+          <h4>Administrator verification</h4>
+          {user?.role === "admin" ? <form onSubmit={save}>
+            <label htmlFor={`v-${row.id}`}>Your verdict on NEMSAI's findings</label>
+            <select id={`v-${row.id}`} value={choice} onChange={(e) => setChoice(e.target.value)}>
+              <option>Unverified</option><option>Confirmed</option><option>Not confirmed</option>
+            </select>
+            <textarea rows={2} maxLength={500} placeholder="Reason or onsite observations (optional)" aria-label="Reason for your verdict" value={note} onChange={(e) => setNote(e.target.value)} />
+            <button className="btn small" type="submit">Save verdict</button>
+          </form> : <div className="photo-verification-readonly">
+            <span className={`badge ver-${slug(choice)}`}>{choice}</span>
+            {note && <p>{note}</p>}
+          </div>}
+          {row.verified_by && <span className="muted">Last set by {row.verified_by}{row.verified_at ? ` on ${row.verified_at}` : ""}</span>}
+        </section>
       </div>
     </div>
   );
@@ -408,6 +414,11 @@ function RecordDetail({ row, apiKind, assignees, statuses, onChanged, superAdmin
   const photoReport = ["reports", "concerns"].includes(apiKind) && row.source === "photo";
   return (
     <div className="report-detail">
+      <div className="report-detail-summary">
+        <span className={`badge record-kind-badge ${apiKind === "concerns" ? "record-kind-concern" : "record-kind-problem"}`}>{apiKind === "concerns" ? "Concern" : "Problem"}</span>
+        <span className={`badge priority-${slug(row.priority || "Medium")}`}>{row.priority || "Medium"} priority</span>
+        <span className={`badge s-${slug(row.status)}`}>{row.status}</span>
+      </div>
       {photoReport ? <PhotoDetail row={row} apiKind={apiKind} onChanged={onChanged} /> : (
         <div className="report-detail-body">
           <section className="report-detail-main">
