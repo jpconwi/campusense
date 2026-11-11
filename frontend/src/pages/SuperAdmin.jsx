@@ -99,6 +99,8 @@ export default function SuperAdmin() {
       <article className="record-card"><strong>Uploaded files</strong><h3>{formatBytes(storage.uploads_bytes)}</h3></article>
       <article className="record-card"><strong>Generated reports</strong><h3>{formatBytes(storage.generated_files_bytes)}</h3></article>
       <article className="record-card"><strong>Database</strong><h3>{formatBytes(storage.database_bytes)}</h3></article>
+      <article className="record-card"><strong>Registration files in database</strong><h3>{formatBytes(storage.registration_database_file_bytes)}</h3></article>
+      <article className="record-card"><strong>Registration files offloaded</strong><h3>{storage.registration_offloaded_file_count} / {storage.registration_file_count}</h3></article>
       <article className="record-card"><strong>Server disk free</strong><h3>{formatBytes(storage.disk_free_bytes)}</h3></article>
     </section>
     <section className="card" aria-label="Server disk capacity">

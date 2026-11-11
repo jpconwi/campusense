@@ -7,7 +7,7 @@ so the AI never has to guess room details.
 
 import re
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import String, case, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import Room
@@ -19,6 +19,47 @@ FIELDS = ["room_id", "name", "building", "department", "room_type", "capacity", 
 def list_rooms(db: Session):
     rows = db.execute(select(Room).order_by(Room.id)).scalars()
     return [row_to_dict(r) for r in rows]
+
+
+def list_rooms_page(db: Session, page=1, page_size=100, search="", department=""):
+    query = select(Room)
+    if department:
+        query = query.where(or_(func.lower(Room.department) == department.lower(),
+                                func.lower(Room.building) == department.lower()))
+    if search:
+        term = f"%{search.strip().lower()}%"
+        query = query.where(or_(*(func.lower(cast(getattr(Room, field), String)).like(term)
+                                  for field in FIELDS)))
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = db.scalars(query.order_by(Room.id).offset((page - 1) * page_size).limit(page_size)).all()
+    return [row_to_dict(row) for row in rows], total
+
+
+def import_rooms(db: Session, records):
+    """Validate a room CSV as a whole, then insert/update rows in one transaction."""
+    existing = {row.room_id.lower(): row for row in db.scalars(select(Room)).all()}
+    seen = set()
+    prepared = []
+    for line_number, record in enumerate(records, start=2):
+        values = _room_values(record)
+        key = values["room_id"].lower()
+        if key in seen:
+            raise ValidationError(f"Duplicate room ID on CSV row {line_number}: {values['room_id']}.")
+        seen.add(key)
+        prepared.append((key, values))
+    for key, values in prepared:
+        row = existing.get(key)
+        if row is None:
+            db.add(Room(**values))
+        else:
+            for field, value in values.items():
+                setattr(row, field, value)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise ValidationError("Room import failed. No room changes were saved.")
+    return len(prepared)
 
 
 def count_rooms(db: Session):
@@ -235,7 +276,10 @@ def room_locations_reply(rooms):
 
 
 def room_reply(room):
-    parts = [f'**{room["name"] or room["room_id"]}**']
+    room_id = str(room.get("room_id") or "").strip()
+    room_label = room_id if room_id.lower().startswith("room ") else f"Room {room_id}"
+    name = room.get("name") or room_label
+    parts = [f"**{name}** ({room_label})"]
     for label, key in (("Building", "building"), ("Department", "department"), ("Type", "room_type"),
                        ("Capacity", "capacity"), ("Equipment", "equipment"),
                        ("Status", "status")):

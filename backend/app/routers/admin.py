@@ -7,12 +7,14 @@ not a signed-in admin gets a plain 404.
 All numbers on the dashboard are real counts from the database.
 """
 
+import csv
+import io
 import json
 import shutil
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Response
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -22,7 +24,7 @@ from zoneinfo import ZoneInfo
 from app import config
 from app.database import engine, get_db
 from app.models import (AIProviderSetting, AdminActivityLog, CampusDepartment, User, Feedback,
-                        UserDailyActivity, UserPresence, FacultyReport, Reservation, Concern, Report)
+                        UserDailyActivity, UserPresence, FacultyReport, Reservation, Concern, Report, Room)
 from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_email,
                           is_nemsu_email, super_admin_required)
 from app.services import (announcement_service, campus_service, chart_service, common, concern_service, faculty_service,
@@ -272,7 +274,9 @@ def user_activity(_me: CurrentUser = Depends(super_admin_required), db: Session 
 # -------------------------------------------------------- record lists
 @router.get("/records/{kind}")
 def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = None,
-            scope: Optional[str] = None,
+            scope: Optional[str] = None, page: int = Query(1, ge=1),
+            page_size: int = Query(100, ge=1, le=250), search: str = "",
+            record_type: str = "",
             me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     if kind not in SECTIONS:
         raise HTTPException(404, "That page was not found.")
@@ -332,6 +336,16 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
                 and (r.get("assigned_admin_email") or "").lower() == me.email.lower()]
         rows = _without_cost_estimates(rows)
     rows = _without_sentiment(rows)
+    if kind == "reports" and record_type in ("concern", "problem"):
+        rows = [row for row in rows if row.get("record_kind") == record_type]
+    if search.strip():
+        term = search.strip().casefold()[:120]
+        searchable_fields = ("id", "reporter_name", "reporter_email", "location", "area", "room",
+                             "description", "report_type", "concern_type", "status", "assigned_admin_email")
+        rows = [row for row in rows if any(term in str(row.get(field) or "").casefold()
+                                           for field in searchable_fields)]
+    total = len(rows)
+    rows = rows[(page - 1) * page_size:page * page_size]
     assignees = []
     if kind in ("reports", "concerns") and me.role == "super_admin":
         admins = db.scalars(select(User).where(User.role == "admin").order_by(User.name)).all()
@@ -356,6 +370,8 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
         "statuses": common.TABLE_STATUSES[kind],
         "columns": [[h, k] for h, k, _ in common.COLUMNS[kind]],
         "rows": rows,
+        "pagination": {"page": page, "page_size": page_size, "total": total,
+                       "pages": max(1, (total + page_size - 1) // page_size)},
         "assignees": assignees,
     }
 
@@ -630,14 +646,29 @@ def users(_me: CurrentUser = Depends(super_admin_required), db: Session = Depend
     return {"rows": rows}
 
 
+def _registration_file_bytes(row, binary_column, storage_column):
+    key = getattr(row, storage_column, None)
+    if key:
+        from app.services.private_document_service import read_document
+        try:
+            data = read_document(key)
+        except Exception as exc:
+            print("PRIVATE REGISTRATION FILE READ ERROR:", repr(exc)[:200])
+            data = None
+        if data is None:
+            raise HTTPException(502, "The private document store is temporarily unavailable.")
+        return data
+    return getattr(row, binary_column)
+
+
 @router.get("/users/{user_id}/verification-document")
 def user_verification_document(user_id: int, _me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     row = user_service.get_user(db, user_id)
-    if row is None or not row.verification_document or not row.verification_content_type:
+    if row is None or (not row.verification_document and not row.verification_document_storage_key) or not row.verification_content_type:
         raise HTTPException(404, "Verification document not found.")
     filename = row.verification_filename or "student-verification"
     disposition = "attachment" if row.verification_content_type == "application/pdf" else "inline"
-    return Response(row.verification_document, media_type=row.verification_content_type,
+    return Response(_registration_file_bytes(row, "verification_document", "verification_document_storage_key"), media_type=row.verification_content_type,
                     headers={"Content-Disposition": f'{disposition}; filename="{filename}"',
                              "Cache-Control": "no-store"})
 
@@ -645,10 +676,10 @@ def user_verification_document(user_id: int, _me: CurrentUser = Depends(admin_re
 @router.get("/users/{user_id}/verification-document/cor")
 def user_cor_document(user_id: int, _me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     row = user_service.get_user(db, user_id)
-    if row is None or not row.verification_cor_document or not row.verification_cor_content_type:
+    if row is None or (not row.verification_cor_document and not row.verification_cor_storage_key) or not row.verification_cor_content_type:
         raise HTTPException(404, "COR scan not found.")
     filename = row.verification_cor_filename or "student-cor"
-    return Response(row.verification_cor_document, media_type=row.verification_cor_content_type,
+    return Response(_registration_file_bytes(row, "verification_cor_document", "verification_cor_storage_key"), media_type=row.verification_cor_content_type,
                     headers={"Content-Disposition": f'inline; filename="{filename}"',
                              "Cache-Control": "no-store"})
 
@@ -656,10 +687,10 @@ def user_cor_document(user_id: int, _me: CurrentUser = Depends(admin_required), 
 @router.get("/users/{user_id}/verification-document/id-back")
 def user_id_back_document(user_id: int, _me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     row = user_service.get_user(db, user_id)
-    if row is None or not row.verification_id_back_document or not row.verification_id_back_content_type:
+    if row is None or (not row.verification_id_back_document and not row.verification_id_back_storage_key) or not row.verification_id_back_content_type:
         raise HTTPException(404, "ID back scan not found.")
     filename = row.verification_id_back_filename or "student-id-back"
-    return Response(row.verification_id_back_document, media_type=row.verification_id_back_content_type,
+    return Response(_registration_file_bytes(row, "verification_id_back_document", "verification_id_back_storage_key"), media_type=row.verification_id_back_content_type,
                     headers={"Content-Disposition": f'inline; filename="{filename}"',
                              "Cache-Control": "no-store"})
 
@@ -667,10 +698,10 @@ def user_id_back_document(user_id: int, _me: CurrentUser = Depends(admin_require
 @router.get("/users/{user_id}/face-image")
 def user_face_image(user_id: int, _me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     row = user_service.get_user(db, user_id)
-    if row is None or not row.face_image or not row.face_image_content_type:
+    if row is None or (not row.face_image and not row.face_image_storage_key) or not row.face_image_content_type:
         raise HTTPException(404, "Selfie not found.")
     filename = row.face_image_filename or "applicant-selfie.jpg"
-    return Response(row.face_image, media_type=row.face_image_content_type,
+    return Response(_registration_file_bytes(row, "face_image", "face_image_storage_key"), media_type=row.face_image_content_type,
                     headers={"Content-Disposition": f'inline; filename="{filename}"',
                              "Cache-Control": "no-store"})
 
@@ -678,10 +709,10 @@ def user_face_image(user_id: int, _me: CurrentUser = Depends(admin_required), db
 @router.get("/users/{user_id}/face-scan-pdf")
 def user_face_scan_pdf(user_id: int, _me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     row = user_service.get_user(db, user_id)
-    if row is None or not row.face_scan_pdf:
+    if row is None or (not row.face_scan_pdf and not row.face_scan_pdf_storage_key):
         raise HTTPException(404, "Face scan PDF not found.")
     filename = row.face_scan_pdf_filename or "face-scan.pdf"
-    return Response(row.face_scan_pdf, media_type="application/pdf",
+    return Response(_registration_file_bytes(row, "face_scan_pdf", "face_scan_pdf_storage_key"), media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{filename}"',
                              "Cache-Control": "no-store"})
 
@@ -776,7 +807,8 @@ def review_account_face(user_id: int, body: AccountFaceReviewBody,
     if body.status not in ("Verified", "Rejected"):
         return _account_action_refused("Choose a valid selfie decision.", ["Choose Verified or Rejected"])
     target = user_service.get_user(db, user_id)
-    if target is None or target.deleted_at or target.approval_status != "Pending" or not target.face_image:
+    if (target is None or target.deleted_at or target.approval_status != "Pending"
+            or not (target.face_image or target.face_image_storage_key)):
         return _account_action_refused("This account has no pending selfie to review.", ["Pending selfie not found"])
     target.face_review_status = body.status
     db.commit()
@@ -890,7 +922,12 @@ def _system_storage(db: Session):
 
     uploads = folder_size(config.UPLOAD_DIR)
     reports = folder_size(config.REPORTS_DIR)
+    cloud_storage_configured = all((config.CLOUDINARY_CLOUD_NAME, config.CLOUDINARY_API_KEY,
+                                    config.CLOUDINARY_API_SECRET))
     database_bytes = None
+    registration_db_file_bytes = None
+    registration_file_count = 0
+    registration_offloaded_count = 0
     try:
         if db.bind.dialect.name == "postgresql":
             database_bytes = int(db.execute(text(
@@ -900,6 +937,25 @@ def _system_storage(db: Session):
             if db_path and db_path != ":memory:":
                 from pathlib import Path
                 database_bytes = Path(db_path).stat().st_size
+        if db.bind.dialect.name in ("postgresql", "sqlite"):
+            byte_length = "pg_column_size" if db.bind.dialect.name == "postgresql" else "length"
+            private_columns = ("verification_document", "verification_cor_document",
+                               "verification_id_back_document", "face_image", "face_scan_pdf")
+            sizes = " + ".join(f"COALESCE({byte_length}({name}), 0)" for name in private_columns)
+            key_columns = ("verification_document_storage_key", "verification_cor_storage_key",
+                           "verification_id_back_storage_key", "face_image_storage_key",
+                           "face_scan_pdf_storage_key")
+            count_expr = " + ".join(f"CASE WHEN {name} IS NOT NULL THEN 1 ELSE 0 END" for name in key_columns)
+            totals = db.execute(text(
+                f"SELECT COALESCE(SUM({sizes}),0), COALESCE(SUM({count_expr}),0) FROM users"
+            )).one()
+            registration_db_file_bytes = int(totals[0] or 0)
+            registration_offloaded_count = int(totals[1] or 0)
+            registration_file_count = int(db.execute(text(
+                "SELECT COALESCE(SUM(" + " + ".join(
+                    f"CASE WHEN {name} IS NOT NULL OR {blob} IS NOT NULL THEN 1 ELSE 0 END"
+                    for name, blob in zip(key_columns, private_columns)) + "),0) FROM users"
+            )).scalar_one())
     except Exception:
         database_bytes = None
     try:
@@ -911,11 +967,14 @@ def _system_storage(db: Session):
         "uploads_bytes": uploads,
         "generated_files_bytes": reports,
         "database_bytes": database_bytes,
+        "registration_database_file_bytes": registration_db_file_bytes,
+        "registration_file_count": registration_file_count,
+        "registration_offloaded_file_count": registration_offloaded_count,
         "disk_total_bytes": disk_total,
         "disk_used_bytes": disk_used,
         "disk_free_bytes": disk_free,
-        "cloud_storage_configured": bool(config.CLOUDINARY_CLOUD_NAME),
-        "cloud_storage_note": "Remote Cloudinary usage is not included in local disk totals." if config.CLOUDINARY_CLOUD_NAME else None,
+        "cloud_storage_configured": cloud_storage_configured,
+        "cloud_storage_note": ("New registration evidence and report photos use private Cloudinary storage. Older registration files stay in Neon until migrated and purged; remote usage is not included in local disk totals." if cloud_storage_configured else "Cloudinary is not configured. Registration evidence currently uses database storage; configure Cloudinary and REGISTRATION_STORAGE_REQUIRED=true to prevent new files from using Neon."),
     }
 
 
@@ -1075,15 +1134,18 @@ CAMPUS_FIELDS = [["topic", "Topic", True], ["keywords", "Keywords (use ; between
 
 
 @router.get("/rooms")
-def rooms(_me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
-    rows = room_service.list_rooms(db)
+def rooms(page: int = Query(1, ge=1), page_size: int = Query(100, ge=1, le=250),
+          search: str = "", department: str = "",
+          _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+    rows, total = room_service.list_rooms_page(db, page, page_size, search[:120], department[:120])
     fields = [field.copy() for field in ROOM_FIELDS]
     known = dict(TANDAG_DEPARTMENTS)
     department_options = [{"value": code,
                            "label": f"{college} ({code})"}
                           for code, college in TANDAG_DEPARTMENTS]
-    extra_departments = {row.get("department") or row.get("building") for row in rows
-                         if row.get("department") or row.get("building")}
+    extra_departments = {value for value in db.query(Room.department).distinct().all()
+                         for value in [value[0]] if value}
+    extra_departments.update(value for value, in db.query(Room.building).distinct().all() if value)
     for value in sorted(extra_departments):
         if value not in known:
             department_options.append({"value": value, "label": value})
@@ -1091,6 +1153,8 @@ def rooms(_me: CurrentUser = Depends(super_admin_required), db: Session = Depend
         department_options.append({"value": "Other", "label": "Other"})
     next(field for field in fields if field[0] == "department")[4] = department_options
     return {"title": "Rooms", "fields": fields, "rows": rows,
+            "pagination": {"page": page, "page_size": page_size, "total": total,
+                           "pages": max(1, (total + page_size - 1) // page_size)},
             "department_options": department_options,
             "empty": "No rooms yet. Add the real rooms so the AI never has to guess."}
 
@@ -1099,6 +1163,35 @@ def rooms(_me: CurrentUser = Depends(super_admin_required), db: Session = Depend
 def rooms_add(body: dict, _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     room_service.add_room(db, _strings(body))
     return {"success": True, "message": "Room added."}
+
+
+@router.post("/rooms/import")
+async def rooms_import(file: UploadFile = File(...), _me: CurrentUser = Depends(super_admin_required),
+                       db: Session = Depends(get_db)):
+    if not (file.filename or "").lower().endswith(".csv"):
+        raise ValidationError("Choose a CSV file.")
+    raw = await file.read(20 * 1024 * 1024 + 1)
+    if len(raw) > 20 * 1024 * 1024:
+        raise ValidationError("The CSV file must be 20 MB or smaller.")
+    try:
+        reader = csv.DictReader(io.StringIO(raw.decode("utf-8-sig")))
+        if not reader.fieldnames:
+            raise ValidationError("The CSV must include a header row.")
+        headers = {header.strip().lower().replace(" ", "_"): header for header in reader.fieldnames if header}
+        required = {"room_id", "name"}
+        if not required.issubset(headers):
+            raise ValidationError("CSV must include room_id and name columns.")
+        records = []
+        for row in reader:
+            records.append({key: row.get(original) for key, original in headers.items()})
+            if len(records) > 25000:
+                raise ValidationError("Import no more than 25,000 rooms at a time.")
+        imported = room_service.import_rooms(db, records)
+    except UnicodeDecodeError as exc:
+        raise ValidationError("The CSV must use UTF-8 encoding.") from exc
+    except csv.Error as exc:
+        raise ValidationError("The CSV format could not be read.") from exc
+    return {"success": True, "message": f"Imported {imported} room rows."}
 
 
 @router.put("/rooms/{row_id}")

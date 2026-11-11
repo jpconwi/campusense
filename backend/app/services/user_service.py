@@ -16,6 +16,44 @@ from app.models import (ChatMessage, ChatSession, Concern, Feedback, PhotoDraft,
 from app.services.common import ValidationError, now
 
 
+def _offload_registration_files(files):
+    """Put uploaded evidence in private object storage when configured.
+
+    During rollout, deployments without Cloudinary retain the existing DB-backed
+    behavior. Set REGISTRATION_STORAGE_REQUIRED=true to fail closed in production.
+    """
+    from app.services.private_document_service import store_document
+    from app import config
+    result = {}
+    try:
+        for key, data, filename, content_type in files:
+            storage_key = store_document(data, filename, content_type) if data else None
+            if data and storage_key is None and config.REGISTRATION_STORAGE_REQUIRED:
+                raise ValidationError("Private document storage is not configured. Please try again later.")
+            result[key] = (None if storage_key else data, storage_key)
+        return result
+    except Exception as exc:
+        from app.services.private_document_service import delete_document
+        for _, storage_key in result.values():
+            try:
+                delete_document(storage_key)
+            except Exception:
+                pass
+        if isinstance(exc, ValidationError):
+            raise
+        print("PRIVATE REGISTRATION FILE UPLOAD ERROR:", repr(exc)[:200])
+        raise ValidationError("A private registration file could not be saved. Please try again.") from exc
+
+
+def _cleanup_offloaded_files(stored):
+    from app.services.private_document_service import delete_document
+    for _, storage_key in stored.values():
+        try:
+            delete_document(storage_key)
+        except Exception as exc:
+            print("PRIVATE REGISTRATION FILE CLEANUP ERROR:", repr(exc)[:200])
+
+
 def get_user(db: Session, user_id):
     return db.get(User, user_id)
 
@@ -39,21 +77,32 @@ def submit_student_registration(db: Session, google_id, full_name, email, studen
     if get_by_google_id(db, google_id) or get_by_email(db, email):
         raise ValidationError("An account already exists for this Google email. Sign in to check its status.")
     auto_approve = bool(auto_approve and face_verified)
+    stored = _offload_registration_files([
+        ("verification", document, filename, content_type),
+        ("cor", cor_document, cor_filename, cor_content_type),
+        ("id_back", id_back_document, id_back_filename, id_back_content_type),
+        ("face", face_image, face_image_filename, face_image_content_type),
+        ("face_pdf", face_scan_pdf, "face-scan.pdf", "application/pdf"),
+    ])
     stamp = now()
     user = User(google_id=google_id, name=full_name, email=email,
                 role="student" if auto_approve else None,
                 approval_status="Approved" if auto_approve else "Pending",
                 registration_type="student", student_id=student_id,
-                verification_document=document, verification_content_type=content_type,
+                verification_document=stored["verification"][0], verification_content_type=content_type,
                 verification_filename=filename, verification_document_kind=document_kind,
-                verification_cor_document=cor_document,
+                verification_document_storage_key=stored["verification"][1],
+                verification_cor_document=stored["cor"][0],
                 verification_cor_content_type=cor_content_type,
                 verification_cor_filename=cor_filename,
-                verification_id_back_document=id_back_document,
+                verification_cor_storage_key=stored["cor"][1],
+                verification_id_back_document=stored["id_back"][0],
                 verification_id_back_content_type=id_back_content_type,
                 verification_id_back_filename=id_back_filename,
-                face_image=face_image, face_image_content_type=face_image_content_type,
-                face_image_filename=face_image_filename, face_scan_pdf=face_scan_pdf,
+                verification_id_back_storage_key=stored["id_back"][1],
+                face_image=stored["face"][0], face_image_content_type=face_image_content_type,
+                face_image_filename=face_image_filename, face_image_storage_key=stored["face"][1],
+                face_scan_pdf=stored["face_pdf"][0], face_scan_pdf_storage_key=stored["face_pdf"][1],
                 face_scan_pdf_filename="face-scan.pdf" if face_scan_pdf else None,
                 face_review_status="AI Pose Passed" if face_verified else "Pending",
                 verification_ai_note=ai_note, is_active=bool(auto_approve),
@@ -63,6 +112,7 @@ def submit_student_registration(db: Session, google_id, full_name, email, studen
         db.commit()
     except Exception:
         db.rollback()
+        _cleanup_offloaded_files(stored)
         raise ValidationError("This account could not be registered. Please sign in and try again.")
     return user
 
@@ -78,10 +128,15 @@ def submit_nemsu_registration(db: Session, google_id, full_name, email, role,
     if get_by_google_id(db, google_id) or get_by_email(db, email):
         raise ValidationError("An account already exists for this NEMSU email. Sign in to continue.")
     stamp = now()
+    stored = _offload_registration_files([
+        ("face", face_image, face_image_filename, face_image_content_type),
+        ("face_pdf", face_scan_pdf, "face-scan.pdf", "application/pdf"),
+    ])
     user = User(google_id=google_id, name=full_name, email=email, role=role,
                 approval_status="Approved", registration_type=role,
-                face_image=face_image, face_image_content_type=face_image_content_type,
-                face_image_filename=face_image_filename, face_scan_pdf=face_scan_pdf,
+                face_image=stored["face"][0], face_image_content_type=face_image_content_type,
+                face_image_filename=face_image_filename, face_image_storage_key=stored["face"][1],
+                face_scan_pdf=stored["face_pdf"][0], face_scan_pdf_storage_key=stored["face_pdf"][1],
                 face_scan_pdf_filename="face-scan.pdf" if face_scan_pdf else None,
                 face_review_status="AI Pose Passed" if face_verified else "Pending",
                 review_status="Unreviewed", is_active=True, created_at=stamp, last_login=stamp)
@@ -90,6 +145,7 @@ def submit_nemsu_registration(db: Session, google_id, full_name, email, role,
         db.commit()
     except Exception:
         db.rollback()
+        _cleanup_offloaded_files(stored)
         raise ValidationError("This account could not be registered. Please sign in and try again.")
     return user
 
@@ -101,11 +157,16 @@ def submit_instructor_registration(db: Session, google_id, full_name, email, ins
     if get_by_google_id(db, google_id) or get_by_email(db, email):
         raise ValidationError("An account already exists for this Google email. Sign in to check its status.")
     stamp = now()
+    stored = _offload_registration_files([
+        ("face", face_image, face_image_filename, face_image_content_type),
+        ("face_pdf", face_scan_pdf, "face-scan.pdf", "application/pdf"),
+    ])
     user = User(google_id=google_id, name=full_name, email=email, role=None,
                 approval_status="Pending", registration_type="instructor", student_id=instructor_id,
-                department=department, face_image=face_image,
+                department=department, face_image=stored["face"][0],
                 face_image_content_type=face_image_content_type,
-                face_image_filename=face_image_filename, face_scan_pdf=face_scan_pdf,
+                face_image_filename=face_image_filename, face_image_storage_key=stored["face"][1],
+                face_scan_pdf=stored["face_pdf"][0], face_scan_pdf_storage_key=stored["face_pdf"][1],
                 face_scan_pdf_filename="face-scan.pdf" if face_scan_pdf else None,
                 face_review_status="AI Pose Passed" if face_verified else "Pending",
                 is_active=False, created_at=stamp, last_login=stamp)
@@ -114,6 +175,7 @@ def submit_instructor_registration(db: Session, google_id, full_name, email, ins
         db.commit()
     except Exception:
         db.rollback()
+        _cleanup_offloaded_files(stored)
         raise ValidationError("This account could not be registered. Please sign in and try again.")
     return user
 
@@ -338,6 +400,16 @@ def purge_deleted_safely():
                 User.purge_after.is_not(None), User.purge_after <= stamp)).scalars())
             if not user_ids:
                 return
+            from app.services.private_document_service import delete_document
+            file_columns = ("verification_document_storage_key", "verification_cor_storage_key",
+                            "verification_id_back_storage_key", "face_image_storage_key",
+                            "face_scan_pdf_storage_key")
+            for user in db.scalars(select(User).where(User.id.in_(user_ids))).all():
+                for column in file_columns:
+                    try:
+                        delete_document(getattr(user, column))
+                    except Exception as exc:
+                        print("PRIVATE REGISTRATION FILE DELETE ERROR:", repr(exc)[:200])
             session_ids = select(ChatSession.id).where(ChatSession.user_id.in_(user_ids))
             db.execute(delete(ChatMessage).where(ChatMessage.session_id.in_(session_ids)))
             db.execute(delete(ChatSession).where(ChatSession.user_id.in_(user_ids)))
@@ -353,7 +425,9 @@ def purge_deleted_safely():
 def list_users(db: Session):
     from app.services.common import row_to_dict
     private_images = ("verification_document", "verification_cor_document", "verification_id_back_document",
-                      "face_image", "face_scan_pdf")
+                      "face_image", "face_scan_pdf", "verification_document_storage_key",
+                      "verification_cor_storage_key", "verification_id_back_storage_key",
+                      "face_image_storage_key", "face_scan_pdf_storage_key")
     columns = [getattr(User, column.key) for column in User.__table__.columns
                if column.key not in private_images]
     users = db.execute(select(User).options(load_only(*columns))

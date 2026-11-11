@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, apiUrl, slug } from "../api.js";
 import { useAuth } from "../auth.jsx";
-import { EmptyState, Icon, Loading, PATHS, SearchBox, matches } from "../components/Ui.jsx";
+import { EmptyState, Icon, Loading, PATHS, SearchBox } from "../components/Ui.jsx";
 
 const LONG_TEXT = ["description", "message", "purpose", "additional_info"];
 
@@ -438,6 +438,7 @@ export default function AdminList({ kind }) {
     ? requestedFeedbackScope : (superAdmin ? "all" : "campus");
   const requestedType = params.get("type") || "all";
   const typeFilter = ["concern", "problem"].includes(requestedType) ? requestedType : "all";
+  const page = Math.max(1, Number(params.get("page") || 1));
   const priorityRelevant = kind === "reports" && typeFilter !== "concern";
   const activeUrgent = priorityRelevant ? urgent : "";
   const [data, setData] = useState(null);
@@ -458,13 +459,16 @@ export default function AdminList({ kind }) {
   }, [open]);
 
   const load = useCallback(() => {
-    const q = new URLSearchParams();
-    if (status) q.set("status", status);
-    if (activeUrgent) q.set("urgent", activeUrgent);
-    if (kind === "feedback") q.set("scope", feedbackScope);
-    api(`/api/admin/records/${kind}` + (q.toString() ? `?${q}` : "")).then(setData).catch(() => {});
-  }, [kind, status, activeUrgent, feedbackScope]);
-  useEffect(() => { setData(null); setQ(""); load(); }, [load]);
+    const query = new URLSearchParams({ page: String(page), page_size: "100" });
+    if (status) query.set("status", status);
+    if (activeUrgent) query.set("urgent", activeUrgent);
+    if (kind === "feedback") query.set("scope", feedbackScope);
+    if (kind === "reports" && typeFilter !== "all") query.set("record_type", typeFilter);
+    if (q.trim()) query.set("search", q.trim());
+    api(`/api/admin/records/${kind}?${query}`).then(setData).catch(() => {});
+  }, [kind, status, activeUrgent, feedbackScope, page, typeFilter, q]);
+  useEffect(() => { setData(null); setQ(""); }, [kind, status, activeUrgent, feedbackScope, typeFilter]);
+  useEffect(() => { const timer = window.setTimeout(load, 250); return () => window.clearTimeout(timer); }, [load]);
   useEffect(() => {
     if (!superAdmin || !["reports", "feedback"].includes(kind)) return undefined;
     const timer = window.setInterval(load, 30_000);
@@ -474,14 +478,19 @@ export default function AdminList({ kind }) {
     "system-technical": "System & Technical Feedback" };
   const pageTitle = kind === "feedback" ? feedbackTitles[feedbackScope] : data?.spec.title;
   useEffect(() => { if (data) document.title = `${pageTitle || data.spec.title} | NEMSU`; }, [data, pageTitle]);
+  useEffect(() => {
+    if (data?.pagination?.pages && page > data.pagination.pages) {
+      const next = new URLSearchParams(params); next.set("page", String(data.pagination.pages)); setParams(next, { replace: true });
+    }
+  }, [data, page, params, setParams]);
 
   if (!data) return <Loading wide={1400} />;
   const { spec, rows: allRows, columns, statuses, current } = data;
   const visibleStatuses = kind === "feedback" && user?.role === "admin"
     ? statuses.filter((value) => value !== "Forwarded") : statuses;
   const assignees = data.assignees || [];
-  const typeRows = allRows.filter((r) => kind !== "reports" || typeFilter === "all" || r.record_kind === typeFilter);
-  const rows = typeRows.filter((r) => matches(r, q));
+  const typeRows = allRows;
+  const rows = allRows;
   const openedRecord = kind === "reports" ? rows.find((r) => {
     const apiKind = r.record_kind === "concern" ? "concerns" : "reports";
     return open === `${apiKind}-${r.id}`;
@@ -505,6 +514,7 @@ export default function AdminList({ kind }) {
           const next = new URLSearchParams(params);
           next.set("scope", event.target.value);
           next.delete("status");
+          next.delete("page");
           setParams(next);
         }}>
           {superAdmin && <>
@@ -520,6 +530,7 @@ export default function AdminList({ kind }) {
           const next = new URLSearchParams(params);
           if (e.target.value === "all") next.delete("type"); else next.set("type", e.target.value);
           if (e.target.value === "concern") next.delete("urgent");
+          next.delete("page");
           setParams(next);
         }}>
           <option value="all">All records</option><option value="concern">Concerns</option><option value="problem">Reports</option>
@@ -536,8 +547,11 @@ export default function AdminList({ kind }) {
           <Link to={filterHref({ nextStatus: status, nextUrgent: "1" })} className={urgent ? "on" : ""}>Possible hazards only</Link>
         </div>
       )}
-      {allRows.length > 0 && (
-        <SearchBox value={q} onChange={setQ} shown={rows.length} total={typeRows.length}
+      {(["reports", "concerns", "feedback", "reservations"].includes(kind)) && (
+        <SearchBox value={q} onChange={(value) => {
+          setQ(value);
+          if (page !== 1) { const next = new URLSearchParams(params); next.delete("page"); setParams(next, { replace: true }); }
+        }} shown={rows.length} total={data.pagination?.total || 0}
                    placeholder={`Search ${spec.title.toLowerCase()}...`} />
       )}
       {rows.length ? kind === "reports" ? (
@@ -627,13 +641,22 @@ export default function AdminList({ kind }) {
           {rows.map((row) => <RecordCard key={row.id} row={row} columns={columns} kind={kind}
             spec={spec} statuses={visibleStatuses} assignees={assignees} onChanged={load} />)}
         </section>
-      ) : q && allRows.length ? (
+      ) : q ? (
         <EmptyState title="No matches">Nothing matches "{q}". Try fewer or different words.</EmptyState>
       ) : (
         <EmptyState title="Nothing here">
           Nothing here{activeUrgent ? " marked as a possible hazard" : ""}{current ? " with status " + current : ""}.
         </EmptyState>
       )}
+      {data.pagination?.total > 0 && data.pagination.pages > 1 && <div className="dataset-toolbar" aria-label="Record pages">
+        <span className="muted">Page {page} of {data.pagination.pages} ({data.pagination.total} records)</span>
+        <div><button className="btn secondary" type="button" disabled={page <= 1} onClick={() => {
+          const next = new URLSearchParams(params); next.set("page", String(page - 1)); setParams(next);
+        }}>Previous</button>{" "}
+          <button className="btn secondary" type="button" disabled={page >= data.pagination.pages} onClick={() => {
+            const next = new URLSearchParams(params); next.set("page", String(page + 1)); setParams(next);
+          }}>Next</button></div>
+      </div>}
     </div>
   );
 }

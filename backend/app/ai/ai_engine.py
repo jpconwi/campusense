@@ -437,13 +437,23 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
                 "What specifically worries you about it? You can describe the issue in the "
                 "concern form already shown below.")
     room_code = room_service.extract_room_code(question)
+    room_status_match = re.fullmatch(
+        r"(?:does|is|are|what about|how about)?\s*(?:room\s*)?#?([a-z]?\d{1,4}[a-z]?)\s*"
+        r"(?:is\s*)?(?:currently\s*)?(?:available|free|vacant|open|unoccupied)(?:\s+now)?",
+        normalized)
+    if room_status_match:
+        status_code = room_status_match.group(1).upper()
+        status_room = room_service.find_room(db, status_code)
+        if status_room:
+            return _data(room_service.room_reply(status_room))
+        return response.message(texts.en("no_room", code=status_code))
     bare_room_reference = bool(room_code and normalized in {f"room {room_code.lower()}",
                                                             f"room {room_code.lower()} details"})
     room_list_request = room_service.is_room_list_question(question)
     room_lookup_request = (not room_list_request and (room_service.is_room_location_question(question)
                            or room_service.is_room_details_question(question)
                            or room_service.is_room_information_question(question)
-                           or bare_room_reference))
+                           or bare_room_reference or bool(room_code)))
     room = room_service.find_mentioned_room(db, question) if room_lookup_request else None
     if room_lookup_request and room is None and room_code:
         room = room_service.find_room(db, room_code)

@@ -38,6 +38,8 @@ REGISTRATION_COR_REFERENCE = Path(os.getenv(
 CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "").strip()
 CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "").strip()
 CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "").strip()
+# Require private object storage for new registration evidence in production.
+REGISTRATION_STORAGE_REQUIRED = os.getenv("REGISTRATION_STORAGE_REQUIRED", "false").strip().lower() in ("1", "true", "yes")
 FRONTEND_DIST = PROJECT_DIR / "frontend" / "dist"
 
 

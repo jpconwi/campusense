@@ -11,9 +11,21 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
   const [editing, setEditing] = useState(null);
   const [search, setSearch] = useState("");
   const [department, setDepartment] = useState("");
+  const [page, setPage] = useState(1);
 
-  const load = useCallback(() => { api(`/api/admin/${kind}`).then(setData).catch(() => {}); }, [kind]);
-  useEffect(() => { setData(null); setValues({}); setSearch(""); setDepartment(""); load(); }, [load]);
+  const load = useCallback(() => {
+    const params = new URLSearchParams();
+    if (kind === "rooms") {
+      params.set("page", String(page)); params.set("page_size", "100");
+      if (search.trim()) params.set("search", search.trim());
+      if (department) params.set("department", department);
+    }
+    const query = params.toString();
+    const suffix = query ? `?${query}` : "";
+    api(`/api/admin/${kind}${suffix}`).then(setData).catch(() => {});
+  }, [kind, page, search, department]);
+  useEffect(() => { setData(null); setValues({}); setSearch(""); setDepartment(""); setPage(1); }, [kind]);
+  useEffect(() => { const timer = setTimeout(load, kind === "rooms" ? 250 : 0); return () => clearTimeout(timer); }, [load, kind]);
   useEffect(() => { if (data) document.title = `${data.title} | NEMSU`; }, [data]);
 
   async function save(e) {
@@ -27,6 +39,18 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
       setEditing(null);
     } catch (err) { setFlash({ text: err.message, kind: "error" }); }
     load();
+  }
+
+  async function importRooms(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const form = new FormData(); form.append("file", file);
+    try {
+      const result = await api("/api/admin/rooms/import", { method: "POST", form });
+      setFlash({ text: result.message, kind: "info" });
+      if (page === 1) load(); else setPage(1);
+    } catch (err) { setFlash({ text: err.message, kind: "error" }); }
+    event.target.value = "";
   }
 
   function edit(row) {
@@ -65,7 +89,7 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
       const rowDepartment = row.department || row.building || "";
       if (kind === "rooms" && department && rowDepartment !== department) return false;
       if (!query) return true;
-      return fields.some(([field]) => String(row[field] ?? "").toLocaleLowerCase().includes(query))
+      return kind === "rooms" || fields.some(([field]) => String(row[field] ?? "").toLocaleLowerCase().includes(query))
         || (kind === "rooms" && String(rowDepartment).toLocaleLowerCase().includes(query));
     });
   }, [rows, fields, kind, search, department]);
@@ -126,6 +150,10 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
           <button className="btn" style={{ marginTop: 14 }} type="submit">{editing ? "Save changes" : "Add"}</button>
           {editing && <button className="btn secondary" style={{ margin: "14px 0 0 8px" }} type="button" onClick={() => { setEditing(null); setValues({}); }}>Cancel</button>}
         </form>
+        {kind === "rooms" && <div className="dataset-toolbar" style={{ marginTop: 16 }}>
+          <label>Import rooms from CSV <input type="file" accept=".csv,text/csv" onChange={importRooms} /></label>
+          <span className="muted">CSV columns: room_id, name, building, department, room_type, capacity, equipment, status. Up to 25,000 rows per import.</span>
+        </div>}
       </div>
 
       {searchable && (
@@ -137,25 +165,26 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
                 ? "Find a room by name, room ID, department, or building. Select a row to edit it."
                 : "Search campus topics, keywords, and answers."}</p>
             </div>
-            <span className="dataset-count">{visibleRows.length} of {rows.length}</span>
+            <span className="dataset-count">{kind === "rooms" ? data.pagination?.total ?? rows.length : `${visibleRows.length} of ${rows.length}`}</span>
           </div>
           <div className="dataset-toolbar">
             <label className="dataset-search">
               <span className="sr-only">{kind === "rooms" ? "Search rooms" : "Search campus information"}</span>
-              <input type="search" value={search} onChange={(event) => setSearch(event.target.value)}
+              <input type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }}
                 placeholder={kind === "rooms" ? "Search room name or ID..." : "Search topics, keywords, or answers..."} />
             </label>
             {kind === "rooms" && <label className="dataset-department-filter">
               <span>Department</span>
-              <select value={department} onChange={(event) => setDepartment(event.target.value)}>
+              <select value={department} onChange={(event) => { setDepartment(event.target.value); setPage(1); }}>
                 <option value="">All departments</option>
                 {departments.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>}
             {(search || department) && <button className="btn secondary dataset-clear" type="button"
-              onClick={() => { setSearch(""); setDepartment(""); }}>Clear filters</button>}
+              onClick={() => { setSearch(""); setDepartment(""); setPage(1); }}>Clear filters</button>}
           </div>
-          {rows.length === 0 ? <p className="empty">{empty}</p>
+          {rows.length === 0 ? <p className="empty">{kind === "rooms" && (search || department)
+            ? "No rooms match this search and department." : empty}</p>
             : visibleRows.length === 0 ? <p className="empty">No entries match this search and department.</p>
               : <div className="table-wrap"><table>
                 <thead><tr>{fields.map(([name, label]) => <th key={name}>{label.split(" (")[0]}</th>)}{kind === "announcements" && <th>Posted by</th>}{extraStatus && <th>Status</th>}<th>Actions</th></tr></thead>
@@ -170,6 +199,11 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
                   ))}
                 </tbody>
               </table></div>}
+          {kind === "rooms" && data.pagination?.total > 0 && <div className="dataset-toolbar" aria-label="Room pages">
+            <span className="muted">Page {page} of {data.pagination.pages}</span>
+            <div><button className="btn secondary" type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Previous</button>{" "}
+              <button className="btn secondary" type="button" disabled={page >= data.pagination.pages} onClick={() => setPage((value) => value + 1)}>Next</button></div>
+          </div>}
         </section>
       )}
 

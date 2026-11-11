@@ -43,6 +43,7 @@ def init_db():
     _add_report_assignment_column()
     _add_report_workflow_review_columns()
     _add_feedback_routing_columns()
+    _add_record_query_indexes()
     _add_faculty_reservation_review_columns()
     _add_announcement_author_columns()
     from app.services import campus_service, sentiment_service
@@ -79,6 +80,15 @@ def _add_announcement_author_columns():
                 conn.execute(text(f"ALTER TABLE announcements ADD COLUMN IF NOT EXISTS {name} {kind}"))
             elif name not in columns:
                 conn.execute(text(f"ALTER TABLE announcements ADD COLUMN {name} {kind}"))
+
+
+def _add_record_query_indexes():
+    """Keep common admin status/scope filters indexed on existing databases."""
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_reports_status_id ON reports (status, id DESC)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_concerns_status_id ON concerns (status, id DESC)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_feedback_scope_status_id ON feedback (feedback_scope, status, id DESC)"))
 
 
 def _add_room_department_column():
@@ -120,18 +130,23 @@ def _add_student_registration_columns():
         "verification_content_type": "VARCHAR(100)",
         "verification_filename": "VARCHAR(255)",
         "verification_document_kind": "VARCHAR(20)",
+        "verification_document_storage_key": "VARCHAR(500)",
         "verification_cor_document": binary_type,
         "verification_cor_content_type": "VARCHAR(100)",
         "verification_cor_filename": "VARCHAR(255)",
+        "verification_cor_storage_key": "VARCHAR(500)",
         "verification_id_back_document": binary_type,
         "verification_id_back_content_type": "VARCHAR(100)",
         "verification_id_back_filename": "VARCHAR(255)",
+        "verification_id_back_storage_key": "VARCHAR(500)",
         "verification_ai_note": "TEXT",
         "face_image": binary_type,
         "face_image_content_type": "VARCHAR(100)",
         "face_image_filename": "VARCHAR(255)",
+        "face_image_storage_key": "VARCHAR(500)",
         "face_scan_pdf": binary_type,
         "face_scan_pdf_filename": "VARCHAR(255)",
+        "face_scan_pdf_storage_key": "VARCHAR(500)",
         "face_review_status": "VARCHAR(20) NOT NULL DEFAULT 'Not required'",
         "review_status": "VARCHAR(20) NOT NULL DEFAULT 'Unreviewed'",
         "reviewed_by": "VARCHAR(255)",
