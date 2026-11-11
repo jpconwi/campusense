@@ -3,7 +3,7 @@
     --paper: #f4f6f9; --card: #ffffff; --line: #d6dee8; --ink: #182f49; --muted: #5a6f84;
     --error: #b3121c; --ok-bg: #eef8ef; --ok-line: #b8dcb9;
     --serif: "Source Serif 4", Georgia, serif;
-    --sans: "Source Sans 3", "Segoe UI", Arial, sans-serif;
+    --sans: "Inter", "Segoe UI", Arial, sans-serif;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
@@ -1405,3 +1405,14 @@ button.send:disabled { background: #c4d2df; box-shadow: none; }
   .account-detail-meta { grid-template-columns: 1fr 1fr; }
   .account-dialog .report-dialog-header { padding: 13px 15px; }
 }
+
+/* Keep answer typography consistent with the chat's final visual overrides. */
+.ai .bubble.rich { max-width: 720px; font-family: var(--sans); font-size: .96rem; line-height: 1.65; letter-spacing: -.008em; }
+.ai .bubble.rich p { margin: 0; }
+.ai .bubble.rich p + p { margin-top: 11px; }
+.ai .bubble.rich strong { color: #173f67; font-weight: 700; }
+.ai .bubble.rich h3 { margin: 16px 0 7px; color: #173f67; font-family: var(--sans); font-size: .96rem; font-weight: 700; }
+.ai .bubble.rich ul, .ai .bubble.rich ol { display: grid; gap: 6px; margin: 8px 0 0; padding-left: 1.25rem; }
+.ai .bubble.rich li { padding-left: 2px; }
+.ai .bubble.rich li::marker { color: #397daf; font-weight: 700; }
+.user .bubble, .composer .input-area textarea#question { font-family: var(--sans); font-size: .94rem; }
