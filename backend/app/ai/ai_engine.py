@@ -324,6 +324,56 @@ def ask_ai(db, question, user, earlier=None, conversation=None):
     return style.add_emoji(result, question)
 
 
+def _campus_director_hours_reply(db, normalized, conversation):
+    """Answer campus-director hours questions from the curated official schedule only."""
+    latest_ai = next((normalize(m.get("text", "")) for m in reversed(conversation or [])
+                      if m.get("role") == "ai" and m.get("text")), "")
+    direct_office_query = intents.has(normalized, "campus director", "office of the campus director",
+                                      "director office", "director's office")
+    follows_office_answer = ("office of the campus director" in latest_ai
+                             and any(term in normalized.split() for term in
+                                     ("open", "opened", "opening", "close", "closed", "closing",
+                                      "hour", "hours", "lunch", "lunchtime", "break")))
+    if not direct_office_query and not follows_office_answer:
+        return None
+    if not (direct_office_query and intents.asks_hours(normalized)) and not follows_office_answer:
+        return None
+
+    fact = campus_service.lookup(db, "office of the campus director")
+    if not fact:
+        return None
+    hours = re.search(
+        r"Monday to Friday,\s*(\d{1,2}):(\d{2})\s*(AM|PM)\s*-\s*"
+        r"(\d{1,2}):(\d{2})\s*(AM|PM)", fact, re.I)
+    if not hours:
+        return "I couldn't find confirmed opening hours for the Office of the Campus Director in the official campus information."
+
+    def as_minutes(hour, minute, meridiem):
+        hour = int(hour) % 12 + (12 if meridiem.upper() == "PM" else 0)
+        return hour * 60 + int(minute)
+
+    start = as_minutes(hours.group(1), hours.group(2), hours.group(3))
+    end = as_minutes(hours.group(4), hours.group(5), hours.group(6))
+    schedule = f"Monday to Friday, {hours.group(1)}:{hours.group(2)} {hours.group(3).upper()} - {hours.group(4)}:{hours.group(5)} {hours.group(6).upper()}"
+    source = re.search(r"https?://[^\s]+", fact)
+    citation = f"\n\nSource: [NEMSU Tandag Campus page]({source.group(0)})" if source else ""
+
+    if intents.has(normalized, "lunch", "lunchtime", "lunch time", "break"):
+        return (f"The published schedule is {schedule}, but it doesn't say whether the office "
+                f"closes for lunch or another break, so I can't confirm that detail.{citation}")
+
+    if intents.has(normalized, "open", "opened", "opening", "close", "closed", "closing", "now", "currently"):
+        local_now = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
+        minute_now = local_now.hour * 60 + local_now.minute
+        within_weekday_schedule = local_now.weekday() < 5 and start <= minute_now < end
+        status = ("It is within the published weekday hours now" if within_weekday_schedule
+                  else "It is outside the published weekday hours now")
+        return (f"{status} ({schedule}). The listing doesn't mention lunch closures or holidays, "
+                f"so I can't confirm whether the office is staffed at this exact moment.{citation}")
+
+    return f"The published office hours are {schedule}.{citation}"
+
+
 def _answer(db, question, user, earlier, lang, rewritten=False, original=None, conversation=None):
     """`rewritten` = the model already worked out what the person means (see ai/understand.py);
     `original` = what they really typed (so the final answer is in their language)."""
@@ -791,6 +841,10 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         if not answer or response.NO_INFO.lower() in answer.lower():
             answer = "I found a related official page, but it doesn't provide a clear student count for every campus you named."
         return response.message(answer + "\n\n" + knowledge_service.sources_text(docs))
+
+    office_hours = _campus_director_hours_reply(db, normalized, conversation)
+    if office_hours:
+        return response.message(office_hours)
 
     # ---- campus information from the CSV files
     info = None if asks_population and requested_campuses else campus_service.lookup(db, question)
