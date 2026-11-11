@@ -969,10 +969,11 @@ h2.page-title { letter-spacing: -.01em; }
   border-radius: 999px; background: #ffedc7; color: #714800; font-size: .72rem; font-weight: 800; line-height: 1; }
 .collapsed .sb-count { position: absolute; top: 3px; right: 2px; min-width: 17px; height: 17px; padding: 0 4px; font-size: .63rem; }
 .account-checks-page { width: 100%; max-width: 1280px; }
-.account-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.account-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .account-chip { width: 100%; text-align: left; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
 .account-chip:hover, .account-chip.selected { border-color: var(--blue); box-shadow: 0 3px 12px rgba(22,60,102,.1); transform: translateY(-1px); }
 .account-chip.is-checked { border-left-color: #16835a; }
+.account-chip.is-rejected { border-left-color: var(--error); }
 .account-list-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 0 0 15px; }
 .account-tabs { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 11px; background: #f5f8fc; }
 .account-tabs button { padding: 7px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: .86rem; font-weight: 650; cursor: pointer; }
@@ -1070,10 +1071,11 @@ h2.page-title { letter-spacing: -.01em; }
 .account-lightbox-stage img { max-width: min(100%, 1100px); max-height: 100%; object-fit: contain; transition: transform .15s ease; }
 .account-drawer button:focus-visible, .account-checks-page button:focus-visible, .account-lightbox button:focus-visible, .account-confirm button:focus-visible { outline: 3px solid rgba(36,107,180,.35); outline-offset: 2px; }
 @media (max-width: 700px) {
+  .account-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .account-desktop-table { display: none; }
   .account-mobile-list { display: grid; gap: 9px; }
   .account-list-toolbar { align-items: stretch; }
-  .account-tabs { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .account-tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); }
   .account-tabs button { padding: 7px 4px; font-size: .75rem; }
   .account-search { width: 100%; }
   .account-drawer-shade { align-items: flex-end; }
@@ -1292,7 +1294,7 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
 .account-checks-page { max-width: 1300px; }
 .account-checks-page.embedded-account-checks { width: 100%; min-height: 220px; }
 .account-checks-page > .page-intro { max-width: 900px; margin-bottom: 18px; }
-.account-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 18px; }
+.account-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0 0 18px; }
 .account-chip { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 14px;
                 border: 1px solid var(--line); border-left: 4px solid #8ba8c4; border-radius: 10px; background: var(--card); }
 .account-chip b { color: var(--blue-deep); font-family: var(--serif); font-size: 1.6rem; line-height: 1; }

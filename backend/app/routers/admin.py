@@ -789,9 +789,10 @@ def review_accounts(me: CurrentUser = Depends(admin_required), db: Session = Dep
     rows = _account_review_rows(db, is_super_admin=me.role == "super_admin")
     return {"rows": rows, "counts": {
         "pending": sum(r["approval_status"] == "Pending"
-                        or (r["review_status"] == "Unreviewed" and r["is_nemsu"]) for r in rows),
+                        or (r["approval_status"] != "Rejected" and r["review_status"] == "Unreviewed" and r["is_nemsu"]) for r in rows),
         "checked": sum(r["review_status"] == "Checked" for r in rows),
         "flagged": sum(r["review_status"] == "Flagged" for r in rows),
+        "rejected": sum(r["approval_status"] == "Rejected" for r in rows),
     }}
 
 
@@ -885,13 +886,16 @@ def review_account_face(user_id: int, body: AccountFaceReviewBody,
 def delete_flagged_account(user_id: int, me: CurrentUser = Depends(super_admin_required),
                            db: Session = Depends(get_db)):
     target = user_service.get_user(db, user_id)
-    if (user_id == me.id or target is None or target.review_status != "Flagged"
+    was_rejected = target is not None and target.approval_status == "Rejected"
+    if (user_id == me.id or target is None
+            or (target.review_status != "Flagged" and target.approval_status != "Rejected")
             or not user_service.soft_delete_user(db, user_id)):
-        raise ValidationError("Only a suspicious account reported by an admin can be deleted here.")
+        raise ValidationError("Only a flagged or rejected registration account can be deleted here.")
+    description = "Rejected registration account" if was_rejected else "Flagged account"
     _log_admin_action(db, me.email, "account_deleted", target.email,
-                      "Flagged account disabled by the super admin.")
+                      f"{description} disabled by the super admin.")
     db.commit()
-    return {"success": True, "message": "Reported account disabled and scheduled for permanent deletion in 7 days."}
+    return {"success": True, "message": f"{description} disabled and scheduled for permanent deletion in 7 days."}
 
 
 class RoleBody(BaseModel):

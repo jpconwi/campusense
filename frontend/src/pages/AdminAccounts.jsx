@@ -4,7 +4,7 @@ import { api, apiUrl } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import { EmptyState, Icon, Loading, PATHS } from "../components/Ui.jsx";
 
-const STATUSES = ["Pending", "Checked", "Flagged", "All"];
+const STATUSES = ["Pending", "Checked", "Flagged", "Rejected", "All"];
 function parseDate(value) {
   const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2}) (\d{1,2}):(\d{2}):(\d{2}) (AM|PM)$/i);
   if (!match) return new Date(value);
@@ -195,6 +195,7 @@ function AccountDetail({ row, isSuperAdmin, onChanged }) {
       <button className="btn small success" type="button" disabled={Boolean(busy) || !canApprove} aria-describedby={`approve-help-${row.id}`} onClick={() => setConfirm("approve")}>
         {busy === "approve" ? <><span className="spinner" aria-hidden="true" /> Approving…</> : "Approve"}
       </button>
+      {isSuperAdmin && row.approval_status === "Rejected" && <button className="btn small outline-danger" type="button" disabled={Boolean(busy)} onClick={() => setConfirm("delete")}>Delete rejected account</button>}
       <span id={`approve-help-${row.id}`} className={`account-approve-help${canApprove ? " ready" : ""}`}>
         {row.approval_status !== "Pending" ? `This account is ${String(row.approval_status).toLowerCase()}.`
           : canApprove ? "Ready to approve." : `Cannot approve: ${missing.join(" · ")}`}
@@ -202,9 +203,9 @@ function AccountDetail({ row, isSuperAdmin, onChanged }) {
     </footer>
 
     {confirm && <ConfirmDialog
-      title={confirm === "approve" ? "Confirm account approval" : "Reject account registration"}
-      text={confirm === "approve" ? `Approve ${row.name} (${row.email})? They will be able to sign in.` : `Reject ${row.name}'s registration? Add a reason that will be saved with the account.`}
-      confirmLabel={confirm === "approve" ? "Approve account" : "Reject account"}
+      title={confirm === "approve" ? "Confirm account approval" : confirm === "delete" ? "Delete rejected account" : "Reject account registration"}
+      text={confirm === "approve" ? `Approve ${row.name} (${row.email})? They will be able to sign in.` : confirm === "delete" ? `Delete ${row.name} (${row.email})? The account will be disabled and scheduled for permanent deletion.` : `Reject ${row.name}'s registration? Add a reason that will be saved with the account.`}
+      confirmLabel={confirm === "approve" ? "Approve account" : confirm === "delete" ? "Delete account" : "Reject account"}
       tone={confirm === "approve" ? "success" : "outline-danger"}
       reason={confirm === "reject" ? rejectReason : undefined} setReason={setRejectReason}
       busy={Boolean(busy)} onCancel={() => setConfirm("")}
@@ -282,11 +283,13 @@ export default function AdminAccounts({ embedded = false }) {
   const rows = data?.rows || [];
   const counts = data?.counts || {};
   const filtered = useMemo(() => rows.filter((row) => {
-    const matchStatus = activeStatus === "All" || (activeStatus === "Pending"
-      ? row.approval_status === "Pending" || ((row.review_status || "Unreviewed") === "Unreviewed" && row.is_nemsu)
-      : row.review_status === activeStatus);
+    const matchStatus = activeStatus === "All" || (activeStatus === "Rejected"
+      ? row.approval_status === "Rejected"
+      : activeStatus === "Pending"
+        ? row.approval_status === "Pending" || (row.approval_status !== "Rejected" && (row.review_status || "Unreviewed") === "Unreviewed" && row.is_nemsu)
+        : row.review_status === activeStatus);
     const q = query.trim().toLowerCase();
-    const matchQuery = !q || [row.name, row.email, row.student_id].some((item) => String(item || "").toLowerCase().includes(q));
+    const matchQuery = !q || [row.name, row.email, row.student_id, row.id].some((item) => String(item || "").toLowerCase().includes(q));
     return matchStatus && matchQuery;
   }), [rows, activeStatus, query]);
   const opened = rows.find((row) => row.id === openId);
@@ -313,14 +316,16 @@ export default function AdminAccounts({ embedded = false }) {
         <b>{counts.checked || 0}</b><span>Checked</span></button>
       <button type="button" className={`account-chip is-flagged${activeStatus === "Flagged" ? " selected" : ""}`} onClick={() => chooseStatus("Flagged")} aria-pressed={activeStatus === "Flagged"}>
         <b>{counts.flagged || 0}</b><span>Flagged</span></button>
+      <button type="button" className={`account-chip is-rejected${activeStatus === "Rejected" ? " selected" : ""}`} onClick={() => chooseStatus("Rejected")} aria-pressed={activeStatus === "Rejected"}>
+        <b>{counts.rejected || 0}</b><span>Rejected</span></button>
     </div>
 
     <div className="account-list-toolbar">
       <div className="account-tabs" role="tablist" aria-label="Account review status">
-        {[["Pending", "Needs review"], ["Checked", "Checked"], ["Flagged", "Flagged"], ["All", "All"]].map(([key, label]) =>
+        {[["Pending", "Needs review"], ["Checked", "Checked"], ["Flagged", "Flagged"], ["Rejected", "Rejected"], ["All", "All"]].map(([key, label]) =>
           <button key={key} type="button" role="tab" aria-selected={activeStatus === key} className={activeStatus === key ? "active" : ""} onClick={() => chooseStatus(key)}>{label}</button>)}
       </div>
-      <label className="account-search"><Icon d={PATHS.search} size={18} /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, email, or student ID" aria-label="Search name, email, or student ID" /></label>
+      <label className="account-search"><Icon d={PATHS.search} size={18} /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, email, student ID, or account ID" aria-label="Search name, email, student ID, or account ID" /></label>
     </div>
 
     {filtered.length ? <>
