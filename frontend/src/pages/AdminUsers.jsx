@@ -41,10 +41,11 @@ export default function AdminUsers() {
   const visibleRows = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     return (rows || []).filter((user) => {
-      const matchesSearch = !query || [user.name, user.email, user.student_id, user.department, user.role]
+      const matchesSearch = !query || [user.name, user.email, user.student_id, user.id, user.department, user.role]
         .some((value) => String(value || "").toLocaleLowerCase().includes(query));
       const matchesFilter = filter === "all"
         || (filter === "pending" && user.approval_status === "Pending")
+        || (filter === "rejected" && user.approval_status === "Rejected")
         || (filter === "deleted" && Boolean(user.deleted_at))
         || (filter === "active" && user.is_active && !user.deleted_at)
         || (filter === "student" && (user.role === "student" || user.registration_type === "student"))
@@ -62,7 +63,8 @@ export default function AdminUsers() {
   }
 
   async function softDelete(user) {
-    if (!window.confirm(`Disable ${user.name}'s account now? It will be permanently deleted after 7 days.`)) return;
+    const label = user.approval_status === "Rejected" ? "rejected account" : "account";
+    if (!window.confirm(`Disable this ${label} for ${user.name}? It will be permanently deleted after 7 days.`)) return;
     try {
       const result = await api(`/api/admin/users/${user.id}`, { method: "DELETE" });
       setFlash({ text: result.message, kind: "info" });
@@ -92,11 +94,12 @@ export default function AdminUsers() {
     <p className="admin-section-note">Users are sorted A-Z. Deleted accounts are disabled immediately and permanently removed after seven days.</p>
     <div className="admin-users-controls">
       <SearchBox value={search} onChange={setSearch} shown={visibleRows.length}
-        total={search || filter !== "all" ? visibleRows.length : rows.length} placeholder="Search users..." />
+        total={search || filter !== "all" ? visibleRows.length : rows.length} placeholder="Search name, email, student ID, or account ID..." />
       <label className="admin-filter-label">Filter
         <select value={filter} onChange={(event) => setFilter(event.target.value)}>
           <option value="all">All users</option><option value="student">Students</option>
           <option value="instructor">Instructors</option><option value="pending">Pending approval</option>
+          <option value="rejected">Rejected registrations</option>
           <option value="active">Active</option><option value="deleted">Deleted</option>
         </select>
       </label>
@@ -106,7 +109,7 @@ export default function AdminUsers() {
         <div className="admin-user-card-head">
           <div><h3>{user.name}</h3><a href={`mailto:${user.email}`}>{user.email}</a></div>
           <div className="admin-user-card-badges">
-            <span className={'badge ' + (user.approval_status === 'Approved' ? 's-available' : user.deleted_at ? 's-rejected' : 's-pending')}>{user.approval_status || 'Approved'}</span>
+            <span className={'badge ' + (user.approval_status === 'Approved' ? 's-available' : user.approval_status === 'Rejected' || user.deleted_at ? 's-rejected' : 's-pending')}>{user.approval_status || 'Approved'}</span>
             <span className={'badge ' + (user.is_active ? 's-available' : 's-rejected')}>{user.deleted_at ? 'Soft deleted' : user.is_active ? 'Active' : 'Deactivated'}</span>
           </div>
         </div>
@@ -138,7 +141,7 @@ export default function AdminUsers() {
               {user.approval_status === 'Approved' && <RoleForm user={user} onChanged={load} />}
               <button className={'btn small' + (user.is_active ? ' danger' : '')} type="button" onClick={() => toggle(user)}>{user.is_active ? 'Deactivate' : 'Activate'}</button>
             </>}
-            <button className="btn small danger" type="button" onClick={() => softDelete(user)}>Delete account</button>
+            <button className="btn small danger" type="button" onClick={() => softDelete(user)}>{user.approval_status === 'Rejected' ? 'Delete rejected account' : 'Delete account'}</button>
           </>}
         </div>
       </article>)}
