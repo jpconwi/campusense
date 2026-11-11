@@ -19,9 +19,9 @@ salamat = thank you                eskwelahan / paaralan = school
 instruktor / maestro / maestra / magtutudlo / guro = teacher or instructor
 
 Keep names, room codes, acronyms, numbers and links exactly as they are.
-Exception: when you must give the off-topic reply or say that you do not have
-enough campus information, write those sentences in English EXACTLY as instructed
-above; the system translates them for the person.
+Exception: when you must give the off-topic reply or the official-records
+unavailable-information response, write those sentences in English exactly as
+instructed in the system prompt; the system translates them for the person.
 Always ANSWER the question. Never repeat, rephrase or translate the question back to the person.
 Do not use emojis.
 """
