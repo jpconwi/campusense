@@ -25,6 +25,7 @@ export default function AdminDashboard() {
   const c = d.charts;
   const stat = (name) => (d.stats.find(([label]) => label === name) || [0, 0])[1];
   const attention = [
+    [stat("Reports to Finish"), "assigned report needs finishing", "assigned reports need finishing", "/admin/reports?open_only=true", "amber"],
     [stat("Urgent Photo Reports (open)"), "possible hazard", "possible hazards", "/admin/reports?urgent=1", "red"],
     [stat("Pending Concerns"), "concern waiting", "concerns waiting", "/admin/reports?type=concern&status=Pending", "amber"],
     [stat("Pending Reports"), "report waiting", "reports waiting", "/admin/reports?status=Pending", "amber"],
@@ -63,6 +64,23 @@ export default function AdminDashboard() {
           );
         })}
       </div>
+
+      <section className="card workload-card" aria-label="Report workload by priority">
+        <div className="workload-heading">
+          <div><h3>Reports to finish</h3><p className="muted">Open assigned work. Mark a report Resolved when the work is complete.</p></div>
+          <Link className="btn small" to="/admin/reports?open_only=true">Open work queue ({d.workload?.open_count || 0})</Link>
+        </div>
+        <div className="workload-priorities">
+          {["Urgent", "High", "Medium", "Low"].map((level) => (
+            <Link key={level} to={`/admin/reports?open_only=true&priority=${level}`} className={`workload-priority priority-${level.toLowerCase()}`}>
+              <span>{level}</span><strong>{d.workload?.by_priority?.[level] || 0}</strong>
+            </Link>
+          ))}
+          <Link to="/admin/reports?status=Resolved" className="workload-priority priority-completed">
+            <span>Completed</span><strong>{d.workload?.completed_count || 0}</strong>
+          </Link>
+        </div>
+      </section>
 
       {superAdmin && <section className="card user-activity-card">
         <div className="user-activity-heading">

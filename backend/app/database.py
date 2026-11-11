@@ -42,6 +42,7 @@ def init_db():
     _add_photo_draft_session_column()
     _add_report_assignment_column()
     _add_report_workflow_review_columns()
+    _add_report_priority_columns()
     _add_feedback_routing_columns()
     _add_record_query_indexes()
     _add_faculty_reservation_review_columns()
@@ -280,6 +281,23 @@ def _add_report_workflow_review_columns():
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {sql_type}"))
                 else:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"))
+
+
+def _add_report_priority_columns():
+    """Add a staff-facing, manually assigned priority to reports and concerns."""
+    from sqlalchemy import inspect, text
+    tables = {table: {column["name"] for column in inspect(engine).get_columns(table)}
+              for table in ("reports", "concerns")}
+    with engine.begin() as conn:
+        for table, columns in tables.items():
+            if "priority" in columns:
+                continue
+            if engine.dialect.name == "postgresql":
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS priority VARCHAR(20) NOT NULL DEFAULT 'Medium'"))
+            else:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN priority VARCHAR(20) NOT NULL DEFAULT 'Medium'"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_reports_priority_status ON reports (priority, status)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_concerns_priority_status ON concerns (priority, status)"))
 
 
 def _add_feedback_routing_columns():

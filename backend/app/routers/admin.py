@@ -150,6 +150,19 @@ def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(g
                                     row.get("workflow_review") == "Accepted"
                                     and (row.get("assigned_admin_email") or "").lower() == me.email.lower())]),
     }
+    open_statuses = ("Pending", "Under Review", "In Progress")
+    open_reports = report_scope.filter(Report.status.in_(open_statuses))
+    open_concerns = concern_scope.filter(Concern.status.in_(open_statuses))
+    workload = {
+        "open_count": open_reports.count() + open_concerns.count(),
+        "completed_count": report_scope.filter(Report.status == "Resolved").count()
+        + concern_scope.filter(Concern.status == "Resolved").count(),
+        "by_priority": {
+            level: open_reports.filter(Report.priority == level).count()
+            + open_concerns.filter(Concern.priority == level).count()
+            for level in ("Urgent", "High", "Medium", "Low")
+        },
+    }
 
     def stat(label, value, href, tone, icon):
         return {"label": label, "value": value, "href": href, "tone": tone, "icon": icon}
@@ -167,6 +180,8 @@ def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(g
             ["Total Feedback", common.count_rows(db, "feedback")],
             ["Total Reservations", common.count_rows(db, "reservations")],
             ["Pending Accounts", pending_accounts],
+            ["Reports to Finish", workload["open_count"]],
+            ["Completed Reports", workload["completed_count"]],
         ]
         stat_cards = [
             stat("Total Students", stats[0][1], "/admin/users?filter=student", "slate", "users"),
@@ -180,6 +195,8 @@ def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(g
             stat("Total Feedback", stats[8][1], "/admin/feedback?scope=all", "violet", "feedback"),
             stat("Total Reservations", stats[9][1], "/admin/reservations", "green", "reserve"),
             stat("Pending Accounts", stats[10][1], "/admin/accounts?status=Pending", "amber", "users"),
+            stat("Reports to Finish", stats[11][1], "/admin/reports?open_only=true", "amber", "report"),
+            stat("Completed Reports", stats[12][1], "/admin/reports?status=Resolved", "green", "report"),
         ]
     else:
         stats = [
@@ -193,6 +210,8 @@ def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(g
             ["Campus Feedback", counts["feedback"]],
             ["Total Reservations", common.count_rows(db, "reservations")],
             ["Pending Accounts", pending_accounts],
+            ["Reports to Finish", workload["open_count"]],
+            ["Completed Reports", workload["completed_count"]],
         ]
         stat_cards = [
             stat("Assigned Concerns", stats[0][1], "/admin/reports?type=concern", "blue", "concern"),
@@ -205,6 +224,8 @@ def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(g
             stat("Campus Feedback", stats[7][1], "/admin/feedback?scope=campus", "violet", "feedback"),
             stat("Total Reservations", stats[8][1], "/admin/reservations", "green", "reserve"),
             stat("Pending Accounts", stats[9][1], "/admin/accounts?status=Pending", "amber", "users"),
+            stat("Reports to Finish", stats[10][1], "/admin/reports?open_only=true", "amber", "report"),
+            stat("Completed Reports", stats[11][1], "/admin/reports?status=Resolved", "green", "report"),
         ]
     recent_reports = common.list_rows(db, "reports", status="Pending")
     recent_concerns = common.list_rows(db, "concerns", status="Pending")
@@ -227,6 +248,7 @@ def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(g
         "recent_concerns": _without_sentiment(recent_concerns),
         "recent_reports": _without_sentiment(recent_reports),
         "urgent_reports": urgent_reports,
+        "workload": workload,
     }
 
 
@@ -276,7 +298,7 @@ def user_activity(_me: CurrentUser = Depends(super_admin_required), db: Session 
 def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = None,
             scope: Optional[str] = None, page: int = Query(1, ge=1),
             page_size: int = Query(100, ge=1, le=250), search: str = "",
-            record_type: str = "",
+            record_type: str = "", priority: str = "", open_only: bool = False,
             me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     if kind not in SECTIONS:
         raise HTTPException(404, "That page was not found.")
@@ -338,6 +360,13 @@ def records(kind: str, status: Optional[str] = None, urgent: Optional[str] = Non
     rows = _without_sentiment(rows)
     if kind == "reports" and record_type in ("concern", "problem"):
         rows = [row for row in rows if row.get("record_kind") == record_type]
+    if priority in ("Urgent", "High", "Medium", "Low"):
+        rows = [row for row in rows if row.get("priority", "Medium") == priority]
+    if open_only:
+        rows = [row for row in rows if row.get("status") in ("Pending", "Under Review", "In Progress")]
+    if kind in ("reports", "concerns"):
+        priority_order = {"Urgent": 0, "High": 1, "Medium": 2, "Low": 3}
+        rows.sort(key=lambda row: priority_order.get(row.get("priority", "Medium"), 2))
     if search.strip():
         term = search.strip().casefold()[:120]
         searchable_fields = ("id", "reporter_name", "reporter_email", "location", "area", "room",
@@ -532,6 +561,28 @@ def decide_report(kind: str, row_id: int, body: ReportDecisionBody,
     row.updated_at = common.now()
     db.commit()
     return {"success": True, "message": f"Report {body.decision.lower()} by Super Admin."}
+
+
+class ReportPriorityBody(BaseModel):
+    priority: str = "Medium"
+
+
+@router.post("/records/{kind}/{row_id}/priority")
+def set_report_priority(kind: str, row_id: int, body: ReportPriorityBody,
+                        me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+    if kind not in ("reports", "concerns"):
+        raise HTTPException(404, "That page was not found.")
+    if body.priority not in ("Urgent", "High", "Medium", "Low"):
+        raise ValidationError("Choose Urgent, High, Medium, or Low priority.")
+    row = db.get(common.MODELS[kind], row_id)
+    if row is None:
+        raise ValidationError("Report not found.")
+    row.priority = body.priority
+    row.updated_at = common.now()
+    db.commit()
+    _log_admin_action(db, me.email, "report_priority_changed", row.reporter_email,
+                      f"{kind.rstrip('s').capitalize()} #{row_id} priority set to {body.priority}.")
+    return {"success": True, "message": f"Priority set to {body.priority}."}
 
 
 @router.post("/reports/{report_id}/assign")

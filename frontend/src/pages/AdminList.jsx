@@ -156,7 +156,17 @@ function ReviewWorkflow({ row, kind, assignees, onChanged }) {
   const { setFlash } = useAuth();
   const [note, setNote] = useState(row.workflow_review_note || "");
   const [assignee, setAssignee] = useState(row.assigned_admin_email || "");
+  const [priority, setPriority] = useState(row.priority || "Medium");
+  useEffect(() => setPriority(row.priority || "Medium"), [row.priority]);
   const canAssign = assignees.some((admin) => admin.email === assignee && admin.account_active);
+  async function savePriority() {
+    try {
+      const result = await api(`/api/admin/records/${kind}/${row.id}/priority`, {
+        method: "POST", json: { priority },
+      });
+      setFlash({ text: result.message, kind: "info" }); onChanged();
+    } catch (error) { setFlash({ text: error.message, kind: "error" }); }
+  }
   async function decide(decision) {
     try {
       const result = await api(`/api/admin/records/${kind}/${row.id}/decision`, {
@@ -177,6 +187,13 @@ function ReviewWorkflow({ row, kind, assignees, onChanged }) {
   return <section className="report-review-workflow">
     <h4>Super Admin review</h4>
     <p><b>Review status:</b> {row.workflow_review || "Pending"}</p>
+    <div className="report-priority-control">
+      <label htmlFor={`priority-${kind}-${row.id}`}>Set work priority</label>
+      <select id={`priority-${kind}-${row.id}`} value={priority} onChange={(event) => setPriority(event.target.value)}>
+        {["Urgent", "High", "Medium", "Low"].map((level) => <option key={level}>{level}</option>)}
+      </select>
+      <button className="btn small" type="button" disabled={priority === (row.priority || "Medium")} onClick={savePriority}>Save priority</button>
+    </div>
     {row.workflow_reviewed_by && <p className="muted">Reviewed by {row.workflow_reviewed_by}{row.workflow_reviewed_at ? ` on ${row.workflow_reviewed_at}` : ""}</p>}
     {row.workflow_review_note && <p>{row.workflow_review_note}</p>}
     {row.workflow_review === "Pending" ? <>
@@ -241,6 +258,7 @@ function RecordCard({ row, columns, kind, spec, statuses, assignees = [], onChan
       {row[emailKey] && <a href={`mailto:${row[emailKey]}`}>{row[emailKey]}</a>}
       {row.submitter_role && <small>{row.submitter_role}</small>}
       {row.source === "photo" && <span className="badge ai-guess">Photo + NEMSAI · unverified</span>}
+    {(kind === "concerns" || kind === "reports") && <span className={`badge priority-${slug(row.priority || "Medium")}`}>{row.priority || "Medium"} priority</span>}
     </div>
     {row.source === "photo" && row.ai && <div className="record-card-fields">
       {row.ai.urgent && <div><b>Priority flag</b><span>Possible hazard · needs administrator review</span></div>}
@@ -439,6 +457,8 @@ export default function AdminList({ kind }) {
   const requestedType = params.get("type") || "all";
   const typeFilter = ["concern", "problem"].includes(requestedType) ? requestedType : "all";
   const page = Math.max(1, Number(params.get("page") || 1));
+  const selectedPriority = ["Urgent", "High", "Medium", "Low"].includes(params.get("priority")) ? params.get("priority") : "";
+  const openOnly = params.get("open_only") === "true";
   const priorityRelevant = kind === "reports" && typeFilter !== "concern";
   const activeUrgent = priorityRelevant ? urgent : "";
   const [data, setData] = useState(null);
@@ -464,10 +484,12 @@ export default function AdminList({ kind }) {
     if (activeUrgent) query.set("urgent", activeUrgent);
     if (kind === "feedback") query.set("scope", feedbackScope);
     if (kind === "reports" && typeFilter !== "all") query.set("record_type", typeFilter);
+    if (selectedPriority) query.set("priority", selectedPriority);
+    if (openOnly) query.set("open_only", "true");
     if (q.trim()) query.set("search", q.trim());
     api(`/api/admin/records/${kind}?${query}`).then(setData).catch(() => {});
-  }, [kind, status, activeUrgent, feedbackScope, page, typeFilter, q]);
-  useEffect(() => { setData(null); setQ(""); }, [kind, status, activeUrgent, feedbackScope, typeFilter]);
+  }, [kind, status, activeUrgent, feedbackScope, page, typeFilter, q, selectedPriority, openOnly]);
+  useEffect(() => { setData(null); setQ(""); }, [kind, status, activeUrgent, feedbackScope, typeFilter, selectedPriority, openOnly]);
   useEffect(() => { const timer = window.setTimeout(load, 250); return () => window.clearTimeout(timer); }, [load]);
   useEffect(() => {
     if (!superAdmin || !["reports", "feedback"].includes(kind)) return undefined;
@@ -502,6 +524,8 @@ export default function AdminList({ kind }) {
     if (kind === "reports" && typeFilter !== "all") next.set("type", typeFilter);
     if (kind === "feedback") next.set("scope", feedbackScope);
     if (priorityRelevant && nextUrgent) next.set("urgent", nextUrgent);
+    if (selectedPriority) next.set("priority", selectedPriority);
+    if (openOnly && (!nextStatus || ["Pending", "Under Review", "In Progress"].includes(nextStatus))) next.set("open_only", "true");
     return `${base}${next.toString() ? `?${next}` : ""}`;
   };
 
@@ -541,12 +565,21 @@ export default function AdminList({ kind }) {
         {visibleStatuses.map((s) => <Link key={s} to={filterHref({ nextStatus: s, nextUrgent: urgent })} className={current === s ? "on" : ""}>{s}</Link>)}
       </div>
       {priorityRelevant && (
-        <div className="filters" aria-label="Filter by priority">
-          <span className="filter-label">Priority:</span>
-          <Link to={filterHref({ nextStatus: status })} className={!urgent ? "on" : ""}>All priorities</Link>
+        <div className="filters" aria-label="Filter possible safety hazards">
+          <span className="filter-label">AI safety flag:</span>
+          <Link to={filterHref({ nextStatus: status })} className={!urgent ? "on" : ""}>All flags</Link>
           <Link to={filterHref({ nextStatus: status, nextUrgent: "1" })} className={urgent ? "on" : ""}>Possible hazards only</Link>
         </div>
       )}
+      {kind === "reports" && <div className="filters" aria-label="Filter by assigned priority">
+        <span className="filter-label">Work priority:</span>
+        {["", "Urgent", "High", "Medium", "Low"].map((level) => <button key={level || "all"} type="button"
+          className={selectedPriority === level ? "on" : ""} onClick={() => {
+            const next = new URLSearchParams(params);
+            if (level) next.set("priority", level); else next.delete("priority");
+            next.delete("page"); setParams(next);
+          }}>{level || "All priorities"}</button>)}
+      </div>}
       {(["reports", "concerns", "feedback", "reservations"].includes(kind)) && (
         <SearchBox value={q} onChange={(value) => {
           setQ(value);
@@ -557,7 +590,7 @@ export default function AdminList({ kind }) {
       {rows.length ? kind === "reports" ? (
         <>
           <p className="report-list-note">{superAdmin
-            ? `${rows.length} ${rows.length === 1 ? "submission" : "submissions"} awaiting your review or assignment. Select one to review.`
+            ? `Priority is set by the Super Admin. Select a row to review, assign, or update its work priority.`
             : `${rows.length} assigned ${rows.length === 1 ? "report" : "reports"} shown. Select one to update its status or send the reporter an update.`}</p>
           <div className="report-table-wrap">
             <table className="report-table">
@@ -568,6 +601,7 @@ export default function AdminList({ kind }) {
                   <th scope="col">Type</th>
                   <th scope="col">Location</th>
                   <th scope="col">Reporter</th>
+                  <th scope="col">Priority</th>
                   <th scope="col">Status</th>
                   <th scope="col">Flags</th>
                   <th scope="col">Assigned</th>
@@ -595,6 +629,7 @@ export default function AdminList({ kind }) {
                           {r.room && <small className="muted">{r.room}</small>}</td>
                         <td className="report-who"><span>{r.reporter_name || "Unknown"}</span>
                           {r.reporter_email && <small className="muted">{r.reporter_email}</small>}</td>
+                        <td><span className={`badge priority-${slug(r.priority || "Medium")}`}>{r.priority || "Medium"}</span></td>
                         <td><span className={"badge s-" + slug(r.status)}>{r.status}</span></td>
                         <td className="report-flags"><Flags r={r} />
                           {r.ai?.status === "analyzed" && <span className={`badge severity-${r.ai.severity || "unclear"}`}>{(r.ai.severity || "unclear").toUpperCase()}</span>}</td>

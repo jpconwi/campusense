@@ -150,6 +150,7 @@ class Concern(Base):
     concern_date: Mapped[date] = mapped_column(Date, nullable=False)
     image_filename: Mapped[Optional[str]] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(30), default="Pending", nullable=False)
+    priority: Mapped[str] = mapped_column(String(20), default="Medium", nullable=False)
     sentiment: Mapped[Optional[str]] = mapped_column(String(10))        # Positive / Neutral / Negative / Mixed
     sentiment_score: Mapped[Optional[int]] = mapped_column(Integer)      # -100 .. 100
     source: Mapped[str] = mapped_column(String(10), default="form", nullable=False)
@@ -188,6 +189,7 @@ class Report(Base):
     report_date: Mapped[date] = mapped_column(Date, nullable=False)
     image_filename: Mapped[Optional[str]] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(30), default="Pending", nullable=False)
+    priority: Mapped[str] = mapped_column(String(20), default="Medium", nullable=False)
     sentiment: Mapped[Optional[str]] = mapped_column(String(10))        # Positive / Neutral / Negative / Mixed
     sentiment_score: Mapped[Optional[int]] = mapped_column(Integer)      # -100 .. 100
     # --- photo reports (AI-assisted). Plain form reports leave these empty / default.
