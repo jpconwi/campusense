@@ -101,6 +101,8 @@ td.desc { min-width: 200px; max-width: 360px; overflow-wrap: anywhere; }
 .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .filters a { text-decoration: none; border: 1px solid var(--line); background: var(--card); padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: .9rem; }
 .filters a.on { background: var(--blue); color: #fff; border-color: var(--blue); }
+.filters button { border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 6px 14px; border-radius: 999px; font: inherit; font-weight: 600; cursor: pointer; }
+.filters button.on { background: var(--blue); color: #fff; border-color: var(--blue); }
 form.inline { display: inline-flex; gap: 6px; align-items: center; }
 select, input, textarea { font: inherit; }
 td select { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; }

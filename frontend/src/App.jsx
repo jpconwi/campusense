@@ -10,6 +10,7 @@ import AdminHelpMessages from "./pages/AdminHelpMessages.jsx";
 import AdminList from "./pages/AdminList.jsx";
 import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminUsers from "./pages/AdminUsers.jsx";
+import SuperAdminFacultyFeedback from "./pages/SuperAdminFacultyFeedback.jsx";
 import SuperAdmin from "./pages/SuperAdmin.jsx";
 import Chat from "./pages/Chat.jsx";
 import Faculty from "./pages/Faculty.jsx";
@@ -75,6 +76,7 @@ export default function App() {
         <Route path="/admin/system" element={page(<SuperAdmin />, ["super_admin"])} />
         <Route path="/admin/online-users" element={<Navigate to="/admin/users?view=online" replace />} />
         <Route path="/admin/help-messages" element={page(<AdminHelpMessages />, ["super_admin"])} />
+        <Route path="/admin/faculty-feedback" element={page(<SuperAdminFacultyFeedback />, ["super_admin"])} />
         <Route path="/admin/concerns" element={<Navigate to="/admin/reports?type=concern" replace />} />
         <Route path="/admin/faculty" element={page(<AdminFaculty />, ["admin"])} />
         <Route path="/admin/rooms" element={page(<AdminDataset kind="rooms" />, ["super_admin"])} />

@@ -54,6 +54,7 @@ const ICONS = {
   "/admin/concerns": "M12 3l10 18H2zM12 10v5M12 18v.5",
   "/admin/reports": "M7 3h8l4 4v14H7zM15 3v4h4M10 12h6M10 16h6",
   "/admin/faculty": "M3 9l9-5 9 5-9 5zM7 12v5c3 2 7 2 10 0v-5",
+  "/admin/faculty-feedback": "M3 9l9-5 9 5-9 5zM7 12v5c3 2 7 2 10 0v-5M4 18h7M15 18h5",
   "/admin/feedback": "M4 5h16v11H9l-5 4zM8 9h8M8 12h5",
   "/admin/reservations": "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
   "/admin/rooms": "M5 21V4l10-1.5V21M3 21h18M12 12v.5",
@@ -176,7 +177,7 @@ const GROUPS = {
   "/reports": "My records", "/feedback": "My records", "/my-feedback": "My records",
   "/reservations": "My records", "/faculty": "My records",
   "/profile": "Account",
-  "/admin/reports": "Inbox", "/admin/faculty": "Inbox", "/admin/accounts": "Inbox",
+  "/admin/reports": "Inbox", "/admin/faculty": "Inbox", "/admin/faculty-feedback": "Inbox", "/admin/accounts": "Inbox",
   "/admin/feedback": "Inbox", "/admin/reservations": "Inbox", "/admin/help-messages": "Inbox",
   "/admin/users": "Manage", "/admin/rooms": "Manage", "/admin/campus": "Manage", "/admin/announcements": "Manage",
 };
@@ -186,6 +187,7 @@ function groupNav(nav, role) {
     const path = item.path.split("?", 1)[0];
     const superAdminGroups = {
       "/admin/help-messages": "Inbox", "/admin/reports": "Inbox", "/admin/faculty": "Inbox",
+      "/admin/faculty-feedback": "Inbox",
       "/admin/feedback": "Inbox", "/admin/reservations": "Inbox",
       "/admin/users": "People",
       "/admin/rooms": "Campus data", "/admin/campus": "Campus data", "/admin/announcements": "Campus data",
