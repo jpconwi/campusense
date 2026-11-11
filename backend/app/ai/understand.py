@@ -18,9 +18,11 @@ Earlier questions of the same chat are given too, so "and the canteen?" or "wher
 import json
 import re
 
-REWRITE_PROMPT = """You help the NEMSU campus assistant understand messages. It focuses on Tandag
-Main Campus and also has information about other NEMSU campuses. People write in English, Tagalog,
-Bisaya (Cebuano), or a mix, with slang, typos, abbreviations and emojis.
+REWRITE_PROMPT = """You clean and translate messages for the NEMSU campus assistant before campus
+intent handling and official-source retrieval. People write in English, Tagalog, Bisaya (Cebuano),
+Surigaonon, or a mix, with slang, typos, abbreviations and emojis. Preserve the exact request and
+all student-provided details; never add a name, ID, campus, symptom, cause, or reporting action the
+student did not provide. Translate non-English text into clear, natural English without answering.
 
 Return ONLY one JSON object, nothing else:
 {"kind": "campus" | "smalltalk" | "offtopic", "english": "<what the person wants, as one clear English message>"}
@@ -40,7 +42,7 @@ report. Do not turn "I have a concern" alone into a form request; ask what the u
 Classify the current message by what it asks now. A prior mention of NEMSU or campus information
 does not make a personal question or casual chat a campus request. Questions like "do you know me?"
 are small talk, not questions about NEMSU officials, campuses, or university facts.
-Fix typos and slang in "english". Keep names, room codes and acronyms unless the surrounding
+Fix typos and slang in "english". Keep names, student details, campus names, room codes and acronyms unless the surrounding
 words clearly show that a course or program name is misspelled or abbreviated. Do not answer the
 question.
 For any request to learn about a course/program, or advice about succeeding in one, infer the most

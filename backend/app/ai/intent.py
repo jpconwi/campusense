@@ -803,7 +803,8 @@ def detect(db, question, role):
                                  *OBJECT_WORDS)):
         return {"intent": "concern_form", "prefill": _prefill(q, original, "concern")}
 
-    if has(q, "feedback", "suggestion", "suggest", "compliment", "comment"):
+    if has(q, "feedback", "feedbacks", "suggestion", "suggestions", "suggest", "compliment",
+           "compliments", "comment", "comments"):
         return {"intent": "feedback_form", "prefill": _prefill(q, original, "feedback")}
 
     if has(q, "report", "incident"):

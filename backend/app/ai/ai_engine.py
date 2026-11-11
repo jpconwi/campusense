@@ -825,7 +825,9 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     # unrelated NEMSU links to grief, tutoring, or other general questions.
     related = (_is_campus_related(question)
                or _has_explicit_campus_context(question, conversation))
-    if not rewritten and (not related or lang in ("tl", "ceb")):
+    # Normalize every message that reaches this fallback path before document retrieval.
+    # Fast rule-based answers and form submissions above still avoid an unnecessary model call.
+    if not rewritten:
         view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
         if view and view["kind"] == "campus" and normalize(view["english"]) != normalize(question):
             return _answer(db, view["english"], user, earlier, lang,
