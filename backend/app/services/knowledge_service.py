@@ -408,21 +408,23 @@ def directory_lookup(db: Session, question):
             if len(columns) >= 2:
                 records.append(columns)
         # Older syncs stored table cells on separate lines. Read the four-column
-        # directory rows in order as a fallback until the page is synced again.
-        if not records:
-            for index, line in enumerate(lines):
-                if normalize(line) != "name" or index + 4 >= len(lines):
-                    continue
-                header = [normalize(value) for value in lines[index:index + 4]]
-                if header != ["name", "office designation", "contact number", "email address"]:
-                    continue
-                cursor = index + 4
-                while cursor + 3 < len(lines):
-                    values = lines[cursor:cursor + 4]
-                    if normalize(values[0]) in {"other university wide designations", "latest news", "name"}:
-                        break
-                    records.append(values)
-                    cursor += 4
+        # directory rows even when the page also contains unrelated pipe-separated text.
+        for index, line in enumerate(lines):
+            if normalize(line) != "name" or index + 4 >= len(lines):
+                continue
+            header = [normalize(value) for value in lines[index:index + 4]]
+            if header != ["name", "office designation", "contact number", "email address"]:
+                continue
+            cursor = index + 4
+            while cursor + 3 < len(lines):
+                values = lines[cursor:cursor + 4]
+                if normalize(values[0]) in {"other university wide designations", "latest news", "name"}:
+                    break
+                records.append(values)
+                cursor += 4
+        # A page may expose the same directory table as both readable HTML and
+        # embedded data; deduplicate rows before role matching.
+        records = list({(normalize(row[0]), normalize(row[1])): row for row in records}.values())
         for columns in records:
             if len(columns) < 2 or normalize(columns[0]) in {"name", "directory listings"}:
                 continue

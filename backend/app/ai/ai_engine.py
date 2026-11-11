@@ -680,8 +680,8 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         if directory_facts:
             return _data(directory_facts)
         return response.message(
-            "I couldn't verify the current NEMSU vice presidents in my indexed University Directory. "
-            "Please check the official directory: https://nemsu.edu.ph/directory")
+            "I couldn't find a matching vice-president designation in my indexed NEMSU University "
+            "Directory. Please check the official directory: https://nemsu.edu.ph/directory")
 
     if name == "campus_location":               # fixed answer + map, never the LLM
         return response.map_card(texts.en("campus_location"), CAMPUS_MAP_URL, CAMPUS_EMBED_URL)
