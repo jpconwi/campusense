@@ -7,6 +7,63 @@ import { EmptyState, Loading, SearchBox, matches } from "../components/Ui.jsx";
 const LONG_TEXT = ["description", "message", "purpose", "additional_info", "admin_response"];
 const FEEDBACK_SCOPE_LABELS = { campus: "Campus services", system: "NEMSAI / application", technical: "Technical issue" };
 
+function RoomDirectory({ onReserve }) {
+  const [rooms, setRooms] = useState(null);
+  const [error, setError] = useState("");
+  const [department, setDepartment] = useState("");
+  const [building, setBuilding] = useState("");
+
+  useEffect(() => {
+    api("/api/rooms").then((data) => setRooms(data.rows)).catch((loadError) => setError(loadError.message));
+  }, []);
+
+  const departments = [...new Set((rooms || []).map((room) => room.department).filter(Boolean))].sort();
+  const buildings = [...new Set((rooms || []).map((room) => room.building).filter(Boolean))].sort();
+  const visibleRooms = (rooms || []).filter((room) =>
+    (!department || room.department === department) && (!building || room.building === building));
+
+  return <section className="room-directory" aria-label="Campus room directory">
+    <div className="room-directory-heading">
+      <div><h3>Browse rooms</h3><p className="muted">View room details and choose a room to include in your reservation request.</p></div>
+      {rooms && <span className="muted">{visibleRooms.length} of {rooms.length} rooms</span>}
+    </div>
+    <div className="room-directory-filters">
+      <label>Department
+        <select value={department} onChange={(event) => setDepartment(event.target.value)}>
+          <option value="">All departments</option>
+          {departments.map((value) => <option key={value} value={value}>{value}</option>)}
+        </select>
+      </label>
+      <label>Building
+        <select value={building} onChange={(event) => setBuilding(event.target.value)}>
+          <option value="">All buildings</option>
+          {buildings.map((value) => <option key={value} value={value}>{value}</option>)}
+        </select>
+      </label>
+    </div>
+    {error ? <p className="form-error" role="alert">{error}</p>
+      : !rooms ? <Loading label="Loading rooms..." />
+        : visibleRooms.length ? <div className="room-directory-list">
+          {visibleRooms.map((room) => <article className="room-directory-card" key={room.id}>
+            <div className="room-directory-card-heading">
+              <div><h4>{room.name || room.room_id}</h4><span className="muted">{room.room_id}</span></div>
+              <button className="btn small" type="button" onClick={() => onReserve(room)}>Reserve this room</button>
+            </div>
+            <p>{[room.building, room.department].filter(Boolean).join(" · ") || "Location not listed"}</p>
+            <details>
+              <summary>View room details</summary>
+              <div className="room-directory-details">
+                {room.room_type && <span><b>Type</b>{room.room_type}</span>}
+                {room.capacity && <span><b>Capacity</b>{room.capacity}</span>}
+                {room.equipment && <span><b>Equipment</b>{room.equipment}</span>}
+                {room.status && <span><b>Availability</b>{room.status}</span>}
+              </div>
+            </details>
+          </article>)}
+        </div> : <p className="empty">No rooms match those filters.</p>}
+  </section>;
+}
+
 function WorkflowProgress({ row }) {
   const status = row.status || "Pending";
   const normalizedStatus = status.trim().toLowerCase();
@@ -114,6 +171,7 @@ export default function MyList({ kind, hideForm = false }) {
   const [recordFilter, setRecordFilter] = useState("all");
   const [formKind, setFormKind] = useState("report");
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [selectedRoom, setSelectedRoom] = useState(null);
   const combined = kind === "reports";
   const autoRefresh = combined || kind === "feedback";
   const pageTitle = kind === "feedback" ? (hideForm ? "My Feedback" : "Feedback & Suggestions") : "";
@@ -166,6 +224,11 @@ export default function MyList({ kind, hideForm = false }) {
       {!hideForm && <p><button className="btn" type="button" onClick={() => setOpen((o) => !o)}>
         {open ? "Close form" : combined ? "New report" : kind === "feedback" ? "New feedback or suggestion" : `New ${spec.form}`}
       </button></p>}
+      {kind === "reservations" && <RoomDirectory onReserve={(room) => {
+        setSelectedRoom(room);
+        setOpen(true);
+        setResult(null);
+      }} />}
       {!hideForm && open && (
         <div className="card" style={{ marginTop: 14 }}>
           {combined && <div style={{ maxWidth: 420, marginBottom: 14 }}>
@@ -175,7 +238,11 @@ export default function MyList({ kind, hideForm = false }) {
               <option value="report">Problem &mdash; incident or safety/security issue</option>
             </select>
           </div>}
-          <RecordForm key={combined ? formKind : kind} kind={combined ? formKind : spec.form} onSuccess={done} />
+          {selectedRoom && kind === "reservations" && <p className="muted">Selected room: <strong>{selectedRoom.name || selectedRoom.room_id}</strong> ({selectedRoom.room_id})</p>}
+          <RecordForm key={`${combined ? formKind : kind}-${selectedRoom?.id || ""}`}
+            kind={combined ? formKind : spec.form}
+            prefill={selectedRoom && kind === "reservations" ? { facility: `${selectedRoom.name || selectedRoom.room_id} (${selectedRoom.room_id})` } : undefined}
+            onSuccess={done} />
           {result && <div style={{ marginTop: 12 }}><SuccessCard result={result} /><p className="desc">Reloading your list...</p></div>}
         </div>
       )}

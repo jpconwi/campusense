@@ -18,7 +18,7 @@ from app.database import get_db
 from app.models import PhotoDraft, User, UserDailyActivity, UserPresence
 from app.security import CurrentUser, csrf_protect, login_required, role_required
 from app.services import (announcement_service, chat_history_service, common, concern_service, faculty_service, feedback_service,
-                          pdf_service, photo_report_service, report_service, reservation_service)
+                          pdf_service, photo_report_service, report_service, reservation_service, room_service)
 from app.services import upload_service
 
 router = APIRouter(prefix="/api", tags=["api"], dependencies=[Depends(csrf_protect)])
@@ -228,6 +228,13 @@ def submit_reservation(
     row = reservation_service.create_reservation(db, user, form)
     return _ok(row, "Your reservation request was sent. It is Pending until an "
                     "administrator approves it.")
+
+
+@router.get("/rooms")
+def instructor_rooms(user: CurrentUser = Depends(role_required("instructor")),
+                     db: Session = Depends(get_db)):
+    """Provide instructors with the campus room directory for reservation requests."""
+    return {"rows": room_service.list_rooms(db)}
 
 
 # ------------------------------------------------------------ photo reports

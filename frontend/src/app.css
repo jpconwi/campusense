@@ -671,6 +671,22 @@ h2.page-title { letter-spacing: -.01em; }
 .admin-user-card .admin-user-actions { flex-direction: row; align-items: center; padding-top: 12px; border-top: 1px solid var(--line); }
 .admin-user-card .admin-user-actions form.inline { width: auto; }
 .admin-users-empty { padding: 22px; color: var(--muted); text-align: center; }
+.room-directory { display: grid; gap: 12px; margin: 20px 0; }
+.room-directory-heading, .room-directory-card-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.room-directory-heading h3 { margin: 0 0 4px; color: var(--blue-deep); }
+.room-directory-heading p { margin: 0; }
+.room-directory-filters { display: flex; flex-wrap: wrap; gap: 12px; }
+.room-directory-filters label { display: grid; gap: 5px; min-width: min(100%, 220px); font-weight: 700; }
+.room-directory-filters select { min-width: 220px; }
+.room-directory-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.room-directory-card { display: grid; align-content: start; gap: 10px; min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.room-directory-card h4 { margin: 0; color: var(--blue-deep); }
+.room-directory-card p { margin: 0; }
+.room-directory-card details { border-top: 1px solid var(--line); padding-top: 9px; }
+.room-directory-card summary { cursor: pointer; color: var(--blue-deep); font-weight: 700; }
+.room-directory-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; padding-top: 10px; }
+.room-directory-details span { display: grid; gap: 3px; overflow-wrap: anywhere; }
+.room-directory-details b { color: var(--muted); font-size: .78rem; text-transform: uppercase; }
 @media (max-width: 680px) {
   .report-card { padding: 14px; }
   .report-card-main { grid-template-columns: 1fr; gap: 12px; }

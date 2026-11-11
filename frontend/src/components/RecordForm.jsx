@@ -55,7 +55,7 @@ export const FORMS = {
       { name: "purpose", label: "Purpose", type: "text", required: true },
       { name: "reservation_date", label: "Date", type: "date", required: true, today: true },
       { name: "start_time", label: "Start time", type: "time", required: true, half: true },
-      { name: "end_time", label: "End time", type: "time", required: true, half: true },
+      { name: "duration_minutes", label: "Duration", type: "duration", required: true, half: true },
       { name: "additional_info", label: "Additional information", type: "textarea", placeholder: "optional" },
     ],
   },
@@ -198,7 +198,7 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
       } else {
         const value = (values[f.name] || "").trim();
         if (f.required && !value) missing[f.name] = true;
-        data.append(f.name, value);
+        if (kind !== "reservation" || f.name !== "duration_minutes") data.append(f.name, value);
         if (f.type === "select" && value === "Other") {        // "Other": the user types what it is
           const typed = (values[f.name + "_other"] || "").trim();
           if (!typed) missing[f.name + "_other"] = true;
@@ -206,6 +206,22 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
         }
       }
     });
+    if (kind === "reservation" && values.start_time && values.duration_minutes) {
+      const timeParts = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(values.start_time);
+      const duration = Number(values.duration_minutes);
+      if (!timeParts || !Number.isFinite(duration) || duration <= 0) {
+        missing.start_time = !timeParts;
+        missing.duration_minutes = !Number.isFinite(duration) || duration <= 0;
+      } else {
+        const endMinutes = Number(timeParts[1]) * 60 + Number(timeParts[2]) + duration;
+        if (endMinutes >= 24 * 60) {
+          missing.duration_minutes = true;
+          message = "The selected duration must end before midnight.";
+        } else {
+          data.append("end_time", `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`);
+        }
+      }
+    }
     setInvalid(missing);
     if (Object.keys(missing).length) {
       setError(message || "Please complete all required fields.");
@@ -247,6 +263,17 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
           )}
         </>
       );
+    if (f.type === "duration")
+      return (
+        <select {...common} value={values[f.name]} onChange={(e) => set(f.name, e.target.value)}>
+          <option value="">Choose duration...</option>
+          {[30, 60, 90, 120, 180, 240, 360, 480].map((minutes) => (
+            <option key={minutes} value={minutes}>
+              {minutes < 60 ? `${minutes} minutes` : `${minutes / 60} hour${minutes === 60 ? "" : "s"}`}
+            </option>
+          ))}
+        </select>
+      );
     if (f.type === "file") return <ReportPhotoPicker disabled={done || busy} file={file} onChange={setFile} />;
     return (
       <input {...common} type={f.type} value={values[f.name]} list={f.list ? "facility-list" : undefined}
@@ -259,8 +286,8 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
       <>
         <label>{f.label}{f.required ? " *" : ""}</label>
         {control(f)}
-        {kind === "reservation" && (f.name === "start_time" || f.name === "end_time") &&
-          <small className="muted">Choose the time using the clock. Saved times display with AM or PM.</small>}
+        {kind === "reservation" && f.name === "start_time" &&
+          <small className="muted">Choose the start time using the clock. The end time is calculated from your selected duration.</small>}
         {f.list && <datalist id="facility-list">{facilities.map((n) => <option key={n} value={n} />)}</datalist>}
       </>
     );

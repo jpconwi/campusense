@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 
 from app import config
-from app.models import FacultyReport, User
+from app.models import FacultyReport, Room, User
 from app.prompts.systemPrompt import OFF_TOPIC_RESPONSE
 from app.services import room_service, user_service
 
@@ -107,6 +107,22 @@ def test_reservation_is_pending_and_validated(instructor):
     assert bad.status_code == 400 and "after the start" in bad.json()["error"]
     past = instructor.post("/api/reservations", data=reservation(reservation_date="2020-01-01"))
     assert past.status_code == 400
+
+
+def test_instructors_can_browse_room_directory(instructor, student, db):
+    db.add(Room(room_id="CITE-204", name="Computer Laboratory", building="CITE",
+                department="Computer Studies", room_type="Laboratory", capacity="31-40",
+                equipment="Projector", status="Available"))
+    db.commit()
+
+    response = instructor.get("/api/rooms")
+    assert response.status_code == 200
+    assert response.json()["rows"] == [{
+        "id": 1, "room_id": "CITE-204", "name": "Computer Laboratory", "building": "CITE",
+        "department": "Computer Studies", "room_type": "Laboratory", "capacity": "31-40",
+        "equipment": "Projector", "status": "Available",
+    }]
+    assert student.get("/api/rooms").status_code == 403
 
 
 def test_students_cannot_reserve(student):
