@@ -1363,6 +1363,8 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
 .document-scan-status.checking, .document-scan-status.capturing { color: #895d0b; }
 .document-scan-error { color: #aa252e; font-size: .82rem; }
 .document-scan-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.document-scan-options { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.document-scan-options .document-scan-status { flex: 1 1 100%; margin: 0; }
 .document-choose-button { position: relative; overflow: hidden; cursor: pointer; }
 .document-choose-button input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 

@@ -67,9 +67,12 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
   const readyCountRef = useRef(0);
   const capturingRef = useRef(false);
   const onCaptureRef = useRef(onCapture);
+  const uploadRef = useRef(null);
+  const scanActiveRef = useRef(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [status, setStatus] = useState("waiting");
+  const [mode, setMode] = useState("");
   const preview = useMemo(() => value ? URL.createObjectURL(value) : "", [value]);
   onCaptureRef.current = onCapture;
 
@@ -83,6 +86,7 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
         video: { facingMode: { ideal: "environment" }, width: { ideal: 1600 }, height: { ideal: 1200 } },
         audio: false,
       });
+      if (!scanActiveRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -96,12 +100,15 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
   }
 
   useEffect(() => {
-    if (enabled && !value) startCamera();
+    scanActiveRef.current = mode === "scan" && enabled && !value;
+    if (mode === "scan" && enabled && !value) startCamera();
     return () => {
+      scanActiveRef.current = false;
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
+      setCameraOn(false);
     };
-  }, [enabled, value]);
+  }, [enabled, value, mode]);
 
   useEffect(() => {
     if (!cameraOn || !enabled || value) return undefined;
@@ -145,6 +152,7 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
     previousRef.current = null;
     readyCountRef.current = 0;
     setStatus("waiting");
+    setMode("scan");
     onCapture(null);
   }
 
@@ -160,6 +168,19 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
 
   return (
     <div className={`document-scanner${value ? " is-captured" : ""}`} aria-label={`${label} camera scanner`}>
+      {!value && !mode && <div className="document-scan-options">
+        <button className="btn small ghost" type="button" disabled={!enabled}
+          onClick={() => { setMode("upload"); uploadRef.current?.click(); }}>Upload file</button>
+        <button className="btn small ghost" type="button" disabled={!enabled} onClick={() => { setCameraError(""); setMode("scan"); }}>Scan with camera</button>
+      </div>}
+      <input ref={uploadRef} type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={!enabled}
+        onChange={choosePhoto} />
+      {mode === "upload" && !value && <div className="document-scan-options">
+        <span className="document-scan-status">Choose an existing ID or COR image from your device.</span>
+        <button className="btn small ghost" type="button" disabled={!enabled} onClick={() => uploadRef.current?.click()}>Choose file</button>
+        <button className="btn small ghost" type="button" onClick={() => setMode("")}>Back</button>
+      </div>}
+      {(mode === "scan" || value) && <>
       <div className={`document-scan-stage kind-${kind} ${value ? "captured" : status}`} ref={stageRef}>
         {value
           ? <img src={preview} alt={`Captured ${label}`} />
@@ -172,18 +193,19 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
       {cameraError && <p className="document-scan-error" role="alert">{cameraError}</p>}
       <div className="document-scan-actions">
         {value ? (
-          <button className="btn small ghost" type="button" onClick={retake}>Retake photo</button>
+          <>
+            <button className="btn small ghost" type="button" disabled={!enabled} onClick={retake}>Scan again</button>
+            <button className="btn small ghost" type="button" disabled={!enabled} onClick={() => { setMode("upload"); uploadRef.current?.click(); }}>Upload another file</button>
+          </>
         ) : (
           <>
             {!cameraOn && <button className="btn small ghost" type="button" disabled={!enabled} onClick={startCamera}>Start camera</button>}
-            <label className="btn small ghost document-choose-button">
-              Choose photo
-              <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
-                disabled={!enabled} onChange={choosePhoto} />
-            </label>
+            <button className="btn small ghost" type="button" disabled={!enabled} onClick={() => { setMode("upload"); uploadRef.current?.click(); }}>Upload file instead</button>
+            <button className="btn small ghost" type="button" onClick={() => setMode("")}>Back</button>
           </>
         )}
       </div>
+      </>}
     </div>
   );
 }
