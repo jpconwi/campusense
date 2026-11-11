@@ -14,6 +14,7 @@ function RoomDirectory({ onReserve }) {
   const [error, setError] = useState("");
   const [department, setDepartment] = useState("");
   const [building, setBuilding] = useState("");
+  const [availability, setAvailability] = useState("");
 
   useEffect(() => {
     api("/api/rooms").then((data) => {
@@ -24,7 +25,9 @@ function RoomDirectory({ onReserve }) {
   }, []);
 
   const visibleRooms = (rooms || []).filter((room) =>
-    (!department || room.department === department) && (!building || room.building === building));
+    (!department || room.department === department)
+      && (!building || room.building === building)
+      && (!availability || room.status === availability));
 
   return <section className="room-directory" aria-label="Campus room directory">
     <div className="room-directory-heading">
@@ -42,6 +45,15 @@ function RoomDirectory({ onReserve }) {
         <select value={building} onChange={(event) => setBuilding(event.target.value)}>
           <option value="">All buildings</option>
           {buildingOptions.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+        </select>
+      </label>
+      <label>Availability
+        <select value={availability} onChange={(event) => setAvailability(event.target.value)}>
+          <option value="">All statuses</option>
+          <option value="Available">Available</option>
+          <option value="In Use">In Use</option>
+          <option value="Under Maintenance">Under Maintenance</option>
+          <option value="Not Available">Not Available</option>
         </select>
       </label>
     </div>
@@ -225,7 +237,7 @@ export default function MyList({ kind, hideForm = false }) {
         ? "Share campus feedback, suggest improvements, or report an issue with NEMSAI or the app."
         : spec.intro}{autoRefresh && " Status updates refresh automatically."}</p>
 
-      {!hideForm && <p><button className="btn" type="button" onClick={() => setOpen((o) => !o)}>
+      {!hideForm && kind !== "reservations" && <p><button className="btn" type="button" onClick={() => setOpen((o) => !o)}>
         {open ? "Close form" : combined ? "New report" : kind === "feedback" ? "New feedback or suggestion" : `New ${spec.form}`}
       </button></p>}
       {kind === "reservations" && <RoomDirectory onReserve={(room) => {
@@ -235,6 +247,10 @@ export default function MyList({ kind, hideForm = false }) {
       }} />}
       {!hideForm && open && (
         <div className="card" style={{ marginTop: 14 }}>
+          {kind === "reservations" && <p><button className="btn ghost" type="button" onClick={() => {
+            setOpen(false);
+            setSelectedRoom(null);
+          }}>Close reservation form</button></p>}
           {combined && <div style={{ maxWidth: 420, marginBottom: 14 }}>
             <label htmlFor="record-kind">Submit as</label>
             <select id="record-kind" value={formKind} onChange={(e) => setFormKind(e.target.value)}>
