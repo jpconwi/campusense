@@ -121,6 +121,11 @@ def test_instructors_can_browse_room_directory(instructor, student, db):
     assert {option["value"] for option in departments} >= {
         "COA", "CAS", "CBM", "CET", "CITE", "CTE", "COL", "COM", "GS",
     }
+    buildings = response.json()["building_options"]
+    assert {option["value"] for option in buildings} >= {
+        "ICT Building", "CITE", "CBM", "CAS", "CTE", "College of Law",
+        "Midwifery", "Administration", "Library", "Gymnasium", "Other",
+    }
     assert response.json()["rows"] == [{
         "id": 1, "room_id": "CITE-204", "name": "Computer Laboratory", "building": "CITE",
         "department": "Computer Studies", "room_type": "Laboratory", "capacity": "31-40",

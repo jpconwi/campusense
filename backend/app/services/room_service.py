@@ -25,6 +25,19 @@ TANDAG_DEPARTMENTS = [
     ("COM", "College of Medicine"),
     ("GS", "Graduate Studies"),
 ]
+TANDAG_BUILDINGS = [
+    "ICT Building",
+    "CITE",
+    "CBM",
+    "CAS",
+    "CTE",
+    "College of Law",
+    "Midwifery",
+    "Administration",
+    "Library",
+    "Gymnasium",
+    "Other",
+]
 
 
 def list_rooms(db: Session):
@@ -42,6 +55,19 @@ def list_department_options(db: Session):
     options.extend(
         {"value": value, "label": value}
         for value, in sorted(extra_departments, key=lambda row: (row[0] or "").casefold())
+        if value and value.casefold() not in known
+    )
+    return options
+
+
+def list_building_options(db: Session):
+    """Return known Tandag campus buildings plus custom room building values."""
+    known = {building.casefold() for building in TANDAG_BUILDINGS}
+    options = [{"value": building, "label": building} for building in TANDAG_BUILDINGS]
+    extra_buildings = db.query(Room.building).distinct().all()
+    options.extend(
+        {"value": value, "label": value}
+        for value, in sorted(extra_buildings, key=lambda row: (row[0] or "").casefold())
         if value and value.casefold() not in known
     )
     return options

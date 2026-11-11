@@ -1179,7 +1179,7 @@ def registration_help_resolve(message_id: int, _me: CurrentUser = Depends(super_
 
 # ------------------------------------------------------ rooms / campus
 ROOM_FIELDS = [["room_id", "Room ID", True], ["name", "Name", True],
-               ["building", "Building", False, "select", ["ICT Building", "CITE", "CBM", "CAS", "CTE", "College of Law", "Midwifery", "Administration", "Library", "Gymnasium", "Other"]],
+               ["building", "Building", False, "select", []],
                ["department", "Department", False, "select", []],
                ["room_type", "Type", False, "select", ["Classroom", "Computer Laboratory", "Laboratory", "Lecture Hall", "Office", "Conference Room", "Other"]],
                ["capacity", "Capacity", False, "select", ["1-10", "11-20", "21-30", "31-40", "40-50", "51-100", "100+" ]],
@@ -1195,19 +1195,17 @@ def rooms(page: int = Query(1, ge=1), page_size: int = Query(100, ge=1, le=250),
           _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     rows, total = room_service.list_rooms_page(db, page, page_size, search[:120], department[:120])
     fields = [field.copy() for field in ROOM_FIELDS]
+    building_options = room_service.list_building_options(db)
     department_options = room_service.list_department_options(db)
-    known = {option["value"] for option in department_options}
-    extra_departments = {value for value, in db.query(Room.building).distinct().all() if value}
-    for value in sorted(extra_departments):
-        if value not in known:
-            department_options.append({"value": value, "label": value})
     if "Other" not in {option["value"] for option in department_options}:
         department_options.append({"value": "Other", "label": "Other"})
+    next(field for field in fields if field[0] == "building")[4] = building_options
     next(field for field in fields if field[0] == "department")[4] = department_options
     return {"title": "Rooms", "fields": fields, "rows": rows,
             "pagination": {"page": page, "page_size": page_size, "total": total,
                            "pages": max(1, (total + page_size - 1) // page_size)},
             "department_options": department_options,
+            "building_options": building_options,
             "empty": "No rooms yet. Add the real rooms so the AI never has to guess."}
 
 

@@ -237,6 +237,7 @@ def instructor_rooms(user: CurrentUser = Depends(role_required("instructor")),
     return {
         "rows": room_service.list_rooms(db),
         "department_options": room_service.list_department_options(db),
+        "building_options": room_service.list_building_options(db),
     }
 
 

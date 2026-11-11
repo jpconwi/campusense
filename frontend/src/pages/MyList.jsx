@@ -10,6 +10,7 @@ const FEEDBACK_SCOPE_LABELS = { campus: "Campus services", system: "NEMSAI / app
 function RoomDirectory({ onReserve }) {
   const [rooms, setRooms] = useState(null);
   const [departmentOptions, setDepartmentOptions] = useState([]);
+  const [buildingOptions, setBuildingOptions] = useState([]);
   const [error, setError] = useState("");
   const [department, setDepartment] = useState("");
   const [building, setBuilding] = useState("");
@@ -18,10 +19,10 @@ function RoomDirectory({ onReserve }) {
     api("/api/rooms").then((data) => {
       setRooms(data.rows);
       setDepartmentOptions(data.department_options || []);
+      setBuildingOptions(data.building_options || []);
     }).catch((loadError) => setError(loadError.message));
   }, []);
 
-  const buildings = [...new Set((rooms || []).map((room) => room.building).filter(Boolean))].sort();
   const visibleRooms = (rooms || []).filter((room) =>
     (!department || room.department === department) && (!building || room.building === building));
 
@@ -40,7 +41,7 @@ function RoomDirectory({ onReserve }) {
       <label>Building
         <select value={building} onChange={(event) => setBuilding(event.target.value)}>
           <option value="">All buildings</option>
-          {buildings.map((value) => <option key={value} value={value}>{value}</option>)}
+          {buildingOptions.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
         </select>
       </label>
     </div>
