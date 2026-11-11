@@ -7,6 +7,15 @@ import { EmptyState, Loading, SearchBox, matches } from "../components/Ui.jsx";
 const LONG_TEXT = ["description", "message", "purpose", "additional_info", "admin_response"];
 const FEEDBACK_SCOPE_LABELS = { campus: "Campus services", system: "NEMSAI / application", technical: "Technical issue" };
 
+function roomAvailabilityClass(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "available") return "is-available";
+  if (normalized === "not available") return "is-unavailable";
+  if (normalized === "in use") return "is-in-use";
+  if (normalized.includes("maintenance")) return "is-maintenance";
+  return "is-other";
+}
+
 function RoomDirectory({ onReserve }) {
   const [rooms, setRooms] = useState(null);
   const [departmentOptions, setDepartmentOptions] = useState([]);
@@ -62,7 +71,13 @@ function RoomDirectory({ onReserve }) {
         : visibleRooms.length ? <div className="room-directory-list">
           {visibleRooms.map((room) => <article className="room-directory-card" key={room.id}>
             <div className="room-directory-card-heading">
-              <div><h4>{room.name || room.room_id}</h4><span className="muted">{room.room_id}</span></div>
+              <div className="room-directory-room-title">
+                <h4>{room.name || room.room_id}</h4>
+                <span className="muted">{room.room_id}</span>
+                <span className={`room-availability-badge ${roomAvailabilityClass(room.status)}`}>
+                  {room.status || "Availability not set"}
+                </span>
+              </div>
               <button className="btn small" type="button" onClick={() => onReserve(room)}>Reserve this room</button>
             </div>
             <p>{[room.building, room.department].filter(Boolean).join(" · ") || "Location not listed"}</p>
