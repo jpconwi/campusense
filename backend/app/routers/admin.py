@@ -172,7 +172,7 @@ def dashboard(me: CurrentUser = Depends(admin_required), db: Session = Depends(g
             ["Total Students", user_service.count_role(db, "student")],
             ["Total Instructors", user_service.count_role(db, "instructor")],
             ["Pending Concerns", common.count_rows(db, "concerns", "Pending")],
-            ["Total Reports", common.count_rows(db, "reports")],
+            ["Total Reports", common.count_rows(db, "reports") + common.count_rows(db, "concerns")],
             ["Pending Reports", common.count_rows(db, "reports", "Pending")],
             ["Urgent Photo Reports (open)", len(_urgent_open(db))],
             ["Resolved Reports", common.count_rows(db, "reports", "Resolved")],

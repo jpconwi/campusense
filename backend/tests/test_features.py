@@ -182,6 +182,18 @@ def test_admin_dashboard_counts_and_lists(student, admin):
     assert admin.get("/api/admin/records/nonsense").status_code == 404
 
 
+def test_super_admin_total_reports_includes_concerns(student, admin, monkeypatch):
+    student.post("/api/concerns", data=concern_form())
+    student.post("/api/reports", data={"location": "Gate", "report_type": "Security",
+                                       "description": "Door open", "report_date": TODAY})
+    monkeypatch.setattr(config, "super_admin_emails", lambda: {"admin@nemsu.edu.ph"})
+
+    dashboard = admin.get("/api/admin/dashboard")
+    assert dashboard.status_code == 200
+    stats = dict(dashboard.json()["stats"])
+    assert stats["Total Reports"] == 2
+
+
 def test_status_workflow_is_visible_in_chat(student, admin):
     cid = student.post("/api/concerns", data=concern_form()).json()["id"]
     assert "Pending" in student.ask("What is the status of my concern?")["answer"]
