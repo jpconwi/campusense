@@ -78,7 +78,7 @@ export default function NemsuRegister() {
               </label>
               <label className="registration-consent">
                 <input type="checkbox" checked={faceConsent} required onChange={(event) => setFaceConsent(event.target.checked)} />
-                <span>I consent to the configured AI provider checking only face visibility and framing during capture. One front-facing selfie is saved with my account for administrator review. The AI does not identify me or compare my face to any document.</span>
+                <span>I consent to an AI check for face visibility and framing. One selfie will be saved for administrator review; the AI does not identify me or compare my face with my ID.</span>
               </label>
               <FaceScanner onComplete={setFaceFiles} disabled={busy || !faceConsent} />
               <button className="btn" type="submit" disabled={busy}>

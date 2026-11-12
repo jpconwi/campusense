@@ -167,7 +167,7 @@ export default function Register() {
                   </label>
                   <label className="registration-consent">
                     <input type="checkbox" checked={faceConsent} required onChange={(e) => setFaceConsent(e.target.checked)} />
-                    <span>I consent to the configured AI provider checking only face visibility and framing during capture. One front-facing selfie will be saved with my account for administrator review. The AI does not identify me or compare my face to my ID. Administrators review any application that does not pass the document reference check.</span>
+                    <span>I consent to an AI check for face visibility and framing. One selfie will be saved for administrator review; the AI does not identify me or compare my face with my ID.</span>
                   </label>
                   <FaceScanner onComplete={setFaceFiles} disabled={busy || !faceConsent} />
                   {registrationType === "instructor" ? (
@@ -232,7 +232,7 @@ export default function Register() {
                           if (consent) extractStudentInfo(studentDocumentType === "school_id" ? idFile : corFile, true, "student");
                           else { extractionRequest.current += 1; setExtracting(false); setExtractionMessage("AI autofill is off. You can enter your name and student ID manually."); }
                         }} />
-                        <span>I agree to send my ID/COR scan to the configured AI provider to extract only my printed full name and student ID for form autofill, and to visually screen the document. A clear match to the configured reference, matching identity details, and a verified selfie may be auto-approved. Unclear, mismatched, or unavailable checks go to an administrator. The check does not prove authenticity or verify signatures. Image metadata is removed first, and administrators can view the submitted scans.</span>
+                        <span>I consent to AI screening my ID/COR and extracting my printed name and student ID for autofill. Clear matches may be auto-approved; unclear or mismatched results go to an administrator. This screening does not verify document authenticity or signatures. Metadata is removed before processing, and administrators can view my scans.</span>
                       </label>
                       {extracting && <p className="registration-scan-help" role="status">Reading your document...</p>}
                       {extractionMessage && <p className="registration-scan-help" role="status">{extractionMessage}</p>}

@@ -101,9 +101,9 @@ export default function Login() {
           </a>
 
           <p className="note">
-            Continue with your NEMSU Google account for automatic account setup. If you use personal
-            Gmail, choose Student or Instructor and submit the requested details for admin approval.
-            <br />Google handles sign-in; this site never sees your Google password.
+            Use your NEMSU Google account for automatic setup. Using personal Gmail? Choose Student
+            or Instructor and submit the requested details. An administrator must approve your account.
+            <br />Google securely handles sign-in; this site never sees your Google password.
           </p>
           <RegistrationHelp />
         </div>
