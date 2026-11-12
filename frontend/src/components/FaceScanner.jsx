@@ -4,10 +4,17 @@ import "./face-scanner.css";
 
 function photo(video) {
   const canvas = document.createElement("canvas");
-  const scale = Math.min(1, 900 / Math.max(video.videoWidth, video.videoHeight));
-  canvas.width = Math.round(video.videoWidth * scale);
-  canvas.height = Math.round(video.videoHeight * scale);
-  canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+  // Match the square object-fit: cover preview. Sending the whole landscape
+  // frame makes the server judge a different composition than the circle shows.
+  const sourceSize = Math.min(video.videoWidth, video.videoHeight);
+  const sourceX = (video.videoWidth - sourceSize) / 2;
+  const sourceY = (video.videoHeight - sourceSize) / 2;
+  const outputSize = Math.min(900, sourceSize);
+  canvas.width = outputSize;
+  canvas.height = outputSize;
+  canvas.getContext("2d").drawImage(
+    video, sourceX, sourceY, sourceSize, sourceSize, 0, 0, outputSize, outputSize,
+  );
   return new Promise((resolve, reject) => canvas.toBlob((blob) => {
     if (blob) resolve(new File([blob], "face-selfie.jpg", { type: "image/jpeg" }));
     else reject(new Error("Could not capture the selfie. Try again."));
