@@ -13,7 +13,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it("waits for the user to center their face and press capture", async () => {
+it("captures automatically after the face guide stays green", async () => {
   const user = userEvent.setup();
   const track = { stop: vi.fn() };
   Object.defineProperty(navigator, "mediaDevices", {
@@ -31,10 +31,8 @@ it("waits for the user to center their face and press capture", async () => {
 
   render(<FaceScanner onComplete={vi.fn()} />);
   await user.click(screen.getByRole("button", { name: "Start face scan" }));
-  expect(await screen.findByRole("button", { name: "Capture selfie" })).toBeInTheDocument();
-  expect(api).not.toHaveBeenCalled();
-
-  await user.click(screen.getByRole("button", { name: "Capture selfie" }));
+  expect(await screen.findByText("Face is centered. Hold still—the selfie will capture when the guide stays green."))
+    .toBeInTheDocument();
   expect(await screen.findByText("Selfie captured. Continue with registration.")).toBeInTheDocument();
-  expect(api).toHaveBeenCalledTimes(1);
+  expect(api).toHaveBeenCalledTimes(2);
 });

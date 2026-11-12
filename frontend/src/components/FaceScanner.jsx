@@ -18,11 +18,13 @@ export default function FaceScanner({ onComplete, disabled = false }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const busyRef = useRef(false);
+  const checkPoseRef = useRef(null);
+  const readyFramesRef = useRef(0);
   const [started, setStarted] = useState(false);
   const [starting, setStarting] = useState(false);
   const [checking, setChecking] = useState(false);
   const [capture, setCapture] = useState(null);
-  const [instruction, setInstruction] = useState("Start the camera, center your face, then capture.");
+  const [instruction, setInstruction] = useState("Start the camera, then center your face inside the circle.");
   const [poseState, setPoseState] = useState("waiting");
   const [error, setError] = useState("");
   const [guidanceUnavailable, setGuidanceUnavailable] = useState(false);
@@ -30,6 +32,12 @@ export default function FaceScanner({ onComplete, disabled = false }) {
 
   useEffect(() => () => streamRef.current?.getTracks().forEach((track) => track.stop()), []);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+  useEffect(() => {
+    if (!started || disabled || capture) return undefined;
+    checkPoseRef.current?.();
+    const timer = window.setInterval(() => checkPoseRef.current?.(), 900);
+    return () => window.clearInterval(timer);
+  }, [started, disabled, capture]);
 
   async function start() {
     setError("");
@@ -39,9 +47,10 @@ export default function FaceScanner({ onComplete, disabled = false }) {
         video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 1280 } }, audio: false,
       });
       streamRef.current = stream;
+      readyFramesRef.current = 0;
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
-      setInstruction("Center your face inside the circle, look at the camera, then capture.");
+      setInstruction("Center your face inside the circle and look at the camera.");
       setStarted(true);
     } catch {
       streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -63,13 +72,14 @@ export default function FaceScanner({ onComplete, disabled = false }) {
     onComplete({ front: frame });
   }
 
-  async function captureCurrentFrame() {
+  async function checkPose() {
     if (capture || !videoRef.current?.videoWidth || busyRef.current || disabled) return;
     busyRef.current = true;
     setChecking(true);
-    setGuidanceUnavailable(false);
-    setPoseState("checking");
-    setInstruction("Checking the captured frame…");
+    if (readyFramesRef.current === 0) {
+      setPoseState("checking");
+      setInstruction("Checking face position and visibility…");
+    }
     setError("");
     try {
       const frame = await photo(videoRef.current);
@@ -78,18 +88,35 @@ export default function FaceScanner({ onComplete, disabled = false }) {
       form.append("consent", "true");
       const result = await api("/api/auth/face-guidance", { method: "POST", form });
       if (!result.ready) {
+        readyFramesRef.current = 0;
         if (!result.available) {
           setGuidanceUnavailable(true);
-          setInstruction("Face guidance is unavailable. Re-center your face, capture again, or save the current selfie for administrator review.");
+          setInstruction("Face guidance is unavailable. Save a selfie for administrator review when your face is centered.");
           setPoseState("review");
           return;
         }
+        setGuidanceUnavailable(false);
         setInstruction(result.instruction || "Adjust your position and try again.");
         setPoseState("unclear");
         return;
       }
-      await capturePose(frame, !result.available);
+      if (!result.available) {
+        readyFramesRef.current = 0;
+        setGuidanceUnavailable(true);
+        setInstruction("Face guidance is unavailable. Save a selfie for administrator review when your face is centered.");
+        setPoseState("review");
+        return;
+      }
+      setGuidanceUnavailable(false);
+      readyFramesRef.current += 1;
+      if (readyFramesRef.current >= 2) {
+        await capturePose(frame);
+      } else {
+        setInstruction("Face is centered. Hold still—the selfie will capture when the guide stays green.");
+        setPoseState("ready");
+      }
     } catch (e) {
+      readyFramesRef.current = 0;
       const isServerResponse = Number.isInteger(e.status);
       setError(isServerResponse ? "" : (e.message || "Could not check this selfie."));
       setInstruction(isServerResponse
@@ -102,6 +129,7 @@ export default function FaceScanner({ onComplete, disabled = false }) {
       setChecking(false);
     }
   }
+  checkPoseRef.current = checkPose;
 
   async function saveForReview() {
     if (capture || !videoRef.current?.videoWidth || busyRef.current || disabled) return;
@@ -129,7 +157,7 @@ export default function FaceScanner({ onComplete, disabled = false }) {
 
   return <section className="face-scan" aria-label="Guided face scan">
     <h3>Face scan</h3>
-    <p className="registration-scan-help">Start the camera, center your face in the circle, then press Capture selfie. The selected frame is checked before it is saved.</p>
+    <p className="registration-scan-help">Start the camera and center your face inside the circle. When the guide stays green, your selfie captures automatically.</p>
     {error && <p className="flash error" role="alert">{error}</p>}
     <div className={`face-scan-stage${started && !capture ? "" : " idle"}`}>
       {capture
@@ -150,15 +178,11 @@ export default function FaceScanner({ onComplete, disabled = false }) {
             <p className={`face-scan-instruction ${poseState}`} role="status" aria-live="polite">
               {instruction}
             </p>
-            <div className="face-scan-actions">
-              <button className="btn" type="button" disabled={disabled || checking} onClick={captureCurrentFrame}>
-                {checking ? "Checking selfie…" : "Capture selfie"}
-              </button>
-              {guidanceUnavailable && <button className="btn secondary" type="button"
-                disabled={disabled || checking} onClick={saveForReview}>
+            {guidanceUnavailable && <div className="face-scan-actions">
+              <button className="btn" type="button" disabled={disabled || checking} onClick={saveForReview}>
                 Save for administrator review
-              </button>}
-            </div>
+              </button>
+            </div>}
           </>}
   </section>;
 }
