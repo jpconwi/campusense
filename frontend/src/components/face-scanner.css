@@ -18,3 +18,4 @@
 .face-scan-instruction.unclear { color: #b42318; }
 .face-scan-instruction.ready { color: #04784a; }
 .face-scan-instruction.error, .face-scan-instruction.review { color: #475569; }
+.face-scan-actions { display: grid; gap: 8px; }
