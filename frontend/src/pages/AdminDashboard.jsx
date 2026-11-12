@@ -84,10 +84,9 @@ export default function AdminDashboard() {
 
       {superAdmin && <section className="card user-activity-card">
         <div className="user-activity-heading">
-          <div><h3>User activity</h3><p className="muted">Active minutes while the website or mobile app is open in the foreground.</p></div>
+          <div><h3>User activity</h3></div>
           {activity && <strong>{activity.online_count} online now</strong>}
         </div>
-        <p className="muted">See who is online, recent activity, and the top three most active users.</p>
         <Link className="btn small" to="/admin/users?view=online">Open online users</Link>
       </section>}
 
