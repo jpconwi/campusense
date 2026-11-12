@@ -4,7 +4,7 @@ import { useAuth } from "../auth.jsx";
 import { Loading } from "../components/Ui.jsx";
 
 /** Rooms, Campus Information and Announcements: add a row, list rows, delete a row. */
-export default function AdminDataset({ kind }) {            // kind = "rooms" | "campus" | "announcements"
+export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "rooms" | "campus" | "announcements"
   const { setFlash } = useAuth();
   const [data, setData] = useState(null);
   const [values, setValues] = useState({});
@@ -26,7 +26,9 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
   }, [kind, page, search, department]);
   useEffect(() => { setData(null); setValues({}); setSearch(""); setDepartment(""); setPage(1); }, [kind]);
   useEffect(() => { const timer = setTimeout(load, kind === "rooms" ? 250 : 0); return () => clearTimeout(timer); }, [load, kind]);
-  useEffect(() => { if (data) document.title = `${data.title} | NEMSU`; }, [data]);
+  useEffect(() => {
+    if (data) document.title = `${tabs ? "Campus Data" : data.title} | NEMSU`;
+  }, [data, tabs]);
 
   async function save(e) {
     e.preventDefault();
@@ -99,7 +101,15 @@ export default function AdminDataset({ kind }) {            // kind = "rooms" | 
 
   return (
     <div className="page" style={{ maxWidth: 1300 }}>
-      <h2 className="page-title">{title}</h2>
+      <h2 className="page-title">{tabs ? "Campus Data" : title}</h2>
+      {tabs && <div className="filters" role="tablist" aria-label="Campus data sections">
+        {tabs.map(([key, label]) => (
+          <button key={key} type="button" role="tab" aria-selected={kind === key}
+            className={kind === key ? "on" : ""} onClick={() => onSelectTab(key)}>
+            {label}
+          </button>
+        ))}
+      </div>}
       <div className="card">
         <h3>{editing ? "Edit room" : "Add"}</h3>
         <form className="inline-form" style={{ width: "100%" }} onSubmit={save}>

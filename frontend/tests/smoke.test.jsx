@@ -226,6 +226,18 @@ describe("admin", () => {
       expect(await screen.findByRole("heading", { level: 2, name: heading })).toBeInTheDocument();
       cleanup();
     }
+
+    open("/admin/campus-data");
+    expect(await screen.findByRole("heading", { level: 2, name: "Campus Data" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Campus Data" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Faculty Reports" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Feedback" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Faculty & Feedback" })).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Campus Information" }));
+    expect(screen.getByRole("tab", { name: "Campus Information" })).toHaveAttribute("aria-selected", "true");
+    await user.click(screen.getByRole("tab", { name: "Announcements" }));
+    expect(screen.getByRole("tab", { name: "Announcements" })).toHaveAttribute("aria-selected", "true");
+    cleanup();
     expect(errors).toEqual([]);
   });
 

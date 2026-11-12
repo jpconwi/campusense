@@ -59,6 +59,7 @@ const ICONS = {
   "/admin/reservations": "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
   "/admin/rooms": "M5 21V4l10-1.5V21M3 21h18M12 12v.5",
   "/admin/campus": "M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21zM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z",
+  "/admin/campus-data": "M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21zM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z",
   "/admin/announcements": "M3 11v3l12 5V6zM15 8a4 4 0 0 1 0 8M6 14l1.5 6h3L9 15",
 };
 const FALLBACK_ICON = "M12 12m-3 0a3 3 0 1 0 6 0 3 3 0 1 0-6 0";
@@ -180,6 +181,7 @@ const GROUPS = {
   "/admin/reports": "Inbox", "/admin/faculty": "Inbox", "/admin/faculty-feedback": "Inbox", "/admin/accounts": "Inbox",
   "/admin/feedback": "Inbox", "/admin/reservations": "Inbox", "/admin/help-messages": "Inbox",
   "/admin/users": "Manage", "/admin/rooms": "Manage", "/admin/campus": "Manage", "/admin/announcements": "Manage",
+  "/admin/campus-data": "Manage",
 };
 function groupNav(nav, role) {
   const out = [];
@@ -187,10 +189,10 @@ function groupNav(nav, role) {
     const path = item.path.split("?", 1)[0];
     const superAdminGroups = {
       "/admin/help-messages": "Inbox", "/admin/reports": "Inbox", "/admin/faculty": "Inbox",
-      "/admin/faculty-feedback": "Inbox",
-      "/admin/feedback": "Inbox", "/admin/reservations": "Inbox",
+      "/admin/faculty-feedback": "Inbox", "/admin/feedback": "Inbox",
+      "/admin/reservations": "Inbox",
       "/admin/users": "People",
-      "/admin/rooms": "Campus data", "/admin/campus": "Campus data", "/admin/announcements": "Campus data",
+      "/admin/campus-data": "Manage",
       "/admin": "System", "/ai": "System", "/admin/system": "System",
     };
     // NEMSAI Assistant sits with the overview for admins
@@ -202,7 +204,7 @@ function groupNav(nav, role) {
     g.items.push(item);
   }
   const ORDER = role === "super_admin"
-    ? ["Inbox", "People", "Campus data", "System"]
+    ? ["Inbox", "People", "Manage", "System"]
     : ["Menu", "Overview", "Inbox", "Manage", "My records", "Account", "More"];
   return out.sort((a, b) => ORDER.indexOf(a.name) - ORDER.indexOf(b.name));
 }

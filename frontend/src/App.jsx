@@ -4,6 +4,7 @@ import Layout from "./components/Layout.jsx";
 import { AppSkeleton } from "./components/Skeletons.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminAccounts from "./pages/AdminAccounts.jsx";
+import AdminCampusData from "./pages/AdminCampusData.jsx";
 import AdminDataset from "./pages/AdminDataset.jsx";
 import AdminFaculty from "./pages/AdminFaculty.jsx";
 import AdminHelpMessages from "./pages/AdminHelpMessages.jsx";
@@ -79,6 +80,7 @@ export default function App() {
         <Route path="/admin/faculty-feedback" element={page(<SuperAdminFacultyFeedback />, ["super_admin"])} />
         <Route path="/admin/concerns" element={<Navigate to="/admin/reports?type=concern" replace />} />
         <Route path="/admin/faculty" element={page(<AdminFaculty />, ["admin"])} />
+        <Route path="/admin/campus-data" element={page(<AdminCampusData />, ["super_admin"])} />
         <Route path="/admin/rooms" element={page(<AdminDataset kind="rooms" />, ["super_admin"])} />
         <Route path="/admin/campus" element={page(<AdminDataset kind="campus" />, ["super_admin"])} />
         <Route path="/admin/announcements" element={page(<AdminDataset kind="announcements" />, ["admin"])} />
