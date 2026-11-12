@@ -79,7 +79,7 @@ export default function SuperAdmin() {
     </section>
 
     <h3>Administrator accounts and roles</h3>
-    <p className="muted">Admins manage reports and use the password assigned during account creation on the private admin sign-in page. Keep at least one super administrator configured in SUPER_ADMIN_EMAILS.</p>
+    
     <button className="btn" type="button" onClick={() => setShowAdminForm(true)}>Create admin account</button>
     <div className="table-wrap"><table className="data-table">
       <thead><tr><th>Name</th><th>Email</th><th>Department</th><th>Role</th><th>Admin account</th></tr></thead>
