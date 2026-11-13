@@ -29,7 +29,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app import config
 from app.database import get_db
-from app.routers.auth import _finish_login, _make_face_scan_pdf
+from app.routers.auth import _finish_login, _make_face_scan_pdf, _read_face_photo
 from app.security import MESSAGE_WRONG_ACCOUNT, create_mobile_token, is_nemsu_email
 from app.services import registration_verification_service, user_service
 from app.services.common import ValidationError, clean_text
@@ -138,6 +138,31 @@ async def extract_mobile_student_info(id_token: str = Form(...), consent: str = 
             else "Could not read the name or student ID clearly. You can enter them manually."}
 
 
+async def _face_check(face_front):
+    """AI framing check on the selfie (the same check as the website's guided face scan)."""
+    try:
+        result = await run_in_threadpool(registration_verification_service.face_selfie_guidance,
+                                         (face_front["data"], face_front["content_type"]))
+    except Exception as error:               # AI provider unreachable: an administrator reviews it
+        print("MOBILE FACE CHECK ERROR:", repr(error))
+        return {"state": "unavailable"}
+    return result or {"state": "unavailable"}
+
+
+@router.post("/register/face-check")
+async def mobile_face_check(id_token: str = Form(...), consent: str = Form(""),
+                            frame: UploadFile = File(...)):
+    """Tell the app right away whether the selfie is framed well enough, so it can be retaken."""
+    info = await _verified_claims(id_token)
+    if not info.get("sub") or not info.get("email_verified"):
+        raise HTTPException(400, "Registration requires a verified Google account.")
+    if consent.lower() != "true":
+        raise ValidationError("Face scan AI consent is required before camera analysis.")
+    face = await _read_face_photo(frame)
+    result = await _face_check(face)
+    return {**result, "ready": result.get("state") == "ready"}
+
+
 @router.post("/register/student")
 async def mobile_student_registration(
         id_token: str = Form(...), full_name: str = Form(...), student_id: str = Form(...),
@@ -145,8 +170,15 @@ async def mobile_student_registration(
         school_id_back_document: UploadFile = File(None),
         cor_document: UploadFile = File(None),
         ai_review_consent: str = Form(""),
+        face_photo_front: UploadFile = File(None),
+        face_photo_consent: str = Form(""),
         db: Session = Depends(get_db)):
     identity = await _personal_gmail_identity(id_token)
+    if face_photo_consent.lower() != "true":
+        raise ValidationError("Consent is required to store your selfie for administrator face review.")
+    face_front = await _read_face_photo(face_photo_front)
+    face_pdf = await run_in_threadpool(_make_face_scan_pdf, face_front)
+    face_verified = (await _face_check(face_front)).get("state") == "ready"
 
     name = clean_text(full_name, "Full name", 120)
     school_id = clean_text(student_id, "School ID", 50)
@@ -171,6 +203,8 @@ async def mobile_student_registration(
             (cor_scan["data"], cor_scan["content_type"]) if cor_scan else None,
             name, school_id,
         )
+    ai_note = (ai_note or "") + (" AI verified the front-facing selfie framing." if face_verified else
+                                  " The selfie was captured, but automatic framing verification was unavailable; administrator review is required.")
 
     primary = id_scan or cor_scan
     user_service.submit_student_registration(
@@ -183,13 +217,19 @@ async def mobile_student_registration(
         id_back_document=id_back_scan["data"] if id_back_scan else None,
         id_back_content_type=id_back_scan["content_type"] if id_back_scan else None,
         id_back_filename=id_back_scan["filename"] if id_back_scan else None,
-        ai_note=ai_note, auto_approve=auto_approve)
+        ai_note=ai_note, auto_approve=auto_approve,
+        face_image=face_front["data"], face_image_content_type=face_front["content_type"],
+        face_image_filename=face_front["filename"], face_scan_pdf=face_pdf,
+        face_verified=face_verified)
 
-    if auto_approve:
+    if auto_approve and face_verified:
         return {"success": True, "approval_status": "Approved",
-                "message": "Your document passed the visual screening and your student account is active. Sign in to continue."}
-    return {"success": True, "approval_status": "Pending",
-            "message": "Your documents need manual admin review. Your account will remain pending until it is approved."}
+                "message": "Your documents matched the reference and the selfie framing check passed. Your account is active; you can sign in now."}
+    if not auto_approve:
+        pending_message = "Your face scan is saved as a PDF. Your ID or COR needs administrator approval before you can sign in."
+    else:
+        pending_message = "Your documents matched, but automatic selfie framing verification was unavailable. An administrator must review your selfie before approving the account."
+    return {"success": True, "approval_status": "Pending", "message": pending_message}
 
 
 @router.post("/register/nemsu")
@@ -209,16 +249,18 @@ async def mobile_nemsu_registration(
     name = clean_text(full_name, "Full name", 120)
     if len(name) < 3:
         raise ValidationError("Enter your full name.")
-    front = await _read_scan(face_photo_front, "face scan (front)")
+    front = await _read_face_photo(face_photo_front) if (face_photo_front is not None and face_photo_front.filename) else None
     face_pdf = None
+    face_verified = False
     if front:
         face_pdf = await run_in_threadpool(_make_face_scan_pdf, front)
+        face_verified = (await _face_check(front)).get("state") == "ready"
     user = user_service.submit_nemsu_registration(
         db, info["sub"], name, email, chosen,
         face_image=front["data"] if front else None,
         face_image_content_type=front["content_type"] if front else None,
         face_image_filename=front["filename"] if front else None,
-        face_scan_pdf=face_pdf, face_verified=bool(face_pdf))
+        face_scan_pdf=face_pdf, face_verified=face_verified)
     return {"success": True, "approval_status": "Approved",
             "token": create_mobile_token(user.id), "token_type": "Bearer",
             "expires_in": config.MOBILE_TOKEN_DAYS * 24 * 3600, "role": user.role,
@@ -229,8 +271,15 @@ async def mobile_nemsu_registration(
 async def mobile_instructor_registration(
         id_token: str = Form(...), full_name: str = Form(...),
         instructor_id: str = Form(...), department: str = Form(...),
+        face_photo_front: UploadFile = File(None),
+        face_photo_consent: str = Form(""),
         db: Session = Depends(get_db)):
     identity = await _personal_gmail_identity(id_token)
+    if face_photo_consent.lower() != "true":
+        raise ValidationError("Consent is required to store your selfie for administrator face review.")
+    face_front = await _read_face_photo(face_photo_front)
+    face_pdf = await run_in_threadpool(_make_face_scan_pdf, face_front)
+    face_verified = (await _face_check(face_front)).get("state") == "ready"
 
     name = clean_text(full_name, "Full name", 120)
     employee_id = clean_text(instructor_id, "Instructor ID number", 50)
@@ -243,6 +292,9 @@ async def mobile_instructor_registration(
         raise ValidationError("Enter your department.")
 
     user_service.submit_instructor_registration(
-        db, identity["google_id"], name, identity["email"], employee_id, unit)
+        db, identity["google_id"], name, identity["email"], employee_id, unit,
+        face_image=face_front["data"], face_image_content_type=face_front["content_type"],
+        face_image_filename=face_front["filename"], face_scan_pdf=face_pdf,
+        face_verified=face_verified)
     return {"success": True,
             "message": "Your instructor registration is pending admin review. You can sign in after it is approved."}
