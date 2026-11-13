@@ -71,12 +71,12 @@ export default function SuperAdmin() {
         <strong>{role.replaceAll("_", " ")}</strong><h3>{count}</h3>
       </article>)}
     </section>
-    <h3>Campus-wide records</h3>
+    {/* <h3>Campus-wide records</h3>
     <section className="record-card-list" aria-label="Campus-wide record totals">
       {data.record_counts.map(([label, count]) => <article className="record-card" key={label}>
         <strong>{label}</strong><h3>{count}</h3>
       </article>)}
-    </section>
+    </section> */}
 
     <h3>Administrator accounts and roles</h3>
     
