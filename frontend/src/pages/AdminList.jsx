@@ -9,13 +9,40 @@ const LONG_TEXT = ["description", "message", "purpose", "additional_info"];
 function StatusForm({ kind, row, statuses, onChanged }) {
   const { setFlash } = useAuth();
   const [value, setValue] = useState(row.status);
-  useEffect(() => setValue(row.status), [row.status]);
+  const [resolutionPhoto, setResolutionPhoto] = useState(null);
+  const [requiresResolutionPhoto, setRequiresResolutionPhoto] = useState(row.status !== "Resolved");
+  useEffect(() => {
+    setValue(row.status);
+    setRequiresResolutionPhoto(row.status !== "Resolved");
+  }, [row.status]);
 
   async function save(e) {
     e.preventDefault();
+    const formElement = e.currentTarget;
     try {
-      const r = await api(`/api/admin/records/${kind}/${row.id}/status`, { method: "POST", json: { status: value } });
+      const needsPhoto = ["reports", "concerns"].includes(kind) && value === "Resolved"
+        && (requiresResolutionPhoto || Boolean(resolutionPhoto));
+      if (value === row.status && !resolutionPhoto) {
+        setFlash({ text: "The report already has this status.", kind: "info" });
+        return;
+      }
+      if (needsPhoto && !resolutionPhoto) {
+        setFlash({ text: "Take or select a completion photo before resolving this report.", kind: "error" });
+        return;
+      }
+      let r;
+      if (needsPhoto) {
+        const form = new FormData();
+        form.append("image", resolutionPhoto);
+        r = await api(`/api/admin/records/${kind}/${row.id}/resolve`, { method: "POST", form });
+      } else {
+        r = await api(`/api/admin/records/${kind}/${row.id}/status`, { method: "POST", json: { status: value } });
+      }
       setFlash({ text: r.message, kind: "info" });
+      if (needsPhoto) {
+        setResolutionPhoto(null);
+        formElement.elements.image.value = "";
+      }
     } catch (err) {
       setFlash({ text: err.message, kind: "error" });
     }
@@ -24,10 +51,22 @@ function StatusForm({ kind, row, statuses, onChanged }) {
 
   return (
     <form className="inline" onSubmit={save}>
-      <select id={`status-${kind}-${row.id}`} aria-label="New status" value={value} onChange={(e) => setValue(e.target.value)}>
+      <select id={`status-${kind}-${row.id}`} aria-label="New status" value={value} onChange={(e) => {
+        setValue(e.target.value);
+        setRequiresResolutionPhoto(e.target.value === "Resolved" && (row.status !== "Resolved" || value !== "Resolved"));
+        if (e.target.value !== "Resolved") setResolutionPhoto(null);
+      }}>
         {statuses.map((s) => <option key={s}>{s}</option>)}
       </select>{" "}
-      <button className="btn small" type="submit">Save</button>
+      {["reports", "concerns"].includes(kind) && value === "Resolved" && <>
+        <label className="muted" htmlFor={`resolution-photo-${kind}-${row.id}`}>
+          Completion photo {requiresResolutionPhoto ? "(required)" : "(optional replacement)"}
+        </label>{" "}
+        <input id={`resolution-photo-${kind}-${row.id}`} name="image" type="file" accept="image/png,image/jpeg,image/webp"
+          capture="environment" required={requiresResolutionPhoto}
+          onChange={(e) => setResolutionPhoto(e.target.files?.[0] || null)} />
+      </>}
+      <button className="btn small" type="submit" disabled={value === row.status && !resolutionPhoto}>Save</button>
     </form>
   );
 }
@@ -303,15 +342,15 @@ const CHECK = { supports: "matches the photo", partly: "partly matches the photo
                 contradicts: "does not match the photo", cannot_tell: "cannot tell from the photo" };
 const PESO = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 });
 
-function ReportPhoto({ filename }) {
+function ReportPhoto({ filename, alt = "Student's uploaded report photo", title = "Open the student's uploaded photo" }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [filename]);
   if (!filename) return null;
   const url = apiUrl(`/api/uploads/${encodeURIComponent(filename)}`);
   return failed ? <span className="muted">Photo unavailable</span> : (
     <a className="report-photo-link" href={url} target="_blank" rel="noopener noreferrer"
-       title="Open the student's uploaded photo">
-      <img className="report-photo-thumb" src={url} alt="Student's uploaded report photo"
+       title={title}>
+      <img className="report-photo-thumb" src={url} alt={alt}
            loading="lazy" onError={() => setFailed(true)} />
     </a>
   );
@@ -430,6 +469,11 @@ function RecordDetail({ row, apiKind, assignees, statuses, onChanged, superAdmin
           </aside>
         </div>
       )}
+      {row.status === "Resolved" && row.resolution_image_filename && <section className="report-resolution-photo">
+        <h4>Completion photo</h4>
+        <ReportPhoto filename={row.resolution_image_filename}
+          alt="Administrator's completion photo" title="Open the administrator's completion photo" />
+      </section>}
       {superAdmin ? <ReviewWorkflow row={row} kind={apiKind} assignees={assignees} onChanged={onChanged} /> : <section className="report-review-workflow">
         <h4>Admin actions</h4>
         <div className="report-admin-status"><label>Update status</label><StatusForm kind={apiKind} row={row} statuses={statuses} onChanged={onChanged} /></div>

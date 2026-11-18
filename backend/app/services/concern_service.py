@@ -52,10 +52,13 @@ def delete_concern(db: Session, concern_id):
     if row is None:
         raise common.ValidationError("Concern not found.")
     image_filename = row.image_filename
+    resolution_image_filename = row.resolution_image_filename
     generated_pdf = pdf_path(concern_id)
     db.delete(row)
     db.commit()
     delete_image(image_filename)
+    if resolution_image_filename != image_filename:
+        delete_image(resolution_image_filename)
     try:
         generated_pdf.unlink(missing_ok=True)
     except OSError:

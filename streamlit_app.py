@@ -136,9 +136,13 @@ def role_screen(user):
     st.title(f"Welcome, {user.name}")
     st.write("Choose your account type. You can't change it later without an administrator.")
     choice = st.radio("I am a…", ["student", "instructor"], horizontal=True)
+    department = st.text_input("Department")
     if st.button("Continue", type="primary"):
+        if len(department.strip()) < 2:
+            st.error("Enter your department.")
+            st.stop()
         with SessionLocal() as db:
-            if user_service.set_role_first_time(db, user.id, choice):
+            if user_service.set_role_first_time(db, user.id, choice, department):
                 st.rerun()
             st.error("Could not save that choice.")
     st.stop()

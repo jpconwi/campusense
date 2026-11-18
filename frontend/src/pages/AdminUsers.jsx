@@ -8,6 +8,12 @@ import AdminAccounts from "./AdminAccounts.jsx";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
+const SUSPENSION_CHOICES = [
+  ["3_days", "3 days"],
+  ["15_days", "15 days"],
+  ["1_month", "1 month"],
+  ["banned", "Permanent ban"],
+];
 
 function deletionCountdownLabel(purgeAfter) {
   if (!purgeAfter) return "Deletion date unavailable";
@@ -44,6 +50,9 @@ export default function AdminUsers() {
   const [rows, setRows] = useState(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState(() => params.get("filter") || "all");
+  const [deactivationTarget, setDeactivationTarget] = useState(null);
+  const [suspensionType, setSuspensionType] = useState("3_days");
+  const [suspensionBusy, setSuspensionBusy] = useState(false);
   const load = useCallback(() => { api("/api/admin/users").then((data) => setRows(data.rows)).catch(() => {}); }, []);
   useEffect(() => { document.title = "Users | NEMSU"; load(); }, [load]);
 
@@ -63,12 +72,36 @@ export default function AdminUsers() {
     }).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   }, [rows, search, filter]);
 
-  async function toggle(user) {
+  async function updateActive(user, active, selectedSuspensionType) {
+    setSuspensionBusy(true);
     try {
-      const result = await api(`/api/admin/users/${user.id}/active`, { method: "POST", json: { active: !user.is_active } });
+      const result = await api(`/api/admin/users/${user.id}/active`, {
+        method: "POST",
+        json: { active, suspension_type: selectedSuspensionType },
+      });
       setFlash({ text: result.message, kind: "info" });
-    } catch (err) { setFlash({ text: err.message, kind: "error" }); }
-    load();
+      setDeactivationTarget(null);
+      load();
+    } catch (err) {
+      setFlash({ text: err.message, kind: "error" });
+    } finally {
+      setSuspensionBusy(false);
+    }
+  }
+
+  function toggle(user) {
+    if (user.is_active) {
+      setSuspensionType("3_days");
+      setDeactivationTarget(user);
+      return;
+    }
+    updateActive(user, true);
+  }
+
+  async function confirmDeactivation(event) {
+    event.preventDefault();
+    if (!deactivationTarget) return;
+    await updateActive(deactivationTarget, false, suspensionType);
   }
 
   async function softDelete(user) {
@@ -100,7 +133,7 @@ export default function AdminUsers() {
       <Link to="/admin/users?view=checks" className={view === "checks" ? "selected" : ""}>Account checks</Link>
     </nav>
     {view === "online" ? <AdminOnlineUsers embedded /> : <>
-    <p className="admin-section-note">Users are sorted A-Z. Deleted accounts are disabled immediately and permanently removed after seven days.</p>
+    <p className="admin-section-note">Users are sorted A-Z. Deactivate accounts for 3 days, 15 days, 1 month, or permanently ban them. Deleted accounts are removed after seven days.</p>
     <div className="admin-users-controls">
       <SearchBox value={search} onChange={setSearch} shown={visibleRows.length}
         total={search || filter !== "all" ? visibleRows.length : rows.length} placeholder="Search name, email, student ID, or account ID..." />
@@ -121,7 +154,9 @@ export default function AdminUsers() {
             <span className={'badge ' + (user.approval_status === 'Approved' ? 's-available' : user.approval_status === 'Rejected' || user.deleted_at ? 's-rejected' : 's-pending')}>{user.approval_status || 'Approved'}</span>
             <span className={'badge ' + (user.is_active ? 's-available' : 's-rejected')}>{user.deleted_at
               ? deletionCountdownLabel(user.purge_after)
-              : user.is_active ? 'Active' : 'Deactivated'}</span>
+              : user.is_active ? 'Active'
+                : user.suspension_type === 'banned' ? 'Banned'
+                  : user.suspension_until ? `Suspended until ${user.suspension_until}` : 'Deactivated'}</span>
           </div>
         </div>
         <div className="admin-user-card-meta">
@@ -158,6 +193,27 @@ export default function AdminUsers() {
       </article>)}
       {visibleRows.length === 0 && <div className="admin-users-empty">No users match this search and filter.</div>}
     </section>
+    {deactivationTarget && <div className="system-modal-backdrop" onMouseDown={(event) => {
+      if (event.target === event.currentTarget && !suspensionBusy) setDeactivationTarget(null);
+    }}>
+      <section className="system-modal" role="dialog" aria-modal="true" aria-labelledby="deactivate-user-title">
+        <h3 id="deactivate-user-title">Deactivate {deactivationTarget.name}?</h3>
+        <p className="muted">They will be blocked from signing in and shown the suspension end date. A permanent ban remains until you reactivate the account.</p>
+        <form className="system-admin-form" onSubmit={confirmDeactivation}>
+          <label>Duration
+            <select value={suspensionType} onChange={(event) => setSuspensionType(event.target.value)}>
+              {SUSPENSION_CHOICES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </label>
+          <div className="system-modal-actions">
+            <button className="btn ghost" type="button" disabled={suspensionBusy} onClick={() => setDeactivationTarget(null)}>Cancel</button>
+            <button className="btn danger" type="submit" disabled={suspensionBusy}>
+              {suspensionBusy ? "Saving..." : suspensionType === "banned" ? "Ban permanently" : "Deactivate account"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>}
     </>}
   </div>;
 }

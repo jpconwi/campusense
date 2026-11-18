@@ -82,6 +82,10 @@ async def mobile_google_login(body: GoogleTokenBody):
         return {"status": "nemsu_registration_required",
                 "email": (info.get("email") or "").strip().lower(),
                 "google_name": (info.get("name") or "").strip()[:120]}
+    if result == "banned":
+        raise HTTPException(403, "Your account has been permanently banned. Contact NEMSU administration if you believe this is a mistake.")
+    if result.startswith("suspended_"):
+        raise HTTPException(403, f"Your account is suspended until {result[len('suspended_'):]}.")
     if result in _BLOCKED:
         code, message = _BLOCKED[result]
         raise HTTPException(code, message)
@@ -166,6 +170,7 @@ async def mobile_face_check(id_token: str = Form(...), consent: str = Form(""),
 @router.post("/register/student")
 async def mobile_student_registration(
         id_token: str = Form(...), full_name: str = Form(...), student_id: str = Form(...),
+        department: str = Form(...),
         school_id_document: UploadFile = File(None),
         school_id_back_document: UploadFile = File(None),
         cor_document: UploadFile = File(None),
@@ -182,10 +187,13 @@ async def mobile_student_registration(
 
     name = clean_text(full_name, "Full name", 120)
     school_id = clean_text(student_id, "School ID", 50)
+    unit = clean_text(department, "Department", 120)
     if len(name) < 3:
         raise ValidationError("Enter your full name as shown on your school ID or COR.")
     if len(school_id) < 3:
         raise ValidationError("Enter a valid NEMSU school ID number.")
+    if len(unit) < 2:
+        raise ValidationError("Enter your department.")
 
     id_scan = await _read_scan(school_id_document, "school ID")
     id_back_scan = await _read_scan(school_id_back_document, "school ID back")
@@ -220,7 +228,7 @@ async def mobile_student_registration(
         ai_note=ai_note, auto_approve=auto_approve,
         face_image=face_front["data"], face_image_content_type=face_front["content_type"],
         face_image_filename=face_front["filename"], face_scan_pdf=face_pdf,
-        face_verified=face_verified)
+        face_verified=face_verified, department=unit)
 
     if auto_approve and face_verified:
         return {"success": True, "approval_status": "Approved",
@@ -235,6 +243,7 @@ async def mobile_student_registration(
 @router.post("/register/nemsu")
 async def mobile_nemsu_registration(
         id_token: str = Form(...), full_name: str = Form(...), role: str = Form(...),
+        department: str = Form(...),
         face_photo_front: UploadFile = File(None),
         db: Session = Depends(get_db)):
     """NEMSU students/instructors: register with an optional selfie, then sign in
@@ -247,8 +256,11 @@ async def mobile_nemsu_registration(
     if chosen not in ("student", "instructor"):
         raise ValidationError("Choose Student or Instructor.")
     name = clean_text(full_name, "Full name", 120)
+    unit = clean_text(department, "Department", 120)
     if len(name) < 3:
         raise ValidationError("Enter your full name.")
+    if len(unit) < 2:
+        raise ValidationError("Enter your department.")
     front = await _read_face_photo(face_photo_front) if (face_photo_front is not None and face_photo_front.filename) else None
     face_pdf = None
     face_verified = False
@@ -260,7 +272,7 @@ async def mobile_nemsu_registration(
         face_image=front["data"] if front else None,
         face_image_content_type=front["content_type"] if front else None,
         face_image_filename=front["filename"] if front else None,
-        face_scan_pdf=face_pdf, face_verified=face_verified)
+        face_scan_pdf=face_pdf, face_verified=face_verified, department=unit)
     return {"success": True, "approval_status": "Approved",
             "token": create_mobile_token(user.id), "token_type": "Bearer",
             "expires_in": config.MOBILE_TOKEN_DAYS * 24 * 3600, "role": user.role,

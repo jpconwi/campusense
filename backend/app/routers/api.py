@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app import config
@@ -480,15 +480,15 @@ def upload(filename: str, user: CurrentUser = Depends(login_required),
     if _IMAGE_NAME.match(filename):
         for table in ("concerns", "reports"):
             model = common.MODELS[table]
-            owner_id = db.execute(select(model.user_id).where(
-                model.image_filename == filename).limit(1)).scalar_one_or_none()
-            if owner_id is not None:
+            record = db.scalars(select(model).where(or_(
+                model.image_filename == filename,
+                model.resolution_image_filename == filename)).limit(1)).first()
+            if record is not None:
                 allowed_admin = user.role == "super_admin"
                 if user.role == "admin":
-                    record = db.scalars(select(model).where(model.image_filename == filename).limit(1)).first()
                     allowed_admin = bool(record and record.workflow_review == "Accepted"
                                          and (record.assigned_admin_email or "").lower() == user.email.lower())
-                if allowed_admin or owner_id == user.id:
+                if allowed_admin or record.user_id == user.id:
                     image_data, content_type = upload_service.get_image(filename)
                     if image_data is not None:
                         return Response(image_data, media_type=content_type,

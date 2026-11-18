@@ -66,6 +66,8 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     last_login: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    suspension_type: Mapped[Optional[str]] = mapped_column(String(20))
+    suspension_until: Mapped[Optional[datetime]] = mapped_column(DateTime)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     purge_after: Mapped[Optional[datetime]] = mapped_column(DateTime, index=True)
 
@@ -149,6 +151,7 @@ class Concern(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     concern_date: Mapped[date] = mapped_column(Date, nullable=False)
     image_filename: Mapped[Optional[str]] = mapped_column(String(100))
+    resolution_image_filename: Mapped[Optional[str]] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(30), default="Pending", nullable=False)
     priority: Mapped[str] = mapped_column(String(20), default="Medium", nullable=False)
     sentiment: Mapped[Optional[str]] = mapped_column(String(10))        # Positive / Neutral / Negative / Mixed
@@ -188,6 +191,7 @@ class Report(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     report_date: Mapped[date] = mapped_column(Date, nullable=False)
     image_filename: Mapped[Optional[str]] = mapped_column(String(100))
+    resolution_image_filename: Mapped[Optional[str]] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(30), default="Pending", nullable=False)
     priority: Mapped[str] = mapped_column(String(20), default="Medium", nullable=False)
     sentiment: Mapped[Optional[str]] = mapped_column(String(10))        # Positive / Neutral / Negative / Mixed

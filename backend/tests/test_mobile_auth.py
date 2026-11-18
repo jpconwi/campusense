@@ -61,7 +61,9 @@ def test_login_then_role_then_ask_without_csrf_or_cookies():
     assert c.post("/api/ask", json={"question": "hi"}, headers=h).status_code == 403
 
     # POST with bearer and NO csrf header works
-    assert c.post("/api/auth/role", json={"role": "student"}, headers=h).status_code == 200
+    assert c.post("/api/auth/role", json={
+        "role": "student", "department": "Computer Studies",
+    }, headers=h).status_code == 200
     r = c.post("/api/ask", json={"question": "hello"}, headers=h)
     assert r.status_code == 200 and r.json()["type"] == "message" and r.json()["answer"]
 
@@ -71,7 +73,7 @@ def test_login_then_role_then_ask_without_csrf_or_cookies():
 def test_second_login_returns_existing_role():
     c = app_client()
     h = auth(login(c).json()["token"])
-    c.post("/api/auth/role", json={"role": "instructor"}, headers=h)
+    c.post("/api/auth/role", json={"role": "instructor", "department": "Computer Studies"}, headers=h)
     assert login(c).json()["role"] == "instructor"
 
 
@@ -153,7 +155,7 @@ def test_expired_bearer_token(monkeypatch):
 def test_bearer_wins_over_cookie_and_bad_bearer_does_not_fall_back_to_cookie(client):
     web = client()                                        # website user with a cookie session
     web.google_login("web@nemsu.edu.ph", "Web User")
-    web.post("/api/auth/role", json={"role": "student"})
+    web.post("/api/auth/role", json={"role": "student", "department": "Computer Studies"})
     assert web.me()["user"]["email"] == "web@nemsu.edu.ph"
 
     token = login(web.http, email="phone@nemsu.edu.ph").json()["token"]

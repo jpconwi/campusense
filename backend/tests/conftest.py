@@ -122,7 +122,9 @@ def make_user(email, role, name=None):
     c = Client()
     c.google_login(email, name or email.split("@")[0].title())
     if role in ("student", "instructor"):
-        assert c.post("/api/auth/role", json={"role": role}).status_code == 200
+        assert c.post("/api/auth/role", json={
+            "role": role, "department": "Computer Studies",
+        }).status_code == 200
     return c
 
 

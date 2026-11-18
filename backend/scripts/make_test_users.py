@@ -37,9 +37,9 @@ def main():
 
     with SessionLocal() as db:
         s = user_service.login_user(db, "g-sam", "Sam Student", "sam@nemsu.edu.ph", False)
-        user_service.set_role_first_time(db, s.id, "student")
+        user_service.set_role_first_time(db, s.id, "student", "Computer Studies")
         i = user_service.login_user(db, "g-ines", "Ines Instructor", "ines@nemsu.edu.ph", False)
-        user_service.set_role_first_time(db, i.id, "instructor")
+        user_service.set_role_first_time(db, i.id, "instructor", "Computer Studies")
         admin_auth_service.set_password(db, admins[0], "long-enough-password")
     with open(out, "w") as f:
         json.dump({"student": cookie(s.id), "instructor": cookie(i.id)}, f)

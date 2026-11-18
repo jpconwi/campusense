@@ -92,10 +92,11 @@ def _make_face_scan_pdf(front):
     return output.getvalue()
 
 
-def _to_login(request: Request, code):
-    """Back to the React login page. `code` is a fixed word the page turns into a message."""
+def _to_login(request: Request, code, until=None):
+    """Back to the React login page with a fixed message code and optional suspension date."""
     request.session.clear()
-    return RedirectResponse(f"/login?error={code}", status_code=302)
+    suffix = f"&until={until}" if until else ""
+    return RedirectResponse(f"/login?error={code}{suffix}", status_code=302)
 
 
 def _landing(role):
@@ -160,8 +161,9 @@ def _finish_login(info, allow_personal_registration=False):
                 return "approval_pending", None, None
             if existing.approval_status == "Rejected":
                 return "approval_rejected", None, None
+            user_service.activate_expired_suspension(db, existing)
             if not existing.is_active:
-                return "deactivated", None, None
+                return user_service.inactive_login_result(existing), None, None
             user = user_service.login_user(db, info["sub"], name, email, False)
             return "ok", user.id, user.role
 
@@ -172,9 +174,10 @@ def _finish_login(info, allow_personal_registration=False):
         # addresses are then auto-activated and queued for the administrator's check.
         if existing is None and is_nemsu and not is_admin:
             return "nemsu_registration_required", None, None
+        user_service.activate_expired_suspension(db, existing)
+        if existing is not None and not existing.is_active:
+            return user_service.inactive_login_result(existing), None, None
         user = user_service.login_user(db, info["sub"], name, email, is_admin)
-        if not user.is_active:
-            return "deactivated", None, None
         role = ("super_admin" if is_super_admin_email(user.email) else
                 "admin" if is_admin_email(user.email) else user.role)
         return "ok", user.id, role
@@ -214,6 +217,13 @@ async def callback(request: Request):
         request.session["face_scan_steps"] = []
         return RedirectResponse("/register/nemsu", status_code=302)
     if result != "ok":
+        if result == "banned":
+            return _to_login(request, "banned")
+        if result.startswith("suspended_"):
+            until = result[len("suspended_"):]
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", until):
+                return _to_login(request, "suspended", until)
+            return _to_login(request, "deactivated")
         return _to_login(request, {
             "approval_pending": "approval_pending",
             "approval_rejected": "approval_rejected",
@@ -256,7 +266,7 @@ async def personal_face_guidance(request: Request, frame: UploadFile = File(...)
 
 @router.post("/student-registration")
 async def student_registration(request: Request, full_name: str = Form(...),
-                               student_id: str = Form(...),
+                               student_id: str = Form(...), department: str = Form(...),
                                face_photo_front: UploadFile = File(...),
                                face_photo_consent: str = Form(""),
                                school_id_document: UploadFile = File(None),
@@ -287,10 +297,13 @@ async def student_registration(request: Request, full_name: str = Form(...),
 
     name = clean_text(full_name, "Full name", 120)
     school_id = clean_text(student_id, "School ID", 50)
+    unit = clean_text(department, "Department", 120)
     if len(name) < 3:
         raise ValidationError("Enter your full name as shown on your school ID or COR.")
     if len(school_id) < 3:
         raise ValidationError("Enter a valid NEMSU school ID number.")
+    if len(unit) < 2:
+        raise ValidationError("Enter your department.")
     id_scan = await _read_registration_scan(school_id_document, "school ID")
     id_back_scan = await _read_registration_scan(school_id_back_document, "school ID back")
     cor_scan = await _read_registration_scan(cor_document, "COR")
@@ -325,7 +338,7 @@ async def student_registration(request: Request, full_name: str = Form(...),
         ai_note=ai_note, auto_approve=auto_approve,
         face_image=face_front["data"], face_image_content_type=face_front["content_type"],
         face_image_filename=face_front["filename"], face_scan_pdf=face_pdf,
-        face_verified=face_verified)
+        face_verified=face_verified, department=unit)
     request.session.clear()
     if auto_approve and face_verified:
         return {"success": True, "approval_status": "Approved",
@@ -415,6 +428,7 @@ def nemsu_registration_status(request: Request):
 
 @router.post("/nemsu-registration")
 async def nemsu_registration(request: Request, full_name: str = Form(...), role: str = Form(...),
+                             department: str = Form(...),
                              face_photo_front: UploadFile = File(...),
                              face_photo_consent: str = Form(""),
                              db: Session = Depends(get_db)):
@@ -443,13 +457,16 @@ async def nemsu_registration(request: Request, full_name: str = Form(...), role:
     face_verified = bool(face_steps[0].get("verified"))
 
     name = clean_text(full_name, "Full name", 120)
+    unit = clean_text(department, "Department", 120)
     if len(name) < 3:
         raise ValidationError("Enter your full name.")
+    if len(unit) < 2:
+        raise ValidationError("Enter your department.")
     user = user_service.submit_nemsu_registration(
         db, identity["google_id"], name, email, chosen,
         face_image=face_front["data"], face_image_content_type=face_front["content_type"],
         face_image_filename=face_front["filename"], face_scan_pdf=face_pdf,
-        face_verified=face_verified)
+        face_verified=face_verified, department=unit)
     request.session.clear()                      # sign the new account in right away
     request.session["user_id"] = user.id
     return {"success": True, "next": _landing(user.role),
@@ -493,13 +510,19 @@ def student_registration_status(request: Request):
 # ---------------------------------------------------------- role selection
 class RoleBody(BaseModel):
     role: str = ""
+    department: str = ""
 
 
 @router.post("/role")
 def select_role(body: RoleBody, user=Depends(authenticated_only), db: Session = Depends(get_db)):
     if user.role is not None:                    # already chosen (or admin)
         return {"role": user.role, "next": _landing(user.role)}
-    if not user_service.set_role_first_time(db, user.id, body.role):
+    if body.role not in ("student", "instructor"):
+        raise HTTPException(400, "Please select Student or Instructor.")
+    department = clean_text(body.department, "Department", 120)
+    if len(department) < 2:
+        raise ValidationError("Enter your department.")
+    if not user_service.set_role_first_time(db, user.id, body.role, department):
         raise HTTPException(400, "Please select Student or Instructor.")
     return {"role": body.role, "next": _landing(body.role)}
 

@@ -89,13 +89,13 @@ export default function Register() {
     if (!faceFiles?.front) return setError("Complete the front-facing selfie scan.");
     if (faceFiles.front.size > 5 * 1024 * 1024) return setError("The selfie must be 5 MB or smaller.");
     if (!faceConsent) return setError("Consent is required to store your selfie for administrator review.");
+    if (department.trim().length < 2) return setError("Enter your department.");
     form.append("face_photo_front", faceFiles.front);
     form.append("face_photo_consent", "true");
+    form.append("department", department.trim());
     if (registrationType === "instructor") {
       if (studentId.trim().length < 3) return setError("Enter your instructor ID number.");
-      if (department.trim().length < 2) return setError("Enter your department.");
       form.append("instructor_id", studentId);
-      form.append("department", department);
     } else {
       if (fullName.trim().length < 3) return setError("Check the full name detected from your document.");
       if (studentId.trim().length < 3) return setError("Check the student ID detected from your document.");
@@ -245,6 +245,10 @@ export default function Register() {
                       <label>
                         Student ID number
                         <input value={studentId} onChange={(e) => setStudentId(e.target.value)} maxLength={50} required />
+                      </label>
+                      <label>
+                        Department
+                        <input value={department} onChange={(e) => setDepartment(e.target.value)} maxLength={120} required />
                       </label>
                     </>
                   )}

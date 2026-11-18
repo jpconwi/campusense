@@ -3,9 +3,10 @@
 from datetime import datetime, timedelta
 
 from app import config
-from app.models import FacultyReport, Room, User
+from app.models import FacultyReport, Report, Room, User
 from app.prompts.systemPrompt import OFF_TOPIC_RESPONSE
 from app.services import room_service, user_service
+from app.services.common import now
 
 TODAY = datetime.now().date().isoformat()
 TOMORROW = (datetime.now().date() + timedelta(days=1)).isoformat()
@@ -90,6 +91,39 @@ def test_report_and_feedback(student, instructor):
                                                "message": "Great place", "feedback_date": TODAY})
     assert f.status_code == 200 and f.json()["pdf_url"].startswith("/api/pdf/feedback/")
     assert instructor.get(f.json()["pdf_url"]).status_code == 200
+
+
+def test_assigned_admin_must_upload_resolution_photo_and_reporter_and_super_admin_can_view(
+        student, student2, admin, client, db, monkeypatch):
+    report_response = student.post("/api/reports", data={
+        "location": "Library", "report_type": "Maintenance",
+        "description": "Broken light", "report_date": TODAY,
+    })
+    assert report_response.status_code == 200
+    report_id = report_response.json()["id"]
+    report = db.get(Report, report_id)
+    report.workflow_review = "Accepted"
+    report.assigned_admin_email = "admin@nemsu.edu.ph"
+    db.commit()
+
+    status_url = f"/api/admin/records/reports/{report_id}/status"
+    denied_resolution = admin.post(status_url, json={"status": "Resolved"})
+    assert denied_resolution.status_code == 400
+    assert "completion photo" in denied_resolution.json()["error"]
+
+    resolved = admin.post(f"/api/admin/records/reports/{report_id}/resolve",
+                          files={"image": ("repair.png", PNG, "image/png")})
+    assert resolved.status_code == 200, resolved.text
+    row = student.get("/api/me/records/reports").json()["rows"][0]
+    assert row["status"] == "Resolved" and row["resolution_image_filename"]
+    photo_url = f"/api/uploads/{row['resolution_image_filename']}"
+    assert student.get(photo_url).status_code == 200
+    assert student2.get(photo_url).status_code == 404
+
+    monkeypatch.setattr(config, "super_admin_emails", lambda: {"super@nemsu.edu.ph"})
+    super_admin = client()
+    super_admin.google_login("super@nemsu.edu.ph", "Sam Super")
+    assert super_admin.get(photo_url).status_code == 200
 
 
 # ------------------------------------------------------------- reservations
@@ -215,7 +249,8 @@ def test_admin_chat_reads_real_records(student, student2, admin, prompts):
     assert prompts == []                                                     # never the LLM
 
 
-def test_user_management(student, admin, client):
+def test_user_management(student, admin, client, db, monkeypatch):
+    monkeypatch.setattr(config, "super_admin_emails", lambda: {"admin@nemsu.edu.ph"})
     users = admin.get("/api/admin/users").json()["rows"]
     assert {u["email"] for u in users} == {"sam@nemsu.edu.ph", "admin@nemsu.edu.ph"}
     assert all("google_id" not in u for u in users)
@@ -226,11 +261,30 @@ def test_user_management(student, admin, client):
     me = next(u for u in users if u["email"] == "admin@nemsu.edu.ph")
     assert admin.post(f"/api/admin/users/{me['id']}/active", json={"active": False}).status_code == 400
     # deactivate: the open session stops working and a new login is refused
-    assert admin.post(f"/api/admin/users/{sam['id']}/active", json={"active": False}).status_code == 200
+    suspended = admin.post(f"/api/admin/users/{sam['id']}/active", json={
+        "active": False, "suspension_type": "3_days",
+    })
+    assert suspended.status_code == 200
     assert student.post("/api/ask", json={"question": "hi"}).status_code == 401
     again = client()
     r = again.google_login("sam@nemsu.edu.ph")
-    assert r.headers["location"] == "/login?error=deactivated"
+    account = db.query(User).filter_by(email="sam@nemsu.edu.ph").one()
+    until = account.suspension_until.strftime("%Y-%m-%d")
+    assert r.headers["location"] == f"/login?error=suspended&until={until}"
+
+    account.suspension_until = now() - timedelta(seconds=1)
+    db.commit()
+    reactivated = client()
+    assert reactivated.google_login("sam@nemsu.edu.ph").headers["location"] == "/"
+    db.refresh(account)
+    assert account.is_active and account.suspension_type is None
+
+    banned = admin.post(f"/api/admin/users/{sam['id']}/active", json={
+        "active": False, "suspension_type": "banned",
+    })
+    assert banned.status_code == 200 and "permanently banned" in banned.json()["message"]
+    banned_login = client().google_login("sam@nemsu.edu.ph")
+    assert banned_login.headers["location"] == "/login?error=banned"
 
 
 def test_rooms_and_campus_admin(admin, student):

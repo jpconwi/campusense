@@ -42,6 +42,7 @@ def init_db():
     _add_photo_draft_session_column()
     _add_report_assignment_column()
     _add_report_workflow_review_columns()
+    _add_report_resolution_photo_columns()
     _add_report_priority_columns()
     _add_feedback_routing_columns()
     _add_record_query_indexes()
@@ -154,6 +155,8 @@ def _add_student_registration_columns():
         "reviewed_at": "TIMESTAMP",
         "review_note": "VARCHAR(500)",
         "rejection_reason": "VARCHAR(300)",
+        "suspension_type": "VARCHAR(20)",
+        "suspension_until": "TIMESTAMP",
         "deleted_at": "TIMESTAMP",
         "purge_after": "TIMESTAMP",
     }
@@ -281,6 +284,21 @@ def _add_report_workflow_review_columns():
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {sql_type}"))
                 else:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"))
+
+
+def _add_report_resolution_photo_columns():
+    """Add the completion photo field to existing report and concern tables."""
+    from sqlalchemy import inspect, text
+    tables = {table: {column["name"] for column in inspect(engine).get_columns(table)}
+              for table in ("reports", "concerns")}
+    with engine.begin() as conn:
+        for table, columns in tables.items():
+            if "resolution_image_filename" in columns:
+                continue
+            if engine.dialect.name == "postgresql":
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS resolution_image_filename VARCHAR(100)"))
+            else:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN resolution_image_filename VARCHAR(100)"))
 
 
 def _add_report_priority_columns():

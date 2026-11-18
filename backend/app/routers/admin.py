@@ -29,7 +29,7 @@ from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_em
                           is_nemsu_email, super_admin_required)
 from app.services import (announcement_service, campus_service, chart_service, common, concern_service, faculty_service,
                           photo_report_service, registration_help_service, report_service, reservation_service,
-                          room_service, user_service)
+                          room_service, upload_service, user_service)
 from app.services.common import ValidationError
 
 # admin_required runs first so non-admins cannot even tell these URLs exist
@@ -424,6 +424,8 @@ def change_status(kind: str, row_id: int, body: StatusBody, me: CurrentUser = De
             raise HTTPException(403, "Only the assigned administrator can update this report.")
         if body.status not in common.TABLE_STATUSES[kind]:
             raise ValidationError("Invalid status.")
+        if body.status == "Resolved":
+            raise ValidationError("Upload a completion photo to resolve this report.")
         row.status = body.status
         row.updated_at = common.now()
         db.commit()
@@ -447,6 +449,33 @@ def change_status(kind: str, row_id: int, body: StatusBody, me: CurrentUser = De
     elif not common.update_status(db, kind, row_id, body.status):
         raise ValidationError("Record not found.")
     return {"success": True, "message": f"Status of #{row_id} changed to {body.status}."}
+
+
+@router.post("/records/{kind}/{row_id}/resolve")
+def resolve_report(kind: str, row_id: int, image: UploadFile = File(...),
+                   me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
+    if kind not in ("reports", "concerns"):
+        raise HTTPException(404, "That page was not found.")
+    row = db.get(common.MODELS[kind], row_id)
+    if row is None:
+        raise ValidationError("Report not found.")
+    if me.role != "admin" or row.workflow_review != "Accepted" \
+            or (row.assigned_admin_email or "").lower() != me.email.lower():
+        raise HTTPException(403, "Only the assigned administrator can update this report.")
+    previous_photo = row.resolution_image_filename
+    filename = upload_service.save_image(image)
+    row.resolution_image_filename = filename
+    row.status = "Resolved"
+    row.updated_at = common.now()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        upload_service.delete_image(filename)
+        raise
+    if previous_photo and previous_photo != filename:
+        upload_service.delete_image(previous_photo)
+    return {"success": True, "message": f"Report #{row_id} resolved with a completion photo."}
 
 
 class VerifyBody(BaseModel):
@@ -904,6 +933,7 @@ class RoleBody(BaseModel):
 
 class ActiveBody(BaseModel):
     active: bool = True
+    suspension_type: str = "3_days"
 
 
 @router.post("/users/{user_id}/role")
@@ -921,10 +951,23 @@ def user_active(user_id: int, body: ActiveBody, me: CurrentUser = Depends(super_
                 db: Session = Depends(get_db)):
     if user_id == me.id:
         raise ValidationError("You cannot deactivate yourself.")
-    if not user_service.set_active(db, user_id, body.active):
+    if not body.active and body.suspension_type not in user_service.SUSPENSION_TYPES:
+        raise ValidationError("Choose 3 days, 15 days, 1 month, or permanent ban.")
+    target = user_service.get_user(db, user_id)
+    if target is None or not user_service.set_active(
+            db, user_id, body.active, body.suspension_type):
         raise ValidationError("Could not change that account.")
-    return {"success": True,
-            "message": "Account activated." if body.active else "Account deactivated."}
+    if body.active:
+        action = "user_activated"
+        message = "Account activated."
+    elif body.suspension_type == "banned":
+        action = "user_banned"
+        message = "Account permanently banned."
+    else:
+        action = "user_suspended"
+        message = f"Account suspended until {target.suspension_until.strftime('%Y-%m-%d %I:%M %p')}."
+    _log_admin_action(db, me.email, action, target.email, message)
+    return {"success": True, "message": message}
 
 
 @router.delete("/users/{user_id}")

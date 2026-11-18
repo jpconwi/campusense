@@ -140,6 +140,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> Optiona
         user_id = request.session.get("user_id")
     if user_id:
         row = user_service.get_user(db, user_id)
+        user_service.activate_expired_suspension(db, row)
         if row is not None and row.is_active:
             role = row.role
             if is_super_admin_email(row.email):

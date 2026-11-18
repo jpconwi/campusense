@@ -13,6 +13,8 @@ const MESSAGES = {
   approval_rejected: "Your registration was not approved. Please contact the NEMSU administrator.",
   personal_only: "Personal registration requires a verified Gmail account.",
   cancelled: "Google sign-in was cancelled or failed. Please try again.",
+  suspended: "Your account is suspended.",
+  banned: "Your account has been permanently banned. Contact NEMSU administration if you believe this is a mistake.",
   not_configured:
     "Google sign-in is not configured yet. Please contact the administrator.",
   deactivated:
@@ -29,6 +31,7 @@ export default function Login() {
   const { user, flash, setFlash } = useAuth();
   const [params] = useSearchParams();
   const code = params.get("error");
+  const suspensionEnd = params.get("until") || "";
 
   useEffect(() => {
     return () => setFlash(null);
@@ -42,7 +45,9 @@ export default function Login() {
     return <Navigate to={landingFor(user)} replace />;
   }
 
-  const message = MESSAGES[code] || (flash && flash.text);
+  const message = code === "suspended" && /^\d{4}-\d{2}-\d{2}$/.test(suspensionEnd)
+    ? `Your account is suspended until ${suspensionEnd}.`
+    : MESSAGES[code] || (flash && flash.text);
   const kind = MESSAGES[code] ? "error" : flash && flash.kind;
 
   // One Google OAuth entry supports both automatic NEMSU accounts and

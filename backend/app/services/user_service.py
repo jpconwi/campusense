@@ -5,6 +5,7 @@ Stored: Google account ID, name, email, role, dates, active flag.
 NOT stored here: passwords (admin password hashes live in admin_credentials), OAuth tokens.
 """
 
+import calendar
 from datetime import timedelta
 
 from sqlalchemy import delete, func, select
@@ -13,7 +14,9 @@ from sqlalchemy.orm import Session, load_only
 from app import config
 from app.models import (ChatMessage, ChatSession, Concern, Feedback, PhotoDraft, Report,
                         Reservation, User)
-from app.services.common import ValidationError, now
+from app.services.common import ValidationError, clean_text, now
+
+SUSPENSION_TYPES = {"3_days", "15_days", "1_month", "banned"}
 
 
 def _offload_registration_files(files):
@@ -72,8 +75,11 @@ def submit_student_registration(db: Session, google_id, full_name, email, studen
                                 id_back_document=None, id_back_content_type=None,
                                 id_back_filename=None, ai_note=None, auto_approve=False,
                                 face_image=None, face_image_content_type=None, face_image_filename=None,
-                                face_scan_pdf=None, face_verified=False):
+                                face_scan_pdf=None, face_verified=False, department=None):
     """Create a student account; activate only after document and guided-face checks pass."""
+    department = clean_text(department, "Department", 120)
+    if len(department) < 2:
+        raise ValidationError("Enter your department.")
     if get_by_google_id(db, google_id) or get_by_email(db, email):
         raise ValidationError("An account already exists for this Google email. Sign in to check its status.")
     auto_approve = bool(auto_approve and face_verified)
@@ -88,7 +94,7 @@ def submit_student_registration(db: Session, google_id, full_name, email, studen
     user = User(google_id=google_id, name=full_name, email=email,
                 role="student" if auto_approve else None,
                 approval_status="Approved" if auto_approve else "Pending",
-                registration_type="student", student_id=student_id,
+                registration_type="student", student_id=student_id, department=department,
                 verification_document=stored["verification"][0], verification_content_type=content_type,
                 verification_filename=filename, verification_document_kind=document_kind,
                 verification_document_storage_key=stored["verification"][1],
@@ -119,12 +125,15 @@ def submit_student_registration(db: Session, google_id, full_name, email, studen
 
 def submit_nemsu_registration(db: Session, google_id, full_name, email, role,
                               face_image=None, face_image_content_type=None, face_image_filename=None,
-                              face_scan_pdf=None, face_verified=False):
+                              face_scan_pdf=None, face_verified=False, department=None):
     """Create an auto-activated NEMSU account after the guided face scan. NEMSU
     addresses are trusted, so the account can sign in immediately; it still enters
     the administrator's first-level check queue afterwards."""
     if role not in ("student", "instructor"):
         role = "student"
+    department = clean_text(department, "Department", 120)
+    if len(department) < 2:
+        raise ValidationError("Enter your department.")
     if get_by_google_id(db, google_id) or get_by_email(db, email):
         raise ValidationError("An account already exists for this NEMSU email. Sign in to continue.")
     stamp = now()
@@ -134,6 +143,7 @@ def submit_nemsu_registration(db: Session, google_id, full_name, email, role,
     ])
     user = User(google_id=google_id, name=full_name, email=email, role=role,
                 approval_status="Approved", registration_type=role,
+                department=department,
                 face_image=stored["face"][0], face_image_content_type=face_image_content_type,
                 face_image_filename=face_image_filename, face_image_storage_key=stored["face"][1],
                 face_scan_pdf=stored["face_pdf"][0], face_scan_pdf_storage_key=stored["face_pdf"][1],
@@ -154,6 +164,9 @@ def submit_instructor_registration(db: Session, google_id, full_name, email, ins
                                    face_image=None, face_image_content_type=None, face_image_filename=None,
                                    face_scan_pdf=None, face_verified=False):
     """Create an inactive personal-Gmail instructor application for admin review."""
+    department = clean_text(department, "Department", 120)
+    if len(department) < 2:
+        raise ValidationError("Enter your department.")
     if get_by_google_id(db, google_id) or get_by_email(db, email):
         raise ValidationError("An account already exists for this Google email. Sign in to check its status.")
     stamp = now()
@@ -225,14 +238,18 @@ def login_admin_password(db: Session, email):
     return existing
 
 
-def set_role_first_time(db: Session, user_id, role):
+def set_role_first_time(db: Session, user_id, role, department):
     """Save the chosen role only if the user has no role yet."""
     if role not in ("student", "instructor"):
         return False
+    department = clean_text(department, "Department", 120)
+    if len(department) < 2:
+        raise ValidationError("Enter your department.")
     user = db.get(User, user_id)
     if user is None or user.role is not None or user.approval_status != "Approved":
         return False
     user.role = role
+    user.department = department
     db.commit()
     return True
 
@@ -262,13 +279,56 @@ def super_admin_set_role(db: Session, user_id, role):
     return True
 
 
-def set_active(db: Session, user_id, active):
+def set_active(db: Session, user_id, active, suspension_type="3_days"):
     user = db.get(User, user_id)
     if user is None or user.role in ("admin", "super_admin") or user.approval_status == "Pending" or user.deleted_at:
         return False
-    user.is_active = bool(active)
+    if active:
+        user.is_active = True
+        user.suspension_type = None
+        user.suspension_until = None
+    else:
+        if suspension_type not in SUSPENSION_TYPES:
+            return False
+        stamp = now()
+        user.is_active = False
+        user.suspension_type = suspension_type
+        if suspension_type == "3_days":
+            user.suspension_until = stamp + timedelta(days=3)
+        elif suspension_type == "15_days":
+            user.suspension_until = stamp + timedelta(days=15)
+        elif suspension_type == "1_month":
+            next_month = stamp.month % 12 + 1
+            next_year = stamp.year + (1 if stamp.month == 12 else 0)
+            user.suspension_until = stamp.replace(
+                year=next_year, month=next_month,
+                day=min(stamp.day, calendar.monthrange(next_year, next_month)[1]))
+        else:
+            user.suspension_until = None
     db.commit()
     return True
+
+
+def activate_expired_suspension(db: Session, user):
+    """Reactivate an account when its timed suspension expires."""
+    if (user is None or user.is_active or user.deleted_at
+            or user.suspension_type not in ("3_days", "15_days", "1_month")
+            or user.suspension_until is None or user.suspension_until > now()):
+        return False
+    user.is_active = True
+    user.suspension_type = None
+    user.suspension_until = None
+    db.commit()
+    return True
+
+
+def inactive_login_result(user):
+    """Return a login error code that tells the user their ban or suspension end date."""
+    if user and user.suspension_type == "banned":
+        return "banned"
+    if user and user.suspension_until:
+        return "suspended_" + user.suspension_until.strftime("%Y-%m-%d")
+    return "deactivated"
 
 
 def account_approval_missing(user, is_super_admin=False):

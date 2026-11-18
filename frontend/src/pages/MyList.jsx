@@ -182,6 +182,15 @@ function UserReportDetails({ row, onClose }) {
               <span className="muted">Open full-size photo</span>
             </a>
           </section>}
+          {row.status === "Resolved" && row.resolution_image_filename && <section className="user-report-detail-section">
+            <h4>Photo of completed repair</h4>
+            <a href={apiUrl(`/api/uploads/${encodeURIComponent(row.resolution_image_filename)}`)} target="_blank" rel="noopener noreferrer">
+              <img className="user-report-detail-photo"
+                src={apiUrl(`/api/uploads/${encodeURIComponent(row.resolution_image_filename)}`)}
+                alt="Administrator's photo of the completed repair" />
+              <span className="muted">Open full-size completion photo</span>
+            </a>
+          </section>}
           <div className="user-report-dialog-actions">
             <a className="btn small ghost" href={apiUrl(`/api/pdf/${kind}/${row.id}`)} target="_blank" rel="noopener noreferrer">Download PDF</a>
             <button className="btn small" type="button" onClick={onClose}>Close details</button>

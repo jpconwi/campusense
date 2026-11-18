@@ -48,8 +48,10 @@ def test_role_selection_rules(client):
     assert c.post("/api/ask", json={"question": "hi"}).status_code == 403      # role not chosen
     assert c.post("/api/auth/role", json={"role": "admin"}).status_code == 400  # cannot pick admin
     assert c.me()["user"]["role"] is None
-    r = c.post("/api/auth/role", json={"role": "student"})
+    assert c.post("/api/auth/role", json={"role": "student"}).status_code == 400
+    r = c.post("/api/auth/role", json={"role": "student", "department": "Computer Studies"})
     assert r.status_code == 200 and r.json()["next"] == "/ai"
+    assert db.scalar(select(User.department).where(User.email == "new@nemsu.edu.ph")) == "Computer Studies"
     assert c.post("/api/ask", json={"question": "hi"}).status_code == 200
     # the role can not be changed again by the browser
     c.post("/api/auth/role", json={"role": "instructor"})

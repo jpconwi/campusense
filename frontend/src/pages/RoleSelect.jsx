@@ -9,13 +9,18 @@ export default function RoleSelect() {
   const { user, refresh, logout } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState("");
+  const [department, setDepartment] = useState("");
 
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== null) return <Navigate to={landingFor(user)} replace />;
 
   async function choose(role) {
+    if (department.trim().length < 2) {
+      setError("Enter your department.");
+      return;
+    }
     try {
-      const result = await api("/api/auth/role", { method: "POST", json: { role } });
+      const result = await api("/api/auth/role", { method: "POST", json: { role, department: department.trim() } });
       await refresh();
       navigate(result.next, { replace: true });
     } catch (e) {
@@ -31,6 +36,10 @@ export default function RoleSelect() {
           <h1>Select your account type</h1>
           <p className="sub">Welcome, {user.name}. Choose one to continue.</p>
           {error && <div className="flash error" role="alert">{error}</div>}
+          <label>
+            Department
+            <input value={department} onChange={(event) => setDepartment(event.target.value)} maxLength={120} required />
+          </label>
 
           <div className="role-card">
             <h3>Student</h3>

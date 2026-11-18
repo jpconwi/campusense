@@ -12,6 +12,7 @@ export default function NemsuRegister() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("student");
   const [fullName, setFullName] = useState("");
+  const [department, setDepartment] = useState("");
   const [faceFiles, setFaceFiles] = useState(null);
   const [faceConsent, setFaceConsent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -34,9 +35,11 @@ export default function NemsuRegister() {
     if (faceFiles.front.size > 5 * 1024 * 1024) return setError("The selfie must be 5 MB or smaller.");
     if (!faceConsent) return setError("Consent is required to store your selfie for administrator review.");
     if (fullName.trim().length < 3) return setError("Enter your full name.");
+    if (department.trim().length < 2) return setError("Enter your department.");
     const form = new FormData();
     form.append("full_name", fullName);
     form.append("role", role);
+    form.append("department", department.trim());
     form.append("face_photo_front", faceFiles.front);
     form.append("face_photo_consent", "true");
     setBusy(true);
@@ -75,6 +78,10 @@ export default function NemsuRegister() {
               <label>
                 Full name
                 <input value={fullName} onChange={(event) => setFullName(event.target.value)} maxLength={120} required />
+              </label>
+              <label>
+                Department
+                <input value={department} onChange={(event) => setDepartment(event.target.value)} maxLength={120} required />
               </label>
               <label className="registration-consent">
                 <input type="checkbox" checked={faceConsent} required onChange={(event) => setFaceConsent(event.target.checked)} />
