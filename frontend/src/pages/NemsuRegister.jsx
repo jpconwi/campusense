@@ -40,7 +40,7 @@ export default function NemsuRegister() {
     if (faceFiles.front.size > 5 * 1024 * 1024) return setError("The selfie must be 5 MB or smaller.");
     if (!faceConsent) return setError("Consent is required to store your selfie for administrator review.");
     if (fullName.trim().length < 3) return setError("Enter your full name.");
-    if (department.trim().length < 2) return setError("Enter your department.");
+    if (department.trim().length < 2) return setError("Select a department.");
     const form = new FormData();
     form.append("full_name", fullName);
     form.append("role", role);

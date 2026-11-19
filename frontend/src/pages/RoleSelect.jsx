@@ -23,7 +23,7 @@ export default function RoleSelect() {
 
   async function choose(role) {
     if (department.trim().length < 2) {
-      setError("Enter your department.");
+      setError("Select a department.");
       return;
     }
     try {

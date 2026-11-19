@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getFaceDetector, hasSelfieSizedFace } from "./faceDetection.js";
 
 function cropRect(video, stage, kind) {
   const scale = Math.max(stage.clientWidth / video.videoWidth, stage.clientHeight / video.videoHeight);
@@ -115,6 +116,13 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
     const sample = document.createElement("canvas");
     sample.width = 80;
     sample.height = 56;
+    let detector = null;
+    let cancelled = false;
+    getFaceDetector("VIDEO").then((loadedDetector) => {
+      if (!cancelled) detector = loadedDetector;
+    }).catch(() => {
+      if (!cancelled) setCameraError("Could not load the document check. Try again or choose a photo.");
+    });
     const timer = window.setInterval(async () => {
       const video = videoRef.current;
       const stage = stageRef.current;
@@ -125,8 +133,23 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
         setStatus(result.state);
         readyCountRef.current = result.state === "ready" ? readyCountRef.current + 1 : 0;
         if (readyCountRef.current < 3) return;
+        if (!detector) {
+          readyCountRef.current = 0;
+          setStatus("unclear");
+          return;
+        }
+        const crop = cropRect(video, stage, kind);
+        const faces = detector.detectForVideo(video, performance.now()).detections;
+        if (hasSelfieSizedFace(faces, crop)) {
+          readyCountRef.current = 0;
+          previousRef.current = null;
+          setStatus("unclear");
+          setCameraError("This looks like a face selfie. Scan or upload your school ID or COR instead.");
+          return;
+        }
         capturingRef.current = true;
         setStatus("capturing");
+        setCameraError("");
         const image = await makePhoto(video, stage, kind);
         streamRef.current?.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
@@ -138,13 +161,39 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
         capturingRef.current = false;
       }
     }, 350);
-    return () => window.clearInterval(timer);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [cameraOn, enabled, value, kind]);
 
-  function choosePhoto(event) {
+  async function choosePhoto(event) {
     const file = event.target.files?.[0] || null;
     event.target.value = "";
-    if (file) onCapture(file);
+    if (!file) return;
+    setCameraError("");
+    try {
+      const detector = await getFaceDetector("IMAGE");
+      const url = URL.createObjectURL(file);
+      try {
+        const image = new Image();
+        await new Promise((resolve, reject) => {
+          image.onload = resolve;
+          image.onerror = () => reject(new Error("Could not read the selected photo."));
+          image.src = url;
+        });
+        const faces = detector.detect(image).detections;
+        if (hasSelfieSizedFace(faces, { left: 0, top: 0, width: image.naturalWidth, height: image.naturalHeight })) {
+          setCameraError("This looks like a face selfie. Choose a photo of your school ID or COR instead.");
+          return;
+        }
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+      onCapture(file);
+    } catch (error) {
+      setCameraError(error.message || "Could not check this photo. Try another ID or COR image.");
+    }
   }
 
   function retake() {
@@ -173,6 +222,7 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
           onClick={() => { setMode("upload"); uploadRef.current?.click(); }}>Upload file</button>
         <button className="btn small ghost" type="button" disabled={!enabled} onClick={() => { setCameraError(""); setMode("scan"); }}>Scan with camera</button>
       </div>}
+      {cameraError && <p className="document-scan-error" role="alert">{cameraError}</p>}
       <input ref={uploadRef} type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={!enabled}
         onChange={choosePhoto} />
       {mode === "upload" && !value && <div className="document-scan-options">
@@ -190,7 +240,6 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
         {!value && enabled && !cameraOn && <span className="document-scan-placeholder">Camera view</span>}
       </div>
       <p className={`document-scan-status ${value ? "captured" : status}`} role="status" aria-live="polite">{message}</p>
-      {cameraError && <p className="document-scan-error" role="alert">{cameraError}</p>}
       <div className="document-scan-actions">
         {value ? (
           <>

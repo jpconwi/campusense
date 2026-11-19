@@ -94,7 +94,7 @@ export default function Register() {
     if (!faceFiles?.front) return setError("Complete the front-facing selfie scan.");
     if (faceFiles.front.size > 5 * 1024 * 1024) return setError("The selfie must be 5 MB or smaller.");
     if (!faceConsent) return setError("Consent is required to store your selfie for administrator review.");
-    if (department.trim().length < 2) return setError("Enter your department.");
+    if (department.trim().length < 2) return setError("Select a department.");
     form.append("face_photo_front", faceFiles.front);
     form.append("face_photo_consent", "true");
     form.append("department", department.trim());

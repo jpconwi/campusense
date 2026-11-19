@@ -40,6 +40,13 @@ oauth.register(
 )
 
 
+def _registration_department(value, db: Session):
+    department = clean_text(value, "Department", 120)
+    if department not in {option["value"] for option in room_service.list_department_options(db)}:
+        raise ValidationError("Select a department from the list.")
+    return department
+
+
 async def _read_registration_scan(upload: UploadFile, label: str):
     if upload is None or not upload.filename:
         return None
@@ -297,7 +304,7 @@ async def student_registration(request: Request, full_name: str = Form(...),
 
     name = clean_text(full_name, "Full name", 120)
     school_id = clean_text(student_id, "School ID", 50)
-    unit = clean_text(department, "Department", 120)
+    unit = _registration_department(department, db)
     if len(name) < 3:
         raise ValidationError("Enter your full name as shown on your school ID or COR.")
     if len(school_id) < 3:
@@ -399,7 +406,7 @@ async def instructor_registration(request: Request, full_name: str = Form(...),
 
     name = clean_text(full_name, "Full name", 120)
     employee_id = clean_text(instructor_id, "Instructor ID number", 50)
-    unit = clean_text(department, "Department", 120)
+    unit = _registration_department(department, db)
     if len(name) < 3:
         raise ValidationError("Enter your full name.")
     if len(employee_id) < 3:
@@ -461,7 +468,7 @@ async def nemsu_registration(request: Request, full_name: str = Form(...), role:
     face_verified = bool(face_steps[0].get("verified"))
 
     name = clean_text(full_name, "Full name", 120)
-    unit = clean_text(department, "Department", 120)
+    unit = _registration_department(department, db)
     if len(name) < 3:
         raise ValidationError("Enter your full name.")
     if len(unit) < 2:
@@ -532,9 +539,7 @@ def select_role(body: RoleBody, user=Depends(authenticated_only), db: Session = 
         return {"role": user.role, "next": _landing(user.role)}
     if body.role not in ("student", "instructor"):
         raise HTTPException(400, "Please select Student or Instructor.")
-    department = clean_text(body.department, "Department", 120)
-    if len(department) < 2:
-        raise ValidationError("Enter your department.")
+    department = _registration_department(body.department, db)
     if not user_service.set_role_first_time(db, user.id, body.role, department):
         raise HTTPException(400, "Please select Student or Instructor.")
     return {"role": body.role, "next": _landing(body.role)}

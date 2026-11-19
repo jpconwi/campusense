@@ -1,24 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FaceDetector, FilesetResolver } from "@mediapipe/tasks-vision";
 import { api } from "../api.js";
+import { getFaceDetector } from "./faceDetection.js";
 import "./face-scanner.css";
-
-let detectorPromise;
-function getFaceDetector() {
-  if (!detectorPromise) {
-    detectorPromise = FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3/wasm",
-    ).then((vision) => FaceDetector.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: "/models/blaze_face_short_range.tflite" },
-      runningMode: "VIDEO",
-      minDetectionConfidence: 0.55,
-    })).catch((error) => {
-      detectorPromise = null;
-      throw error;
-    });
-  }
-  return detectorPromise;
-}
 
 function faceFitsGuide(detections, video) {
   if (detections.length !== 1) return false;
@@ -98,7 +81,7 @@ export default function FaceScanner({ onComplete, disabled = false }) {
     let detecting = false;
     setChecking(true);
     setInstruction("Loading the on-device face detector…");
-    getFaceDetector().then((detector) => {
+    getFaceDetector("VIDEO").then((detector) => {
       if (cancelled) return;
       setChecking(false);
       setInstruction("Center your face inside the circle.");
