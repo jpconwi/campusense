@@ -10,7 +10,7 @@ import re
 from sqlalchemy import String, case, cast, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Room
+from app.models import CampusDepartment, Room
 from app.services.common import ValidationError, clean_text, row_to_dict
 
 FIELDS = ["room_id", "name", "building", "department", "room_type", "capacity", "equipment", "status"]
@@ -46,16 +46,21 @@ def list_rooms(db: Session):
 
 
 def list_department_options(db: Session):
-    """Return the Tandag campus departments plus any custom room departments."""
+    """Return the Tandag campus departments plus configured and room departments."""
     options = [{"value": code, "label": f"{name} ({code})"}
                for code, name in TANDAG_DEPARTMENTS]
     known = {code.casefold() for code, _ in TANDAG_DEPARTMENTS}
     known.update(name.casefold() for _, name in TANDAG_DEPARTMENTS)
+    configured_departments = db.scalars(
+        select(CampusDepartment.name).order_by(CampusDepartment.name)
+    ).all()
     extra_departments = db.query(Room.department).distinct().all()
+    extras = [name for name in configured_departments if name]
+    extras.extend(value for value, in extra_departments if value)
     options.extend(
         {"value": value, "label": value}
-        for value, in sorted(extra_departments, key=lambda row: (row[0] or "").casefold())
-        if value and value.casefold() not in known
+        for value in sorted(set(extras), key=lambda item: item.casefold())
+        if value.casefold() not in known
     )
     return options
 

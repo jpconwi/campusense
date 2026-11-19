@@ -418,12 +418,16 @@ async def instructor_registration(request: Request, full_name: str = Form(...),
 
 
 @router.get("/nemsu-registration")
-def nemsu_registration_status(request: Request):
+def nemsu_registration_status(request: Request, db: Session = Depends(get_db)):
     identity = request.session.get("nemsu_registration")
     started = request.session.get("nemsu_registration_started_at", 0)
     if not identity or time.time() - int(started) > 15 * 60:
         raise HTTPException(401, "Your registration session expired. Start again with your NEMSU Google account.")
-    return {"email": identity.get("email", ""), "google_name": identity.get("google_name", "")}
+    return {
+        "email": identity.get("email", ""),
+        "google_name": identity.get("google_name", ""),
+        "department_options": room_service.list_department_options(db),
+    }
 
 
 @router.post("/nemsu-registration")
@@ -474,12 +478,21 @@ async def nemsu_registration(request: Request, full_name: str = Form(...), role:
 
 
 @router.get("/personal-registration")
-def personal_registration_status(request: Request):
+def personal_registration_status(request: Request, db: Session = Depends(get_db)):
     identity = request.session.get("personal_registration")
     started = request.session.get("personal_registration_started_at", 0)
     if not identity or time.time() - int(started) > 15 * 60:
         raise HTTPException(401, "Your registration session expired. Start again with personal Gmail.")
-    return {"email": identity.get("email", ""), "google_name": identity.get("google_name", "")}
+    return {
+        "email": identity.get("email", ""),
+        "google_name": identity.get("google_name", ""),
+        "department_options": room_service.list_department_options(db),
+    }
+
+
+@router.get("/department-options")
+def department_options(db: Session = Depends(get_db)):
+    return {"department_options": room_service.list_department_options(db)}
 
 
 class RegistrationHelpBody(BaseModel):

@@ -14,6 +14,7 @@ export default function Register() {
   const [fullName, setFullName] = useState("");
   const [studentId, setStudentId] = useState("");
   const [department, setDepartment] = useState("");
+  const [departmentOptions, setDepartmentOptions] = useState([]);
   const [faceFiles, setFaceFiles] = useState(null);
   const [faceConsent, setFaceConsent] = useState(false);
   const [studentDocumentType, setStudentDocumentType] = useState("school_id");
@@ -33,7 +34,11 @@ export default function Register() {
     document.title = "Personal Gmail registration | NEMSU";
     if (loading || user) return;
     api("/api/auth/personal-registration")
-      .then((data) => { setEmail(data.email); setFullName(data.google_name || ""); })
+      .then((data) => {
+        setEmail(data.email);
+        setFullName(data.google_name || "");
+        setDepartmentOptions(data.department_options || []);
+      })
       .catch((err) => setError(err.message || "Your registration session expired. Start again from sign in."));
   }, [loading, user]);
 
@@ -182,7 +187,10 @@ export default function Register() {
                       </label>
                       <label>
                         Department
-                        <input value={department} onChange={(e) => setDepartment(e.target.value)} maxLength={120} required />
+                        <select value={department} onChange={(e) => setDepartment(e.target.value)} required>
+                          <option value="">Select department</option>
+                          {departmentOptions.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                        </select>
                       </label>
                       <p className="registration-scan-help">Your instructor account will remain pending until an administrator reviews your details.</p>
                     </>
@@ -248,7 +256,10 @@ export default function Register() {
                       </label>
                       <label>
                         Department
-                        <input value={department} onChange={(e) => setDepartment(e.target.value)} maxLength={120} required />
+                        <select value={department} onChange={(e) => setDepartment(e.target.value)} required>
+                          <option value="">Select department</option>
+                          {departmentOptions.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                        </select>
                       </label>
                     </>
                   )}

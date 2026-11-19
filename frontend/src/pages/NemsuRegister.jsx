@@ -13,6 +13,7 @@ export default function NemsuRegister() {
   const [role, setRole] = useState("student");
   const [fullName, setFullName] = useState("");
   const [department, setDepartment] = useState("");
+  const [departmentOptions, setDepartmentOptions] = useState([]);
   const [faceFiles, setFaceFiles] = useState(null);
   const [faceConsent, setFaceConsent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -22,7 +23,11 @@ export default function NemsuRegister() {
     document.title = "NEMSU account setup | NEMSU";
     if (loading || user) return;
     api("/api/auth/nemsu-registration")
-      .then((data) => { setEmail(data.email); setFullName(data.google_name || ""); })
+      .then((data) => {
+        setEmail(data.email);
+        setFullName(data.google_name || "");
+        setDepartmentOptions(data.department_options || []);
+      })
       .catch((err) => setError(err.message || "Your registration session expired. Start again from sign in."));
   }, [loading, user]);
 
@@ -81,7 +86,10 @@ export default function NemsuRegister() {
               </label>
               <label>
                 Department
-                <input value={department} onChange={(event) => setDepartment(event.target.value)} maxLength={120} required />
+                <select value={department} onChange={(event) => setDepartment(event.target.value)} required>
+                  <option value="">Select department</option>
+                  {departmentOptions.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                </select>
               </label>
               <label className="registration-consent">
                 <input type="checkbox" checked={faceConsent} required onChange={(event) => setFaceConsent(event.target.checked)} />

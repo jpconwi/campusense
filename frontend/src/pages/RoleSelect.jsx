@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Header } from "../components/Layout.jsx";
 import { useAuth } from "../auth.jsx";
@@ -10,6 +10,13 @@ export default function RoleSelect() {
   const navigate = useNavigate();
   const [error, setError] = useState("");
   const [department, setDepartment] = useState("");
+  const [departmentOptions, setDepartmentOptions] = useState([]);
+
+  useEffect(() => {
+    api("/api/auth/department-options")
+      .then((data) => setDepartmentOptions(data.department_options || []))
+      .catch((err) => setError(err.message));
+  }, []);
 
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== null) return <Navigate to={landingFor(user)} replace />;
@@ -38,7 +45,10 @@ export default function RoleSelect() {
           {error && <div className="flash error" role="alert">{error}</div>}
           <label>
             Department
-            <input value={department} onChange={(event) => setDepartment(event.target.value)} maxLength={120} required />
+            <select value={department} onChange={(event) => setDepartment(event.target.value)} required>
+              <option value="">Select department</option>
+              {departmentOptions.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+            </select>
           </label>
 
           <div className="role-card">
