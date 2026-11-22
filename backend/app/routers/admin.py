@@ -549,7 +549,12 @@ def update_reporter_feedback(kind: str, row_id: int, body: AdminFeedbackBody,
     row.admin_feedback = message or None
     row.updated_at = common.now()
     db.commit()
-    return {"success": True, "message": "Reporter update saved."}
+    response_message = "Reporter update saved."
+    if message:
+        notification = gmail_notification_service.notify_record_update(
+            row.reporter_email, kind, row.id, row.status, message)
+        response_message += gmail_notification_service.update_notification_notice(notification)
+    return {"success": True, "message": response_message}
 
 
 @router.post("/feedback/{feedback_id}/response")

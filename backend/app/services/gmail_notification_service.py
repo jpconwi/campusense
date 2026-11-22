@@ -1,6 +1,8 @@
 """Send announcement emails through the Gmail API using a dedicated OAuth sender."""
 
 import base64
+import smtplib
+import ssl
 from email.message import EmailMessage
 from typing import NamedTuple
 
@@ -28,7 +30,23 @@ class GmailNotificationError(Exception):
         self.recipient_count = recipient_count
 
 
+def _smtp_mode():
+    return bool(config.GMAIL_APP_PASSWORD and config.GMAIL_SENDER_EMAIL)
+
+
+def _send_smtp(message):
+    """Send through Gmail SMTP using an App Password (no OAuth / consent screen)."""
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl.create_default_context(), timeout=20) as server:
+            server.login(config.GMAIL_SENDER_EMAIL, config.GMAIL_APP_PASSWORD)
+            server.send_message(message)
+    except (smtplib.SMTPException, OSError) as error:
+        raise GmailNotificationError(f"Gmail SMTP could not send the email: {error.__class__.__name__}.") from error
+
+
 def _configured():
+    if _smtp_mode():
+        return True
     oauth_values = {
         "GMAIL_CLIENT_ID": config.GMAIL_CLIENT_ID,
         "GMAIL_CLIENT_SECRET": config.GMAIL_CLIENT_SECRET,
@@ -73,7 +91,7 @@ def _access_token():
     return token
 
 
-def _message_raw(announcement, recipients):
+def _message_obj(announcement, recipients):
     message = EmailMessage()
     message["From"] = config.GMAIL_SENDER_EMAIL
     message["To"] = "undisclosed-recipients:;"
@@ -92,7 +110,11 @@ def _message_raw(announcement, recipients):
         f"{date_text}\n\n"
         f"View campus announcements: {config.PUBLIC_URL}/notifications\n"
     )
-    return base64.urlsafe_b64encode(message.as_bytes()).decode("ascii").rstrip("=")
+    return message
+
+
+def _message_raw(announcement, recipients):
+    return base64.urlsafe_b64encode(_message_obj(announcement, recipients).as_bytes()).decode("ascii").rstrip("=")
 
 
 def send_announcement_notification(db: Session, announcement: Announcement):
@@ -108,10 +130,18 @@ def send_announcement_notification(db: Session, announcement: Announcement):
     if not recipients:
         return NotificationResult("no_recipients", 0)
 
-    access_token = _access_token()
+    smtp = _smtp_mode()
+    access_token = None if smtp else _access_token()
     delivered_count = 0
     for offset in range(0, len(recipients), RECIPIENTS_PER_MESSAGE):
         batch = recipients[offset:offset + RECIPIENTS_PER_MESSAGE]
+        if smtp:
+            try:
+                _send_smtp(_message_obj(announcement, batch))
+            except GmailNotificationError as error:
+                raise GmailNotificationError(str(error), delivered_count, len(recipients)) from error
+            delivered_count += len(batch)
+            continue
         try:
             response = httpx.post(
                 SEND_URL,
@@ -132,8 +162,8 @@ def send_announcement_notification(db: Session, announcement: Announcement):
     return NotificationResult("sent", delivered_count)
 
 
-def send_record_status_notification(recipient_email, kind, record_id, status):
-    """Email one account after one of its records is submitted or changes status."""
+def send_record_status_notification(recipient_email, kind, record_id, status, update_message=None):
+    """Email the record owner about a status change or a direct admin update."""
     pages = {
         "concerns": ("concern", "concerns"),
         "reports": ("report", "reports"),
@@ -151,11 +181,18 @@ def send_record_status_notification(recipient_email, kind, record_id, status):
     message = EmailMessage()
     message["From"] = config.GMAIL_SENDER_EMAIL
     message["To"] = recipient_email
-    message["Subject"] = f"[NEMSAI] Your {label} #{record_id} is {status}"
-    message.set_content(
+    message["Subject"] = (f"[NEMSAI] Update about your {label} #{record_id}"
+                          if update_message else f"[NEMSAI] Your {label} #{record_id} is {status}")
+    content = (
         f"Your {label} (#{record_id}) status is now: {status}.\n\n"
-        f"View your {label}: {config.PUBLIC_URL}/{page}\n"
     )
+    if update_message:
+        content += f"Administrator update:\n{update_message}\n\n"
+    content += f"View your {label}: {config.PUBLIC_URL}/{page}\n"
+    message.set_content(content)
+    if _smtp_mode():
+        _send_smtp(message)
+        return NotificationResult("sent", 1)
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii").rstrip("=")
 
     try:
@@ -181,6 +218,26 @@ def notify_record_owner(recipient_email, kind, record_id, status):
     except GmailNotificationError as error:
         print("GMAIL RECORD NOTIFICATION ERROR:", repr(error))
         return NotificationResult("failed", 0)
+
+
+def notify_record_update(recipient_email, kind, record_id, status, update_message):
+    """Email a saved administrator update without undoing the database change on failure."""
+    try:
+        return send_record_status_notification(
+            recipient_email, kind, record_id, status, update_message=update_message)
+    except GmailNotificationError as error:
+        print("GMAIL RECORD UPDATE ERROR:", repr(error))
+        return NotificationResult("failed", 0)
+
+
+def update_notification_notice(result):
+    if result.status == "sent":
+        return " The update was emailed to the reporter."
+    if result.status == "not_configured":
+        return " The update was saved, but Gmail is not configured so no email was sent."
+    if result.status == "failed":
+        return " The update was saved, but the reporter email could not be sent."
+    raise ValueError(f"Unknown Gmail notification status: {result.status}")
 
 
 def notification_notice(result):

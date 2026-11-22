@@ -98,6 +98,8 @@ GMAIL_CLIENT_ID = (os.getenv("GMAIL_CLIENT_ID") or "").strip()
 GMAIL_CLIENT_SECRET = (os.getenv("GMAIL_CLIENT_SECRET") or "").strip()
 GMAIL_REFRESH_TOKEN = (os.getenv("GMAIL_REFRESH_TOKEN") or "").strip()
 GMAIL_SENDER_EMAIL = (os.getenv("GMAIL_SENDER_EMAIL") or "nemsai@gmail.com").strip()
+# Simpler option (no Google Cloud consent screen needed): a Gmail App Password used over SMTP.
+GMAIL_APP_PASSWORD = (os.getenv("GMAIL_APP_PASSWORD") or "").replace(" ", "").strip()
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
