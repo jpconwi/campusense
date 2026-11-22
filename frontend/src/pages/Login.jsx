@@ -110,6 +110,11 @@ export default function Login() {
             or Instructor and submit the requested details. An administrator must approve your account.
             <br />Google securely handles sign-in; this site never sees your Google password.
           </p>
+          <p className="login-legal-links">
+            <a href="/privacy-policy">Privacy Policy</a>
+            {" · "}
+            <a href="/terms-of-service">Terms of Service</a>
+          </p>
           <RegistrationHelp />
         </div>
       </div>

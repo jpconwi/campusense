@@ -30,6 +30,7 @@ from app.security import (CurrentUser, admin_required, csrf_protect, is_admin_em
 from app.services import (announcement_service, campus_service, chart_service, common, concern_service, faculty_service,
                           photo_report_service, registration_help_service, report_service, reservation_service,
                           room_service, upload_service, user_service)
+from app.services import gmail_notification_service
 from app.services.common import ValidationError
 
 # admin_required runs first so non-admins cannot even tell these URLs exist
@@ -415,6 +416,7 @@ def change_status(kind: str, row_id: int, body: StatusBody, me: CurrentUser = De
                   db: Session = Depends(get_db)):
     if kind not in SECTIONS:
         raise HTTPException(404, "That page was not found.")
+    notification = None
     if kind in ("reports", "concerns"):
         row = db.get(common.MODELS[kind], row_id)
         if row is None:
@@ -426,29 +428,43 @@ def change_status(kind: str, row_id: int, body: StatusBody, me: CurrentUser = De
             raise ValidationError("Invalid status.")
         if body.status == "Resolved":
             raise ValidationError("Upload a completion photo to resolve this report.")
+        previous_status = row.status
         row.status = body.status
         row.updated_at = common.now()
         db.commit()
+        if body.status != previous_status:
+            notification = gmail_notification_service.notify_record_owner(
+                row.reporter_email, kind, row.id, row.status)
     elif kind == "feedback":
         row = db.get(common.MODELS["feedback"], row_id)
         if row is None:
             raise ValidationError("Feedback not found.")
+        previous_status = row.status
         if me.role == "admin" and row.feedback_scope != "campus":
             raise HTTPException(403, "Admins can update campus feedback only.")
         if me.role == "admin" and body.status == "Forwarded":
             raise ValidationError("Use the forward action to send feedback to the Super Admin.")
         if not common.update_status(db, kind, row_id, body.status):
             raise ValidationError("Feedback not found.")
+        if body.status != previous_status:
+            notification = gmail_notification_service.notify_record_owner(
+                row.email, kind, row.id, row.status)
     elif kind == "reservations":
         row = db.get(common.MODELS["reservations"], row_id)
         previous = row.status if row else None
         reservation_service.change_status(db, row_id, body.status, me.email, body.note)
+        if row and row.status != previous:
+            notification = gmail_notification_service.notify_record_owner(
+                row.requester_email, kind, row.id, row.status)
         _log_admin_action(db, me.email, "reservation_status_changed", row.requester_email,
                           f"Reservation #{row_id} changed from {previous} to {body.status}."
                           + (f" Note: {body.note.strip()[:350]}" if body.note.strip() else ""))
     elif not common.update_status(db, kind, row_id, body.status):
         raise ValidationError("Record not found.")
-    return {"success": True, "message": f"Status of #{row_id} changed to {body.status}."}
+    message = f"Status of #{row_id} changed to {body.status}."
+    if notification is not None:
+        message += gmail_notification_service.notification_notice(notification)
+    return {"success": True, "message": message}
 
 
 @router.post("/records/{kind}/{row_id}/resolve")
@@ -462,6 +478,7 @@ def resolve_report(kind: str, row_id: int, image: UploadFile = File(...),
     if me.role != "admin" or row.workflow_review != "Accepted" \
             or (row.assigned_admin_email or "").lower() != me.email.lower():
         raise HTTPException(403, "Only the assigned administrator can update this report.")
+    previous_status = row.status
     previous_photo = row.resolution_image_filename
     filename = upload_service.save_image(image)
     row.resolution_image_filename = filename
@@ -475,7 +492,12 @@ def resolve_report(kind: str, row_id: int, image: UploadFile = File(...),
         raise
     if previous_photo and previous_photo != filename:
         upload_service.delete_image(previous_photo)
-    return {"success": True, "message": f"Report #{row_id} resolved with a completion photo."}
+    message = f"Report #{row_id} resolved with a completion photo."
+    if previous_status != row.status:
+        notification = gmail_notification_service.notify_record_owner(
+            row.reporter_email, kind, row.id, row.status)
+        message += gmail_notification_service.notification_notice(notification)
+    return {"success": True, "message": message}
 
 
 class VerifyBody(BaseModel):
@@ -552,6 +574,7 @@ def forward_feedback(feedback_id: int, me: CurrentUser = Depends(admin_required)
     row = db.get(common.MODELS["feedback"], feedback_id)
     if row is None or row.feedback_scope != "campus":
         raise ValidationError("Only campus feedback can be forwarded.")
+    previous_status = row.status
     row.feedback_scope = "system"
     row.forwarded_to_super_admin = True
     row.forwarded_by = me.email
@@ -559,7 +582,12 @@ def forward_feedback(feedback_id: int, me: CurrentUser = Depends(admin_required)
     row.status = "Forwarded"
     row.updated_at = common.now()
     db.commit()
-    return {"success": True, "message": "Feedback forwarded to the Super Admin."}
+    message = "Feedback forwarded to the Super Admin."
+    if previous_status != row.status:
+        notification = gmail_notification_service.notify_record_owner(
+            row.email, "feedback", row.id, row.status)
+        message += gmail_notification_service.notification_notice(notification)
+    return {"success": True, "message": message}
 
 
 class ReportDecisionBody(BaseModel):
@@ -577,6 +605,7 @@ def decide_report(kind: str, row_id: int, body: ReportDecisionBody,
     row = db.get(common.MODELS[kind], row_id)
     if row is None:
         raise ValidationError("Report not found.")
+    previous_status = row.status
     note = common.clean_text(body.note, "Review note", 500, required=False) or None
     row.workflow_review = body.decision
     row.workflow_review_note = note
@@ -589,7 +618,12 @@ def decide_report(kind: str, row_id: int, body: ReportDecisionBody,
         row.status = "Pending"
     row.updated_at = common.now()
     db.commit()
-    return {"success": True, "message": f"Report {body.decision.lower()} by Super Admin."}
+    message = f"Report {body.decision.lower()} by Super Admin."
+    if previous_status != row.status:
+        notification = gmail_notification_service.notify_record_owner(
+            row.reporter_email, kind, row.id, row.status)
+        message += gmail_notification_service.notification_notice(notification)
+    return {"success": True, "message": message}
 
 
 class ReportPriorityBody(BaseModel):
@@ -1336,8 +1370,25 @@ def announcements(db: Session = Depends(get_db)):
 
 @router.post("/announcements")
 def announcements_add(body: dict, me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
-    announcement_service.add_announcement(db, _strings(body), me.name, me.role)
-    return {"success": True, "message": "Announcement posted."}
+    announcement = announcement_service.add_announcement(db, _strings(body), me.name, me.role)
+    try:
+        result = gmail_notification_service.send_announcement_notification(db, announcement)
+    except gmail_notification_service.GmailNotificationError as error:
+        print("GMAIL ANNOUNCEMENT ERROR:", repr(error))
+        if error.recipient_count:
+            message = (f"Announcement posted, but email delivery stopped after "
+                       f"{error.delivered_count} of {error.recipient_count} recipients.")
+        else:
+            message = f"Announcement posted, but email could not be sent: {error}"
+        return {"success": True, "message": message}
+
+    if result.status == "not_configured":
+        message = "Announcement posted, but Gmail email notifications are not configured."
+    elif result.status == "no_recipients":
+        message = "Announcement posted. There are no active approved users to email."
+    else:
+        message = f"Announcement posted and emailed to {result.recipient_count} active users."
+    return {"success": True, "message": message}
 
 
 @router.delete("/announcements/{row_id}")

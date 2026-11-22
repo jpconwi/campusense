@@ -93,7 +93,7 @@ def clean_database(monkeypatch):
     with engine.begin() as conn:
         conn.execute(text(
             "TRUNCATE users, admin_credentials, concerns, reports, feedback, reservations, "
-            "faculty_reports, rooms, campus_info RESTART IDENTITY CASCADE"))
+            "faculty_reports, rooms, campus_info, announcements RESTART IDENTITY CASCADE"))
     with SessionLocal() as db:
         campus_service.seed_if_empty(db)
     admin_auth_service._fails.clear()

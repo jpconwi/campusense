@@ -7,6 +7,7 @@ Each one has a title, a category, a message, and an optional "show from" and
 """
 
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -48,7 +49,8 @@ def list_active(db: Session):
     return [r for r in list_all(db) if r["status"] == "Active"]
 
 
-def add_announcement(db: Session, form, author_name="Administration", author_role="admin"):
+def add_announcement(db: Session, form, author_name="Administration",
+                     author_role: Optional[str] = "admin"):
     title = clean_text(form.get("title"), "Title", 120)
     category = clean_choice(form.get("category"), "Category", CATEGORIES)
     body = clean_text(form.get("body"), "Message", 1000)
@@ -56,11 +58,13 @@ def add_announcement(db: Session, form, author_name="Administration", author_rol
     end = clean_date(form["end_date"], "Show until") if (form.get("end_date") or "").strip() else None
     if start and end and end < start:
         raise ValidationError("The end date cannot be before the start date.")
-    db.add(Announcement(title=title, category=category, body=body,
-                        start_date=start, end_date=end,
-                        created_by_name=clean_text(author_name, "Author", 200),
-                        created_by_role=author_role if author_role in ("admin", "super_admin") else "admin"))
+    row = Announcement(title=title, category=category, body=body,
+                       start_date=start, end_date=end,
+                       created_by_name=clean_text(author_name, "Author", 200),
+                       created_by_role=author_role if author_role in ("admin", "super_admin") else "admin")
+    db.add(row)
     db.commit()
+    return row
 
 
 def delete_announcement(db: Session, row_id):

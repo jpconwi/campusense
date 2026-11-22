@@ -93,6 +93,12 @@ GOOGLE_VISION_MODEL = os.getenv("GOOGLE_VISION_MODEL")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 
+# Gmail API OAuth credentials for announcement email notifications.
+GMAIL_CLIENT_ID = (os.getenv("GMAIL_CLIENT_ID") or "").strip()
+GMAIL_CLIENT_SECRET = (os.getenv("GMAIL_CLIENT_SECRET") or "").strip()
+GMAIL_REFRESH_TOKEN = (os.getenv("GMAIL_REFRESH_TOKEN") or "").strip()
+GMAIL_SENDER_EMAIL = (os.getenv("GMAIL_SENDER_EMAIL") or "nemsai@gmail.com").strip()
+
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # The address people open in the browser. Google redirects back to

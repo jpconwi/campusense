@@ -22,6 +22,7 @@ import NotFound from "./pages/NotFound.jsx";
 import Notifications from "./pages/Notifications.jsx";
 import NemsuRegister from "./pages/NemsuRegister.jsx";
 import Profile from "./pages/Profile.jsx";
+import { PublicHome, PrivacyPolicy, TermsOfService } from "./pages/PublicPages.jsx";
 import Register from "./pages/Register.jsx";
 import RoleSelect from "./pages/RoleSelect.jsx";
 
@@ -53,6 +54,9 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/about" element={<PublicHome />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+      <Route path="/terms-of-service" element={<TermsOfService />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/register/nemsu" element={<NemsuRegister />} />

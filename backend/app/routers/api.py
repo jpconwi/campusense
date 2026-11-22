@@ -19,7 +19,7 @@ from app.models import PhotoDraft, User, UserDailyActivity, UserPresence
 from app.security import CurrentUser, csrf_protect, login_required, role_required
 from app.services import (announcement_service, chat_history_service, common, concern_service, faculty_service, feedback_service,
                           pdf_service, photo_report_service, report_service, reservation_service, room_service)
-from app.services import upload_service
+from app.services import gmail_notification_service, upload_service
 
 router = APIRouter(prefix="/api", tags=["api"], dependencies=[Depends(csrf_protect)])
 ACTIVITY_TIMEZONE = timezone(timedelta(hours=8), "Asia/Manila")
@@ -107,7 +107,9 @@ def _too_many(user_id, limit=20, window=60):  # user_id may also be a tuple such
     return False
 
 
-def _ok(row, message, pdf_kind=None):
+def _ok(row, message, pdf_kind=None, notification=None):
+    if notification is not None:
+        message += gmail_notification_service.notification_notice(notification)
     data = {"success": True, "message": message, "id": row["id"], "status": row["status"],
             "submitted_at": row.get("created_at", row.get("submitted_at"))}
     if row.get("destination"):
@@ -184,7 +186,9 @@ def submit_concern(
     form = {"location": location, "room": room, "concern_type": concern_type,
             "concern_type_other": concern_type_other, "description": description, "concern_date": concern_date}
     row = concern_service.create_concern(db, user, form, image)
-    return _ok(row, "Your concern has been submitted. Its status is Pending.", "concerns")
+    notification = gmail_notification_service.notify_record_owner(
+        user.email, "concerns", row["id"], row["status"])
+    return _ok(row, "Your concern has been submitted. Its status is Pending.", "concerns", notification)
 
 
 @router.post("/reports")
@@ -199,7 +203,9 @@ def submit_report(
             "report_type_other": report_type_other,
             "description": description, "report_date": report_date}
     row = report_service.create_report(db, user, form, image)
-    return _ok(row, "Your report has been submitted. Its status is Pending.", "reports")
+    notification = gmail_notification_service.notify_record_owner(
+        user.email, "reports", row["id"], row["status"])
+    return _ok(row, "Your report has been submitted. Its status is Pending.", "reports", notification)
 
 
 @router.post("/feedback")
@@ -213,8 +219,10 @@ def submit_feedback(
             "feedback_type_other": feedback_type_other, "message": message,
             "feedback_date": feedback_date}
     row = feedback_service.create_feedback(db, user, form)
+    notification = gmail_notification_service.notify_record_owner(
+        user.email, "feedback", row["id"], row["status"])
     destination = "campus administrators" if row["feedback_scope"] == "campus" else "the Super Admin"
-    return _ok(row, f"Thank you! Your feedback was sent to {destination}.", "feedback")
+    return _ok(row, f"Thank you! Your feedback was sent to {destination}.", "feedback", notification)
 
 
 @router.post("/reservations")
@@ -226,8 +234,10 @@ def submit_reservation(
     form = {"facility": facility, "purpose": purpose, "reservation_date": reservation_date,
             "start_time": start_time, "end_time": end_time, "additional_info": additional_info}
     row = reservation_service.create_reservation(db, user, form)
+    notification = gmail_notification_service.notify_record_owner(
+        user.email, "reservations", row["id"], row["status"])
     return _ok(row, "Your reservation request was sent. It is Pending until an "
-                    "administrator approves it.")
+                    "administrator approves it.", notification=notification)
 
 
 @router.get("/rooms")
@@ -303,6 +313,8 @@ def photo_submit(
     row = photo_report_service.submit(db, user, draft_id, form, destination)
     kind = "concerns" if row.get("source") == "photo" and "concern_type" in row else "reports"
     row["destination"] = "concern" if kind == "concerns" else "report"
+    notification = gmail_notification_service.notify_record_owner(
+        user.email, kind, row["id"], row["status"])
     message = ("Your concern was sent to the administrators." if kind == "concerns"
                else "Your report was sent to the administrators.") + " Its status is Pending."
     if kind == "reports" and row["urgent"]:
@@ -314,7 +326,7 @@ def photo_submit(
         except Exception as error:
             db.rollback()
             print("CHAT HISTORY ERROR:", repr(error))
-    return _ok(row, message, kind)
+    return _ok(row, message, kind, notification)
 
 
 @router.delete("/reports/photo/{draft_id}")

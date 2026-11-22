@@ -59,7 +59,7 @@ from app.ai.ai_engine import ask_ai                               # noqa: E402
 from app.database import SessionLocal, init_db                    # noqa: E402
 from app.security import CurrentUser, is_admin_email, is_nemsu_email   # noqa: E402
 from app.services import (campus_service, common, concern_service, faculty_service,  # noqa: E402
-                          feedback_service, report_service, reservation_service,
+                          feedback_service, gmail_notification_service, report_service, reservation_service,
                           room_service, user_service)
 from app.services.common import ValidationError                   # noqa: E402
 
@@ -250,7 +250,10 @@ def page_concerns(user):
                 row = concern_service.create_concern(db, user, {
                     "location": location, "room": room, "concern_type": ctype,
                     "description": desc, "concern_date": str(when)}, None)
-            _done(row, "Your concern was submitted.", concern_service.pdf_path)
+            notification = gmail_notification_service.notify_record_owner(
+                user.email, "concerns", row["id"], row["status"])
+            _done(row, "Your concern was submitted." + gmail_notification_service.notification_notice(notification),
+                  concern_service.pdf_path)
         except ValidationError as e:
             st.error(str(e))
     _my_table("concerns", user)
@@ -275,7 +278,10 @@ def page_reports(user):
                 row = report_service.create_report(db, user, {
                     "location": location, "area": area, "room": room, "report_type": rtype,
                     "description": desc, "report_date": str(when)}, None)
-            _done(row, "Your report was submitted.", report_service.pdf_path)
+            notification = gmail_notification_service.notify_record_owner(
+                user.email, "reports", row["id"], row["status"])
+            _done(row, "Your report was submitted." + gmail_notification_service.notification_notice(notification),
+                  report_service.pdf_path)
         except ValidationError as e:
             st.error(str(e))
     _my_table("reports", user)
@@ -298,7 +304,10 @@ def page_feedback(user):
                 row = feedback_service.create_feedback(db, user, {
                     "area": area, "feedback_type": ftype, "message": message,
                     "feedback_date": str(when)})
-            _done(row, "Thank you! Your feedback was submitted.", feedback_service.pdf_path)
+            notification = gmail_notification_service.notify_record_owner(
+                user.email, "feedback", row["id"], row["status"])
+            _done(row, "Thank you! Your feedback was submitted."
+                  + gmail_notification_service.notification_notice(notification), feedback_service.pdf_path)
         except ValidationError as e:
             st.error(str(e))
     _my_table("feedback", user)
@@ -328,7 +337,10 @@ def page_reservations(user):
                     "facility": facility, "purpose": purpose, "reservation_date": str(date),
                     "start_time": start.strftime("%H:%M"), "end_time": end.strftime("%H:%M"),
                     "additional_info": info})
-            _done(row, "Your reservation request was sent.")
+            notification = gmail_notification_service.notify_record_owner(
+                user.email, "reservations", row["id"], row["status"])
+            _done(row, "Your reservation request was sent."
+                  + gmail_notification_service.notification_notice(notification))
         except ValidationError as e:
             st.error(str(e))
     _my_table("reservations", user)
@@ -404,12 +416,28 @@ def page_staff_records(kind, label):
         new = c2.selectbox("New status", statuses, key=f"st_{kind}")
         if c3.button("Update", key=f"up_{kind}", type="primary"):
             try:
+                record = next((row for row in rows if row["id"] == rid), None)
+                if record is None:
+                    st.error("That record no longer exists. Refresh and try again.")
+                    return
+                owner_email = record.get({
+                    "concerns": "reporter_email", "reports": "reporter_email",
+                    "feedback": "email", "reservations": "requester_email",
+                }[kind])
+                previous_status = record["status"]
                 with SessionLocal() as db:
                     if kind == "reservations":
                         reservation_service.change_status(db, rid, new)
                     else:
                         common.update_status(db, kind, rid, new)
-                st.success(f"#{rid} is now {new}.")
+                notification = None
+                if new != previous_status:
+                    notification = gmail_notification_service.notify_record_owner(
+                        owner_email, kind, rid, new)
+                message = f"#{rid} is now {new}."
+                if notification is not None:
+                    message += gmail_notification_service.notification_notice(notification)
+                st.success(message)
                 st.rerun()
             except ValidationError as e:
                 st.error(str(e))

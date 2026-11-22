@@ -201,6 +201,24 @@ button.send { border: none; background: var(--blue); color: #fff; font: inherit;
 button.send:hover { background: var(--blue-deep); } button.send:disabled { background: #8d8fb8; cursor: not-allowed; }
 .footnote { text-align: center; font-size: .82rem; color: var(--muted); margin-top: 8px; }
 .header-btn { background: transparent; color: #fff; font: inherit; font-weight: 600; font-size: .9rem; border: 1px solid rgba(255,255,255,.45); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.public-page { flex: 1; width: min(100% - 32px, 900px); margin: 0 auto; padding: 34px 0 24px; }
+.public-hero, .public-document { padding: clamp(20px, 5vw, 42px); border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.public-hero { margin-bottom: 18px; }
+.public-hero h2, .public-document > h2 { color: var(--blue-deep); font-family: var(--serif); font-size: clamp(1.7rem, 5vw, 2.4rem); line-height: 1.2; margin-bottom: 8px; }
+.public-hero > p, .public-document > p { margin: 12px 0; }
+.public-eyebrow { color: var(--muted); font-size: .82rem; font-weight: 700; letter-spacing: .06em; }
+.public-lead { color: var(--muted); font-size: 1.15rem; }
+.public-hero .btn { margin-top: 10px; }
+.public-section { margin: 18px 0; }
+.public-hero + .public-section, .public-document .public-section { padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.public-section h3 { margin-bottom: 8px; color: var(--blue-deep); font-family: var(--serif); font-size: 1.2rem; }
+.public-section p + p { margin-top: 10px; }
+.public-section ul { padding-left: 22px; }
+.public-section li + li { margin-top: 8px; }
+.public-muted { color: var(--muted); font-size: .9rem; }
+.public-footer { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 20px; padding: 20px 8px 0; font-size: .9rem; }
+.login-legal-links { margin-top: 14px; font-size: .85rem; }
+@media (max-width: 520px) { .public-page { width: min(100% - 20px, 900px); padding-top: 18px; } }
 
 /* ---------- forms (chat bubble + pages) ---------- */
 .inline-form { width: min(100%, 640px); }
