@@ -1203,6 +1203,9 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
 .report-manage-meta > span { display: grid; align-content: start; gap: 3px; min-width: 0; overflow-wrap: anywhere; font-size: .86rem; }
 .report-manage-meta > span > b { color: var(--muted); font-size: .69rem; letter-spacing: .04em; text-transform: uppercase; }
 .report-manage-meta > span > small { color: var(--muted); font-size: .78rem; }
+.report-manage-meta > span > a { width: fit-content; margin-top: 3px; color: var(--blue-deep); font-size: .8rem; font-weight: 650; text-decoration: underline; text-underline-offset: 2px; }
+.report-manage-meta > span > a:hover { color: #176fc1; }
+.report-manage-meta > span > a:focus-visible { outline: 2px solid #6b9bc3; outline-offset: 2px; border-radius: 2px; }
 .report-manage-flags { display: flex !important; flex-wrap: wrap; align-content: start; gap: 4px !important; }
 .report-manage-flags > b { flex: 0 0 100%; }
 .report-manage-card > .report-status-progress { margin: 0 14px 14px; padding: 10px 12px; grid-template-columns: minmax(100px, .55fr) minmax(0, 1.8fr); gap: 12px; border-radius: 9px; background: #fbfcfe; }
@@ -1325,12 +1328,14 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
   .report-status-progress, .report-status-progress.is-rejected { grid-template-columns: 1fr; gap: 12px; }
   .report-status-progress li { font-size: .62rem; }
   .report-manage-summary { padding: 13px 12px 10px; gap: 8px; }
+  .report-manage-title { flex: 1 1 auto; }
   .report-manage-title { grid-template-columns: max-content max-content; gap: 5px 7px; }
   .report-manage-title > b { grid-column: 1 / -1; white-space: normal; }
   .report-manage-title > small { white-space: normal; }
   .report-manage-status { flex-direction: column; align-items: flex-end; gap: 5px; }
   .report-manage-status > .ico { display: none; }
   .report-manage-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 0 12px 12px; }
+  .report-manage-meta > span { font-size: .82rem; }
   .report-manage-card > .report-status-progress { margin: 0 10px 10px; }
   .admin-assignment-form { grid-template-columns: minmax(0, 1fr) auto; }
   .report-priority-control, .report-admin-status { grid-template-columns: minmax(0, 1fr) auto; }
