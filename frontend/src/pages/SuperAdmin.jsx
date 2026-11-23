@@ -13,6 +13,8 @@ export default function SuperAdmin() {
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [checkingHealth, setCheckingHealth] = useState(false);
+  const [serviceHealth, setServiceHealth] = useState(null);
+  const [checkingServices, setCheckingServices] = useState(false);
   const load = useCallback(async () => {
     setLoadError("");
     try {
@@ -81,6 +83,16 @@ export default function SuperAdmin() {
       setFlash({ text: `Health checks finished: ${healthy} of ${providers.length} checks passed.${failures.length ? ` ${failures.join("; ")}` : " See provider cards for details."}`,
         kind: healthy === providers.length ? "info" : "error" });
     } finally { setCheckingHealth(false); }
+  }
+
+  async function checkConnectedServices() {
+    setCheckingServices(true);
+    try {
+      const result = await api("/api/admin/system/integrations/health", { method: "POST" });
+      setServiceHealth(result.services || []);
+    } catch (error) {
+      setFlash({ text: error.message || "Could not check connected services.", kind: "error" });
+    } finally { setCheckingServices(false); }
   }
 
   if (!data && loadError) return <div className="page"><h2 className="page-title">System Control</h2><p role="alert" className="error">{loadError}</p><button className="btn" type="button" onClick={() => load().catch(() => {})}>Try again</button></div>;
@@ -152,6 +164,21 @@ export default function SuperAdmin() {
       <progress max="100" value={diskPercent} style={{ width: "100%" }} aria-label={`Server disk ${diskPercent}% used`} />
       {storage.cloud_storage_note && <p className="muted">{storage.cloud_storage_note}</p>}
     </section>
+
+    <div className="ai-integrations-heading"><h3>Connected services</h3>
+      <button className="btn small ghost" type="button" disabled={checkingServices}
+        title="Runs read-only connection checks. No email is sent."
+        onClick={checkConnectedServices}>{checkingServices ? "Checking services…" : "Check service health"}</button>
+    </div>
+    <p className="muted">Checks Neon/PostgreSQL, Cloudinary storage, Brevo email, Google sign-in, and the optional Gmail fallback. These checks are read-only; the email checks do not send messages. Google OAuth client credentials are verified during sign-in.</p>
+    {serviceHealth ? <section className="system-health-grid" aria-live="polite" aria-label="Connected service health">
+      {serviceHealth.map((service) => <article className="system-health-card" key={service.name}>
+        <div><strong>{service.name}</strong><span className={`system-health-status ${service.status}`}>{service.status.replaceAll("_", " ")}</span></div>
+        <p>{service.message}</p>
+        {service.latency_ms != null && <small>{service.latency_ms} ms</small>}
+        {service.checked_at && <small>Checked {new Date(service.checked_at).toLocaleString()}</small>}
+      </article>)}
+    </section> : <p className="system-health-empty">Select <strong>Check service health</strong> to test configured services.</p>}
 
     <div className="ai-integrations-heading"><h3>AI integrations</h3>
       <button className="btn small" type="button" disabled={checkingHealth}

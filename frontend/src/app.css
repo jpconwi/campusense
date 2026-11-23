@@ -1248,6 +1248,16 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
 .ai-provider-toggle input { width: 16px; height: 16px; }
 .ai-integrations-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
 .ai-integrations-heading h3 { margin: 0; }
+.system-health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr)); gap: 10px; margin: 0 0 18px; }
+.system-health-card { display: grid; align-content: start; gap: 7px; min-width: 0; padding: 13px 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--card); }
+.system-health-card > div { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.system-health-card > div > strong { color: var(--blue-deep); }
+.system-health-card p { margin: 0; overflow-wrap: anywhere; font-size: .82rem; }
+.system-health-card small { color: var(--muted); font-size: .72rem; }
+.system-health-status { flex: 0 0 auto; padding: 4px 7px; border-radius: 999px; background: #eef1f5; color: #596677; font-size: .68rem; font-weight: 750; text-transform: capitalize; }
+.system-health-status.healthy { background: #e5f6ec; color: #176742; }
+.system-health-status.unavailable, .system-health-status.incomplete, .system-health-status.rate_limited { background: #fff0e8; color: #9d3e12; }
+.system-health-empty { margin: 0 0 18px; padding: 12px 14px; border: 1px dashed #cbd6e2; border-radius: 10px; color: var(--muted); font-size: .85rem; }
 .report-row { cursor: pointer; }
 .report-row:hover { background: #f7f9ff; }
 .report-row:focus-within { background: #f2f7ff; }

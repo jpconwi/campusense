@@ -1055,6 +1055,106 @@ def system_overview(_me: CurrentUser = Depends(super_admin_required), db: Sessio
     }
 
 
+@router.post("/system/integrations/health")
+def system_integrations_health(_me: CurrentUser = Depends(super_admin_required)):
+    """Run read-only reachability/auth checks for configured infrastructure services."""
+    import time
+    import httpx
+
+    def result(name, status, message, started=None, http_status=None):
+        return {"name": name, "status": status, "message": message,
+                "latency_ms": round((time.perf_counter() - started) * 1000) if started is not None else None,
+                "http_status": http_status, "checked_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+
+    services = []
+    started = time.perf_counter()
+    database_name = "Neon PostgreSQL" if engine.url.host and "neon.tech" in engine.url.host.lower() else (
+        "PostgreSQL" if engine.dialect.name == "postgresql" else "SQLite database")
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        services.append(result(database_name, "healthy", "Database query succeeded.", started))
+    except Exception:
+        services.append(result(database_name, "unavailable", "Could not connect to the database.", started))
+
+    cloudinary_values = (config.CLOUDINARY_CLOUD_NAME, config.CLOUDINARY_API_KEY, config.CLOUDINARY_API_SECRET)
+    if not any(cloudinary_values):
+        services.append(result("Cloudinary storage", "not_configured", "Cloudinary credentials are not configured."))
+    elif not all(cloudinary_values):
+        services.append(result("Cloudinary storage", "incomplete", "Cloudinary configuration is incomplete."))
+    else:
+        started = time.perf_counter()
+        try:
+            import cloudinary.api
+            upload_service._cloudinary()
+            ping = cloudinary.api.ping()
+            if ping.get("status") == "ok":
+                services.append(result("Cloudinary storage", "healthy", "Cloudinary API ping succeeded.", started))
+            else:
+                services.append(result("Cloudinary storage", "unavailable", "Cloudinary returned an unexpected ping response.", started))
+        except Exception as error:
+            code = getattr(error, "http_code", None)
+            status = "rate_limited" if code == 420 else "unavailable"
+            message = f"Cloudinary check failed (HTTP {code})." if code else "Could not reach or authenticate with Cloudinary."
+            services.append(result("Cloudinary storage", status, message, started, code))
+
+    brevo_values = (config.BREVO_API_KEY, config.BREVO_SENDER_EMAIL)
+    if not any(brevo_values):
+        services.append(result("Brevo email", "not_configured", "Brevo credentials are not configured."))
+    elif not all(brevo_values):
+        services.append(result("Brevo email", "incomplete", "Brevo API key and sender email must both be configured."))
+    else:
+        started = time.perf_counter()
+        try:
+            response = httpx.get("https://api.brevo.com/v3/account",
+                                 headers={"api-key": config.BREVO_API_KEY, "accept": "application/json"},
+                                 timeout=8)
+            if response.is_success:
+                services.append(result("Brevo email", "healthy", "Brevo API key was accepted; no email was sent.", started, response.status_code))
+            else:
+                status = "rate_limited" if response.status_code == 429 else "unavailable"
+                detail = "Brevo rate limit reached." if status == "rate_limited" else f"Brevo account check failed (HTTP {response.status_code})."
+                services.append(result("Brevo email", status, detail, started, response.status_code))
+        except httpx.HTTPError:
+            services.append(result("Brevo email", "unavailable", "Could not reach Brevo.", started))
+
+    gmail_values = (config.GMAIL_CLIENT_ID, config.GMAIL_CLIENT_SECRET,
+                    config.GMAIL_REFRESH_TOKEN, config.GMAIL_SENDER_EMAIL)
+    if not any(gmail_values):
+        services.append(result("Gmail fallback", "not_configured", "Optional Gmail fallback is not configured."))
+    elif not all(gmail_values):
+        services.append(result("Gmail fallback", "incomplete", "Gmail OAuth and sender settings are incomplete."))
+    else:
+        started = time.perf_counter()
+        try:
+            gmail_notification_service._access_token()
+            services.append(result("Gmail fallback", "healthy", "Google accepted the Gmail refresh token; no email was sent.", started))
+        except gmail_notification_service.GmailNotificationError as error:
+            services.append(result("Gmail fallback", "unavailable", str(error), started))
+
+    google_oauth_values = (config.GOOGLE_CLIENT_ID, config.GOOGLE_CLIENT_SECRET)
+    if not any(google_oauth_values):
+        services.append(result("Google sign-in", "not_configured", "Google OAuth client credentials are not configured."))
+    elif not all(google_oauth_values):
+        services.append(result("Google sign-in", "incomplete", "Google OAuth client ID and secret must both be configured."))
+    else:
+        started = time.perf_counter()
+        try:
+            response = httpx.get("https://accounts.google.com/.well-known/openid-configuration", timeout=8)
+            if response.is_success:
+                services.append(result("Google sign-in", "healthy",
+                                       "Google OAuth service is reachable; client credentials are validated during sign-in.",
+                                       started, response.status_code))
+            else:
+                services.append(result("Google sign-in", "unavailable",
+                                       f"Google OAuth discovery check failed (HTTP {response.status_code}).",
+                                       started, response.status_code))
+        except httpx.HTTPError:
+            services.append(result("Google sign-in", "unavailable", "Could not reach Google OAuth.", started))
+
+    return {"services": services}
+
+
 def _system_storage(db: Session):
     """Report local uploads, generated files, database size, and local disk headroom."""
     def folder_size(folder):
