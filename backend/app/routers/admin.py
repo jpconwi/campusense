@@ -1223,6 +1223,14 @@ class ProviderBody(BaseModel):
     enabled: bool = True
 
 
+@router.post("/system/ai-provider/{provider}/health")
+def check_ai_provider_health(provider: str, me: CurrentUser = Depends(super_admin_required)):
+    from app.model import systemAi
+    if provider not in systemAi.PROVIDER_ORDER:
+        raise ValidationError("Unknown AI provider.")
+    return systemAi.check_provider_health(provider)
+
+
 @router.post("/system/ai-provider/{provider}")
 def update_ai_provider(provider: str, body: ProviderBody, me: CurrentUser = Depends(super_admin_required),
                        db: Session = Depends(get_db)):

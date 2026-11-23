@@ -12,6 +12,7 @@ export default function SuperAdmin() {
   const [adminPassword, setAdminPassword] = useState("");
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [checkingProvider, setCheckingProvider] = useState("");
   const load = useCallback(async () => {
     setLoadError("");
     try {
@@ -53,6 +54,19 @@ export default function SuperAdmin() {
       });
       setFlash({ text: result.message, kind: "info" }); await load();
     } catch (error) { setFlash({ text: error.message, kind: "error" }); }
+  }
+
+  async function checkProvider(provider) {
+    setCheckingProvider(provider.provider);
+    try {
+      const result = await api(`/api/admin/system/ai-provider/${provider.provider}/health`, { method: "POST" });
+      setFlash({ text: result.success
+        ? `${provider.name}: healthy (${result.model}).`
+        : `${provider.name}: ${String(result.health || "check failed").replaceAll("_", " ")}${result.model ? ` (${result.model})` : ""}.`,
+        kind: result.success ? "info" : "error" });
+      await load();
+    } catch (error) { setFlash({ text: error.message || "Could not check provider health.", kind: "error" }); }
+    finally { setCheckingProvider(""); }
   }
 
   if (!data && loadError) return <div className="page"><h2 className="page-title">System Control</h2><p role="alert" className="error">{loadError}</p><button className="btn" type="button" onClick={() => load().catch(() => {})}>Try again</button></div>;
@@ -136,12 +150,14 @@ export default function SuperAdmin() {
           : provider.checks ? "No payment or quota error has been observed in recent requests."
             : "No payment or quota result yet; this provider has not been checked by a request.";
       return <article className="ai-provider-card" key={provider.name}>
-        <div className="ai-provider-heading"><strong>{provider.order}. {provider.name}</strong><span className={`ai-provider-state ${stateClass}`}>{label}</span></div>
+        <div className="ai-provider-heading"><strong>{provider.order}. {provider.name}</strong><span className={`ai-provider-state ${stateClass}`}>{label}{provider.last_http_status ? ` · HTTP ${provider.last_http_status}` : ""}</span></div>
         <div className="ai-provider-models"><b>Models in fallback order</b><span>{provider.models?.join(", ") || "No models listed"}</span></div>
         {provider.last_model && <p className="ai-provider-last">Last model: <strong>{provider.last_model}</strong> · {provider.last_mode || "chat"}
           {provider.last_checked_at && <> · {new Date(provider.last_checked_at).toLocaleString()}</>}</p>}
         <p className="ai-provider-billing">{billingText} <span>Check the provider console for current spend and balance.</span></p>
         <small className="muted">Observed in this server process: {provider.checks || 0} checks · {provider.successes || 0} succeeded · {provider.failures || 0} failed.</small>
+        <button className="btn small ghost ai-provider-check" type="button" disabled={!provider.has_credentials || checkingProvider === provider.provider}
+          onClick={() => checkProvider(provider)}>{checkingProvider === provider.provider ? "Checking…" : "Check health"}</button>
         <label className="ai-provider-toggle"><input type="checkbox" checked={provider.enabled} onChange={(event) => setProvider(provider, event.target.checked)} /> Enabled</label>
       </article>;
     })}</div>

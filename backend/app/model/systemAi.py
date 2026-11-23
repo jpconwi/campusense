@@ -162,6 +162,28 @@ def _failure_category(error):
     return "request_failed"
 
 
+def check_provider_health(provider):
+    """Send one tiny live chat request to a provider's first configured model."""
+    if provider not in PROVIDER_ORDER:
+        return {"success": False, "health": "unknown_provider", "model": None}
+    if not has_credentials(provider):
+        return {"success": False, "health": "not_configured", "model": None}
+    model = _models(provider)[0]
+    messages = [{"role": "system", "content": "This is a brief service health check. Reply with OK only."},
+                {"role": "user", "content": "OK"}]
+    try:
+        answer = _clean(_CALLERS[provider](model, messages, min(REQUEST_TIMEOUT, 12)))
+        if not answer:
+            raise RuntimeError("Provider returned an empty response")
+    except Exception as error:
+        outcome = _failure_category(error)
+        _record_provider_health(provider, outcome, model=model, error=error)
+        return {"success": False, "health": outcome, "model": model,
+                "last_http_status": _status_of(error)}
+    _record_provider_health(provider, "success", model=model)
+    return {"success": True, "health": "healthy", "model": model}
+
+
 def set_provider_enabled(provider, enabled):
     if provider not in PROVIDER_ORDER:
         return False
