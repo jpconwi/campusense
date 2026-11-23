@@ -217,18 +217,8 @@ export default function Layout() {
   const [historyTick, setHistoryTick] = useState(0);          // bump = reload the history list
   const [collapsed, setCollapsed] = useState(false);   // desktop: icons only
   const [open, setOpen] = useState(false);             // mobile: drawer
-  const [pendingAccounts, setPendingAccounts] = useState(null);
 
   useEffect(() => { setOpen(false); }, [location.pathname]);
-  useEffect(() => {
-    if (!user || !["admin", "super_admin"].includes(user.role)) { setPendingAccounts(null); return undefined; }
-    let alive = true;
-    api("/api/admin/dashboard").then((data) => {
-      const value = data.stats?.find(([label]) => label === "Pending Accounts")?.[1];
-      if (alive) setPendingAccounts(Number.isFinite(value) ? value : null);
-    }).catch(() => { if (alive) setPendingAccounts(null); });
-    return () => { alive = false; };
-  }, [user?.role]);
 
   function openChat(id) {                // id = null starts a new chat
     setChat((c) => ({ key: c.key + 1, id }));
@@ -277,8 +267,6 @@ export default function Layout() {
                              }}>
                       <span className="sb-ico"><Icon d={ICONS[item.path.split("?", 1)[0]] || FALLBACK_ICON} /></span>
                       <span className="lbl">{item.label}</span>
-                      {item.path.split("?", 1)[0] === "/admin/accounts" && pendingAccounts > 0 &&
-                        <span className="sb-count" aria-label={`${pendingAccounts} accounts waiting for review`}>{pendingAccounts}</span>}
                     </NavLink>
                   ))}
                 </div>
