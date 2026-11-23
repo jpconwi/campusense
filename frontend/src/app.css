@@ -1221,17 +1221,23 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
 .report-dialog-close:hover { border-color: #6b9bc3; background: #eef4ff; }
 .report-dialog-content { min-height: 0; overflow-y: auto; }
 .report-detail { padding: 20px 24px 26px; }
-.report-status-progress { position: relative; margin: 0 0 20px; padding: 2px 0 8px; }
+.report-status-progress { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(0, 1.8fr); align-items: center; gap: 24px; margin: 0 0 20px; padding: 14px 16px; border: 1px solid #e0e5ec; border-radius: 10px; background: #fff; }
+.report-status-copy { display: grid; gap: 4px; }
+.report-status-copy > strong { color: var(--ink); font-size: .9rem; }
+.report-status-copy > span, .report-status-copy > small { color: var(--muted); font-size: .76rem; line-height: 1.35; }
+.report-status-copy > small b { color: var(--blue-deep); }
+.report-status-steps { position: relative; padding: 0 4px; }
 .report-status-progress ol { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 0; padding: 0; list-style: none; }
-.report-status-progress li { z-index: 1; display: grid; justify-items: center; gap: 7px; color: var(--muted); font-size: .78rem; text-align: center; }
-.report-status-node { display: grid; place-items: center; width: 30px; height: 30px; border: 2px solid #cbd5e1; border-radius: 50%; background: #fff; color: #64748b; font-weight: 800; }
+.report-status-progress li { z-index: 1; display: grid; justify-items: center; gap: 6px; color: var(--muted); font-size: .68rem; line-height: 1.2; text-align: center; }
+.report-status-node { display: grid; place-items: center; width: 23px; height: 23px; border: 1px solid #cbd5e1; border-radius: 50%; background: #fff; color: #64748b; font-size: .7rem; font-weight: 800; }
 .report-status-progress li.complete { color: #18794e; }
 .report-status-progress li.complete .report-status-node { border-color: #198754; background: #198754; color: #fff; }
 .report-status-progress li.current { color: var(--blue-deep); font-weight: 750; }
-.report-status-progress li.current .report-status-node { border-color: #2585d4; color: #2585d4; box-shadow: 0 0 0 4px rgba(37,133,212,.13); }
-.report-status-track { position: absolute; top: 15px; right: 12.5%; left: 12.5%; height: 3px; background: #dce2e9; }
-.report-status-track > span { display: block; height: 100%; background: #198754; transition: width .2s ease; }
-.report-status-progress.is-rejected { display: flex; align-items: center; gap: 10px; color: #a3141b; }
+.report-status-progress li.current .report-status-node { border: 2px solid #316de0; color: #316de0; box-shadow: 0 0 0 3px rgba(49,109,224,.12); }
+.report-status-track { position: absolute; top: 10px; right: 12.5%; left: 12.5%; height: 2px; background: #dce2e9; }
+.report-status-track > span { display: block; height: 100%; background: #316de0; transition: width .2s ease; }
+.report-status-progress.is-rejected { grid-template-columns: minmax(180px, .7fr) minmax(0, 1.8fr); }
+.report-status-rejected { display: flex; align-items: center; gap: 8px; color: #a3141b; }
 .report-status-progress.is-rejected .report-status-node { border-color: #c62828; background: #c62828; color: #fff; }
 .report-review-workflow { padding: 17px; border-color: #d8e2ef; background: #f7faff; }
 .report-detail h4 { margin: 0 0 6px; color: var(--muted); font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
@@ -1276,6 +1282,7 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
   .report-table { min-width: 820px; }
   .report-row td.report-when, .report-row td.report-assignee { display: none; }
   .report-detail-body { grid-template-columns: 1fr; gap: 14px; }
+  .report-status-progress { grid-template-columns: minmax(130px, .65fr) minmax(0, 1.8fr); gap: 12px; padding: 12px; }
 }
 @media (max-width: 760px) {
   .photo-detail { grid-template-columns: minmax(0, 1fr); gap: 12px; }
@@ -1289,6 +1296,8 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
   .report-dialog { width: 100%; height: 100%; max-height: none; border: 0; border-radius: 0; }
   .report-dialog-header { padding: 14px 16px; }
   .report-detail { padding: 16px; }
+  .report-status-progress, .report-status-progress.is-rejected { grid-template-columns: 1fr; gap: 12px; }
+  .report-status-progress li { font-size: .62rem; }
   .admin-assignment-form { grid-template-columns: minmax(0, 1fr) auto; }
   .report-priority-control, .report-admin-status { grid-template-columns: minmax(0, 1fr) auto; }
   .admin-picker { width: 100%; }

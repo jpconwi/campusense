@@ -496,16 +496,21 @@ function RecordDetail({ row, apiKind, assignees, statuses, onChanged, superAdmin
 
 function ReportStatusProgress({ status }) {
   const steps = ["Pending", "Under Review", "In Progress", "Resolved"];
-  if (status === "Rejected") return <div className="report-status-progress is-rejected" aria-label="Report status: Rejected">
-    <span className="report-status-node">×</span><strong>Rejected</strong>
-  </div>;
+  if (status === "Rejected") return <section className="report-status-progress is-rejected" aria-label="Report status: Rejected">
+    <div className="report-status-copy"><strong>Report progress</strong><span>This report was rejected during review.</span></div>
+    <div className="report-status-rejected"><span className="report-status-node">×</span><strong>Rejected</strong></div>
+  </section>;
   const active = Math.max(0, steps.indexOf(status));
-  return <div className="report-status-progress" aria-label={`Report status: ${status || "Pending"}`}>
-    <div className="report-status-track"><span style={{ width: `${active / (steps.length - 1) * 100}%` }} /></div>
-    <ol>{steps.map((step, index) => <li key={step} className={index < active ? "complete" : index === active ? "current" : ""}>
-      <span className="report-status-node">{index < active ? "✓" : index + 1}</span><span>{step}</span>
-    </li>)}</ol>
-  </div>;
+  return <section className="report-status-progress" aria-label={`Report status: ${status || "Pending"}`}>
+    <div className="report-status-copy"><strong>Report progress</strong><span>Track the report through each review milestone.</span>
+      <small><b>Current step:</b> {status || "Pending"}</small></div>
+    <div className="report-status-steps">
+      <div className="report-status-track"><span style={{ width: `${active / (steps.length - 1) * 100}%` }} /></div>
+      <ol>{steps.map((step, index) => <li key={step} className={index < active ? "complete" : index === active ? "current" : ""}>
+        <span className="report-status-node">{index < active ? "✓" : index === active ? "●" : ""}</span><span>{step}</span>
+      </li>)}</ol>
+    </div>
+  </section>;
 }
 
 /** Concerns / Reports / Feedback / Reservations for admins. */
