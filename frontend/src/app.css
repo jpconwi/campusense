@@ -1225,6 +1225,11 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
 .ai-provider-card { display: grid; align-content: start; gap: 10px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 13px; background: var(--card); box-shadow: 0 2px 8px rgba(21,22,58,.04); }
 .ai-provider-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .ai-provider-heading > strong { color: var(--blue-deep); font-size: 1rem; }
+.ai-last-used { margin: 0 0 13px; padding: 13px 15px; border: 1px solid #c8d9ec; border-left: 4px solid var(--blue); border-radius: 10px; background: #f4f8fd; }
+.ai-last-used > div { display: grid; gap: 4px; min-width: 0; }
+.ai-last-used strong { color: #425b76; font-size: .73rem; letter-spacing: .04em; text-transform: uppercase; }
+.ai-last-used b { color: var(--blue-deep); overflow-wrap: anywhere; }
+.ai-last-used span { color: var(--muted); font-size: .8rem; }
 .ai-provider-state { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; background: #edf1f5; color: #526273; font-size: .72rem; font-weight: 750; }
 .ai-provider-state.healthy { background: #e6f6ed; color: #176742; }
 .ai-provider-state.issue { background: #fff0e8; color: #9d3e12; }

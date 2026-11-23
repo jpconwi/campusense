@@ -1043,6 +1043,7 @@ def system_overview(_me: CurrentUser = Depends(super_admin_required), db: Sessio
             ("Feedback", "feedback"))],
         "analytics": chart_service.dashboard_charts(db),
         "ai_providers": systemAi.chain_status(),
+        "ai_last_use": systemAi.last_system_use(),
         "storage": storage,
         "departments": departments,
         "activity": [{"id": r.id, "actor_email": r.actor_email, "action": r.action,

@@ -76,6 +76,7 @@ _hf_client = None
 _provider_enabled = {}
 _provider_health = {}
 _preferred_models = {}
+_last_system_use = None
 
 
 # ------------------------------------------------------------ settings
@@ -125,6 +126,17 @@ def chain_status():
                      "failures": health.get("failures", 0),
                      "billing_signal": health.get("billing_signal", "not_reported")})
     return rows
+
+
+def last_system_use():
+    """Return the last successful real chat/photo model call; health checks are excluded."""
+    return dict(_last_system_use) if _last_system_use else None
+
+
+def _record_system_use(provider, model, mode):
+    global _last_system_use
+    _last_system_use = {"provider": provider, "provider_name": LABELS[provider], "model": model,
+                        "mode": mode, "used_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
 
 
 def _record_provider_health(provider, outcome, *, model=None, vision=False, error=None, models_checked=None):
@@ -427,6 +439,7 @@ def ask_model_with_source(system_prompt, question):
             attempted = True
             answer, model = _try_provider(provider, messages, deadline)
             if answer:
+                _record_system_use(provider, model, "chat")
                 if provider != PROVIDER_ORDER[0]:
                     print(f"AI: answered by fallback {LABELS[provider]} ({model})")
                 return answer, provider
@@ -589,6 +602,7 @@ def ask_vision(system_prompt, user_text, image_b64, mime="image/jpeg", *,
         answer, model = _try_provider(provider, messages, provider_deadline, models=_vision_models(provider),
                                       callers=callers, key=key, vision=True)
         if answer:
+            _record_system_use(provider, model, "photo")
             if provider != VISION_PROVIDER_ORDER[0]:
                 print(f"AI: photo analysed by {LABELS[provider]} ({model})")
             return answer, provider, model

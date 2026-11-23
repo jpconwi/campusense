@@ -159,6 +159,14 @@ export default function SuperAdmin() {
         onClick={checkAllProviderHealth}>{checkingHealth ? "Checking providers…" : "Check health"}</button>
     </div>
     <p className="muted">Health reflects real model requests handled by this server process and refreshes once a minute. Check health sends a small request to each configured provider in sequence; it tries another model if one is unavailable and selects the first model that responds for subsequent requests in this process. This selection resets when the server restarts. Requests may count toward provider quotas; exact spend and balances are not available here.</p>
+    <section className="ai-last-used" aria-live="polite">
+      <div><strong>Last model used by NEMSAI</strong>
+        {data.ai_last_use
+          ? <><b>{data.ai_last_use.provider_name} · {data.ai_last_use.model}</b>
+              <span>{data.ai_last_use.mode === "photo" ? "Photo analysis" : "Chat response"} · {new Date(data.ai_last_use.used_at).toLocaleString()}</span></>
+          : <span>No successful AI response has been recorded by this server process since it started.</span>}
+      </div>
+    </section>
     <div className="ai-provider-list">{data.ai_providers.map((provider) => {
       const [label, stateClass] = providerStatus(provider);
       const billingText = provider.billing_signal === "payment_or_credits_required"
