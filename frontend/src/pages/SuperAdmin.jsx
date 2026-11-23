@@ -24,6 +24,10 @@ export default function SuperAdmin() {
     }
   }, []);
   useEffect(() => { document.title = "System Control | NEMSU"; load().catch(() => {}); }, [load]);
+  useEffect(() => {
+    const timer = window.setInterval(() => load().catch(() => {}), 60_000);
+    return () => window.clearInterval(timer);
+  }, [load]);
 
   async function createAdmin(event) {
     event.preventDefault();
@@ -62,6 +66,18 @@ export default function SuperAdmin() {
   };
   const storage = data.storage || {};
   const diskPercent = storage.disk_total_bytes ? Math.min(100, Math.round(storage.disk_used_bytes * 100 / storage.disk_total_bytes)) : 0;
+  const providerStatus = (provider) => {
+    if (!provider.enabled) return ["Disabled", "off"];
+    if (!provider.configured) return [provider.has_credentials ? "Disabled" : "Not configured", "muted"];
+    const labels = { payment_required: "Payment / credits required", rate_limited: "Rate limited",
+      invalid_credentials: "Credentials rejected", temporary_outage: "Temporary outage",
+      model_unavailable: "Model unavailable", request_failed: "Request failed" };
+    if (provider.health && provider.health !== "healthy" && provider.health !== "not_checked") {
+      const issue = labels[provider.health] || "Request failed";
+      return [provider.cooling_down ? `${issue} · cooling down` : issue, "issue"];
+    }
+    return provider.health === "healthy" ? ["Last request succeeded", "healthy"] : ["Configured · not checked yet", "muted"];
+  };
   return <div className="page">
     <h2 className="page-title">System Control</h2>
     <p className="page-intro">Manage privileged access, review system activity, and monitor campus-wide services.</p>
@@ -110,11 +126,25 @@ export default function SuperAdmin() {
     </section>
 
     <h3>AI integrations</h3>
-    <p className="muted">Provider keys and model names remain in server configuration. Disable a provider here to remove it from both text and photo-analysis fallback chains.</p>
-    <div className="record-card-list">{data.ai_providers.map((provider) => <article className="record-card" key={provider.name}>
-      <strong>{provider.name}</strong><span>{provider.has_credentials ? "Credentials configured" : "No credentials"}</span>
-      <label><input type="checkbox" checked={provider.enabled} onChange={(event) => setProvider(provider, event.target.checked)} /> Enabled</label>
-    </article>)}</div>
+    <p className="muted">Health reflects model requests handled by this server process and refreshes once a minute. No test calls are made. Exact provider spend and remaining balance are not available through this app.</p>
+    <div className="ai-provider-list">{data.ai_providers.map((provider) => {
+      const [label, stateClass] = providerStatus(provider);
+      const billingText = provider.billing_signal === "payment_or_credits_required"
+        ? "The provider reported that payment or credits are required."
+        : provider.billing_signal === "rate_or_quota_limit"
+          ? "The provider reported a rate or quota limit."
+          : provider.checks ? "No payment or quota error has been observed in recent requests."
+            : "No payment or quota result yet; this provider has not been checked by a request.";
+      return <article className="ai-provider-card" key={provider.name}>
+        <div className="ai-provider-heading"><strong>{provider.order}. {provider.name}</strong><span className={`ai-provider-state ${stateClass}`}>{label}</span></div>
+        <div className="ai-provider-models"><b>Models in fallback order</b><span>{provider.models?.join(", ") || "No models listed"}</span></div>
+        {provider.last_model && <p className="ai-provider-last">Last model: <strong>{provider.last_model}</strong> · {provider.last_mode || "chat"}
+          {provider.last_checked_at && <> · {new Date(provider.last_checked_at).toLocaleString()}</>}</p>}
+        <p className="ai-provider-billing">{billingText} <span>Check the provider console for current spend and balance.</span></p>
+        <small className="muted">Observed in this server process: {provider.checks || 0} checks · {provider.successes || 0} succeeded · {provider.failures || 0} failed.</small>
+        <label className="ai-provider-toggle"><input type="checkbox" checked={provider.enabled} onChange={(event) => setProvider(provider, event.target.checked)} /> Enabled</label>
+      </article>;
+    })}</div>
 
     <h3>Privileged activity</h3>
     {data.activity.length ? <div className="table-wrap"><table className="data-table">

@@ -22,6 +22,7 @@ tried in order inside that provider before moving on.
 
 import re
 import time
+from datetime import datetime, timezone
 
 import httpx
 
@@ -73,6 +74,7 @@ _cooldown_until = {}                # provider -> time.monotonic() when it may b
 _dead = {}                          # (provider key, model) -> until when the model is skipped
 _hf_client = None
 _provider_enabled = {}
+_provider_health = {}
 
 
 # ------------------------------------------------------------ settings
@@ -102,11 +104,62 @@ def is_configured(provider):
 def chain_status():
     """For the admin page / start-up log. Never contains a key."""
     now = time.monotonic()
-    return [{"order": i + 1, "provider": p, "name": LABELS[p], "enabled": _provider_enabled.get(p, True),
-             "configured": is_configured(p), "has_credentials": has_credentials(p),
-             "models": _models(p),
-             "cooling_down": _cooldown_until.get(p, 0) > now}
-            for i, p in enumerate(PROVIDER_ORDER)]
+    rows = []
+    for i, provider in enumerate(PROVIDER_ORDER):
+        health = _provider_health.get(provider, {})
+        rows.append({"order": i + 1, "provider": provider, "name": LABELS[provider],
+                     "enabled": _provider_enabled.get(provider, True),
+                     "configured": is_configured(provider), "has_credentials": has_credentials(provider),
+                     "models": _models(provider), "cooling_down": _cooldown_until.get(provider, 0) > now,
+                     "health": health.get("health", "not_checked"),
+                     "last_outcome": health.get("last_outcome"), "last_issue": health.get("last_issue"),
+                     "last_model": health.get("last_model"), "last_mode": health.get("last_mode"),
+                     "last_checked_at": health.get("last_checked_at"),
+                     "last_http_status": health.get("last_http_status"),
+                     "checks": health.get("checks", 0), "successes": health.get("successes", 0),
+                     "failures": health.get("failures", 0),
+                     "billing_signal": health.get("billing_signal", "not_reported")})
+    return rows
+
+
+def _record_provider_health(provider, outcome, *, model=None, vision=False, error=None):
+    state = _provider_health.setdefault(provider, {"checks": 0, "successes": 0, "failures": 0})
+    state["checks"] += 1
+    state["last_outcome"] = outcome
+    state["health"] = "healthy" if outcome == "success" else outcome
+    state["last_model"] = model
+    state["last_mode"] = "photo" if vision else "chat"
+    state["last_checked_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    state["last_http_status"] = _status_of(error) if error else None
+    if outcome == "success":
+        state["successes"] += 1
+        state["last_issue"] = None
+        state["billing_signal"] = "not_reported"
+    else:
+        state["failures"] += 1
+        state["last_issue"] = outcome
+        if outcome == "payment_required":
+            state["billing_signal"] = "payment_or_credits_required"
+        elif outcome == "rate_limited":
+            state["billing_signal"] = "rate_or_quota_limit"
+        elif outcome == "invalid_credentials":
+            state["billing_signal"] = "credentials_rejected"
+
+
+def _failure_category(error):
+    status = _status_of(error)
+    text = _text_of(error)
+    if _is_no_credit(error):
+        return "payment_required"
+    if status == 429 or any(term in text for term in ("rate limit", "quota exceeded", "resource exhausted", "too many requests")):
+        return "rate_limited"
+    if _is_bad_key(error):
+        return "invalid_credentials"
+    if _is_model_gone(error):
+        return "model_unavailable"
+    if _is_busy(error):
+        return "temporary_outage"
+    return "request_failed"
 
 
 def set_provider_enabled(provider, enabled):
@@ -247,6 +300,7 @@ def _try_provider(provider, messages, deadline, models=None, callers=None, key=N
     stop = {"why": None}
     tried = []
     seen_gone = {"yes": False}
+    last_error = {"value": None}
 
     def attempt(model):
         tried.append(model)
@@ -259,8 +313,12 @@ def _try_provider(provider, messages, deadline, models=None, callers=None, key=N
                 return None
             timeout = max(0.5, min(REQUEST_TIMEOUT, deadline - time.monotonic()))
             try:
-                return _clean(callers[provider](model, messages, timeout)) or None
+                answer = _clean(callers[provider](model, messages, timeout)) or None
+                if answer:
+                    _record_provider_health(provider, "success", model=model, vision=vision)
+                return answer
             except Exception as error:
+                last_error["value"] = error
                 print(f"AI ERROR ({LABELS[provider]} / {model}, try {attempt_no}):", repr(error)[:300])
                 if _is_bad_key(error):
                     stop["why"] = "bad_key"
@@ -294,7 +352,13 @@ def _try_provider(provider, messages, deadline, models=None, callers=None, key=N
             if stop["why"]:
                 break
     if stop["why"] == "deadline":
+        _record_provider_health(provider, "temporary_outage", model=tried[-1] if tried else None,
+                                vision=vision, error=last_error["value"])
         return None, None
+    outcome = _failure_category(last_error["value"]) if last_error["value"] else (
+        "model_unavailable" if seen_gone["yes"] else "request_failed")
+    _record_provider_health(provider, outcome, model=tried[-1] if tried else None,
+                            vision=vision, error=last_error["value"])
     _cooldown_until[key] = time.monotonic() + {
         "bad_key": COOLDOWN_AFTER_BAD_KEY, "no_credit": COOLDOWN_AFTER_NO_CREDIT}.get(
         stop["why"], COOLDOWN_AFTER_FAILURE)

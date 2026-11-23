@@ -1221,6 +1221,23 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
 .report-manage-card .report-status-copy > strong { font-size: .78rem; }
 .report-manage-card .report-status-copy > span { font-size: .7rem; }
 .report-manage-card .report-status-progress li { font-size: .65rem; }
+.ai-provider-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 12px; }
+.ai-provider-card { display: grid; align-content: start; gap: 10px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 13px; background: var(--card); box-shadow: 0 2px 8px rgba(21,22,58,.04); }
+.ai-provider-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ai-provider-heading > strong { color: var(--blue-deep); font-size: 1rem; }
+.ai-provider-state { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; background: #edf1f5; color: #526273; font-size: .72rem; font-weight: 750; }
+.ai-provider-state.healthy { background: #e6f6ed; color: #176742; }
+.ai-provider-state.issue { background: #fff0e8; color: #9d3e12; }
+.ai-provider-state.off { background: #eef0f4; color: #5a6471; }
+.ai-provider-models { display: grid; gap: 3px; min-width: 0; }
+.ai-provider-models > b { color: var(--muted); font-size: .7rem; letter-spacing: .04em; text-transform: uppercase; }
+.ai-provider-models > span { overflow-wrap: anywhere; font-size: .82rem; }
+.ai-provider-last, .ai-provider-billing { margin: 0; overflow-wrap: anywhere; font-size: .8rem; }
+.ai-provider-last { color: var(--muted); }
+.ai-provider-billing { padding: 9px 10px; border-radius: 8px; background: #f5f8fc; }
+.ai-provider-billing > span { display: block; margin-top: 3px; color: var(--muted); font-size: .76rem; }
+.ai-provider-toggle { display: flex; align-items: center; gap: 7px; padding-top: 8px; border-top: 1px solid var(--line); font-size: .84rem; font-weight: 650; }
+.ai-provider-toggle input { width: 16px; height: 16px; }
 .report-row { cursor: pointer; }
 .report-row:hover { background: #f7f9ff; }
 .report-row:focus-within { background: #f2f7ff; }
