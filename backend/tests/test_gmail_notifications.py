@@ -32,6 +32,7 @@ def configure_brevo(monkeypatch, gmail_fallback=False):
 
 def test_announcement_email_uses_private_brevo_message_versions(db, monkeypatch):
     configure_brevo(monkeypatch)
+    monkeypatch.setattr(config, "PUBLIC_URL", "https://nemsai.vercel.app")
     db.add_all([
         User(google_id=f"brevo-user-{index}", name=f"User {index}",
              email=f"user{index}@nemsu.edu.ph", role="student")
@@ -61,6 +62,7 @@ def test_announcement_email_uses_private_brevo_message_versions(db, monkeypatch)
     versions = request["json"]["messageVersions"]
     assert len(versions) == 51
     assert all(len(version["to"]) == 1 for version in versions)
+    assert "https://nemsai.vercel.app/logo.png" in request["json"]["htmlContent"]
     assert "inactive@nemsu.edu.ph" not in str(request["json"])
     assert "pending@nemsu.edu.ph" not in str(request["json"])
 
@@ -82,6 +84,7 @@ def test_missing_brevo_configuration_skips_delivery(db, monkeypatch):
 
 def test_record_status_email_is_sent_by_brevo_to_record_owner(monkeypatch):
     configure_brevo(monkeypatch)
+    monkeypatch.setattr(config, "PUBLIC_URL", "https://nemsai.vercel.app")
     requests = []
 
     def fake_post(url, **kwargs):
@@ -99,7 +102,47 @@ def test_record_status_email_is_sent_by_brevo_to_record_owner(monkeypatch):
     assert payload["sender"] == {"name": "NEMSAI", "email": "notifications@example.com"}
     assert payload["to"] == [{"email": "sam@nemsu.edu.ph"}]
     assert "Under Review" in payload["subject"]
-    assert "http://localhost:8000/reports" in payload["textContent"]
+    assert "https://nemsai.vercel.app/reports" in payload["textContent"]
+    assert "https://nemsai.vercel.app/logo.png" in payload["htmlContent"]
+    assert "<table" in payload["htmlContent"]
+
+
+def test_report_decision_email_escapes_admin_note(monkeypatch):
+    configure_brevo()
+    requests = []
+
+    def fake_post(url, **kwargs):
+        requests.append((url, kwargs))
+        return Response(payload={"messageId": "sent"})
+
+    monkeypatch.setattr(notifications.httpx, "post", fake_post)
+    result = notifications.send_report_decision_notification(
+        "sam@nemsu.edu.ph", "reports", 42, "Rejected", "<script>alert('x')</script>")
+
+    assert result == notifications.NotificationResult("sent", 1)
+    payload = requests[0][1]["json"]
+    assert "&lt;script&gt;" in payload["htmlContent"]
+    assert "<script>" not in payload["htmlContent"]
+
+
+def test_feedback_receipt_and_account_decision_use_branded_email(monkeypatch):
+    configure_brevo()
+    monkeypatch.setattr(config, "PUBLIC_URL", "https://nemsai.vercel.app")
+    requests = []
+
+    def fake_post(url, **kwargs):
+        requests.append((url, kwargs))
+        return Response(payload={"messageId": "sent"})
+
+    monkeypatch.setattr(notifications.httpx, "post", fake_post)
+    notifications.send_feedback_receipt("sam@nemsu.edu.ph", 7, "Library", "Suggestion")
+    notifications.send_account_decision_notification(
+        "sam@nemsu.edu.ph", "Sam Student", "Approved")
+
+    assert len(requests) == 2
+    for _, request in requests:
+        assert "https://nemsai.vercel.app/logo.png" in request["json"]["htmlContent"]
+        assert "NEMSAI" in request["json"]["htmlContent"]
 
 
 def test_brevo_rate_limit_falls_back_to_gmail_for_record_owner(monkeypatch):
@@ -125,6 +168,7 @@ def test_brevo_rate_limit_falls_back_to_gmail_for_record_owner(monkeypatch):
     message = BytesParser(policy=policy.default).parsebytes(
         base64.urlsafe_b64decode(gmail_request["json"]["raw"] + "==="))
     assert message["To"] == "sam@nemsu.edu.ph"
+    assert "logo.png" in message.get_body(preferencelist=("html",)).get_content()
 
 
 def test_brevo_quota_falls_back_privately_and_tracks_partial_announcement_delivery(db, monkeypatch):

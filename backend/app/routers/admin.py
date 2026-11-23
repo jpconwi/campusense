@@ -439,21 +439,17 @@ def change_status(kind: str, row_id: int, body: StatusBody, me: CurrentUser = De
         row = db.get(common.MODELS["feedback"], row_id)
         if row is None:
             raise ValidationError("Feedback not found.")
-        previous_status = row.status
         if me.role == "admin" and row.feedback_scope != "campus":
             raise HTTPException(403, "Admins can update campus feedback only.")
         if me.role == "admin" and body.status == "Forwarded":
             raise ValidationError("Use the forward action to send feedback to the Super Admin.")
         if not common.update_status(db, kind, row_id, body.status):
             raise ValidationError("Feedback not found.")
-        if body.status != previous_status:
-            notification = gmail_notification_service.notify_record_owner(
-                row.email, kind, row.id, row.status)
     elif kind == "reservations":
         row = db.get(common.MODELS["reservations"], row_id)
         previous = row.status if row else None
         reservation_service.change_status(db, row_id, body.status, me.email, body.note)
-        if row and row.status != previous:
+        if row and row.status != previous and row.status in ("Approved", "Rejected"):
             notification = gmail_notification_service.notify_record_owner(
                 row.requester_email, kind, row.id, row.status)
         _log_admin_action(db, me.email, "reservation_status_changed", row.requester_email,
@@ -579,7 +575,6 @@ def forward_feedback(feedback_id: int, me: CurrentUser = Depends(admin_required)
     row = db.get(common.MODELS["feedback"], feedback_id)
     if row is None or row.feedback_scope != "campus":
         raise ValidationError("Only campus feedback can be forwarded.")
-    previous_status = row.status
     row.feedback_scope = "system"
     row.forwarded_to_super_admin = True
     row.forwarded_by = me.email
@@ -587,12 +582,7 @@ def forward_feedback(feedback_id: int, me: CurrentUser = Depends(admin_required)
     row.status = "Forwarded"
     row.updated_at = common.now()
     db.commit()
-    message = "Feedback forwarded to the Super Admin."
-    if previous_status != row.status:
-        notification = gmail_notification_service.notify_record_owner(
-            row.email, "feedback", row.id, row.status)
-        message += gmail_notification_service.notification_notice(notification)
-    return {"success": True, "message": message}
+    return {"success": True, "message": "Feedback forwarded to the Super Admin."}
 
 
 class ReportDecisionBody(BaseModel):
@@ -610,7 +600,7 @@ def decide_report(kind: str, row_id: int, body: ReportDecisionBody,
     row = db.get(common.MODELS[kind], row_id)
     if row is None:
         raise ValidationError("Report not found.")
-    previous_status = row.status
+    previous_decision = row.workflow_review
     note = common.clean_text(body.note, "Review note", 500, required=False) or None
     row.workflow_review = body.decision
     row.workflow_review_note = note
@@ -624,9 +614,9 @@ def decide_report(kind: str, row_id: int, body: ReportDecisionBody,
     row.updated_at = common.now()
     db.commit()
     message = f"Report {body.decision.lower()} by Super Admin."
-    if previous_status != row.status:
-        notification = gmail_notification_service.notify_record_owner(
-            row.reporter_email, kind, row.id, row.status)
+    if previous_decision != row.workflow_review:
+        notification = gmail_notification_service.notify_report_decision(
+            row.reporter_email, kind, row.id, body.decision, note)
         message += gmail_notification_service.notification_notice(notification)
     return {"success": True, "message": message}
 
@@ -894,7 +884,11 @@ def approve_account(user_id: int, me: CurrentUser = Depends(admin_required), db:
         return _account_action_refused("This account cannot be approved yet.", ["Account requirements changed. Refresh and review again"])
     _log_admin_action(db, me.email, "account_approved", target.email,
                       f"Approved {target.registration_type} registration.")
-    return {"success": True, "message": f"{target.email} approved. The account can sign in now."}
+    notification = gmail_notification_service.notify_account_decision(
+        target.email, target.name, "Approved")
+    message = f"{target.email} approved. The account can sign in now."
+    message += gmail_notification_service.notification_notice(notification)
+    return {"success": True, "message": message}
 
 
 @router.post("/accounts/{user_id}/reject")
@@ -914,7 +908,11 @@ def reject_account(user_id: int, body: AccountRejectBody = Body(default=AccountR
         return _account_action_refused("This account is not awaiting approval.", ["Account is not pending approval"])
     _log_admin_action(db, me.email, "account_rejected", target.email,
                       "Rejected personal registration." + (f" Reason: {reason}" if reason else " No reason provided."))
-    return {"success": True, "message": f"{target.email} was rejected."}
+    notification = gmail_notification_service.notify_account_decision(
+        target.email, target.name, "Rejected", reason)
+    message = f"{target.email} was rejected."
+    message += gmail_notification_service.notification_notice(notification)
+    return {"success": True, "message": message}
 
 
 @router.post("/accounts/{user_id}/check")
@@ -1388,11 +1386,11 @@ def announcements_add(body: dict, me: CurrentUser = Depends(admin_required), db:
         return {"success": True, "message": message}
 
     if result.status == "not_configured":
-        message = "Announcement posted, but Gmail email notifications are not configured."
+        message = "Announcement posted, but email notifications are not configured."
     elif result.status == "no_recipients":
         message = "Announcement posted. There are no active approved users to email."
     else:
-        message = f"Announcement posted and emailed to {result.recipient_count} active users."
+        message = f"Announcement posted and emailed to {result.recipient_count} active approved users."
     return {"success": True, "message": message}
 
 

@@ -504,7 +504,7 @@ def test_announcement_remains_posted_when_gmail_delivery_fails(admin, monkeypatc
     assert admin.get("/api/admin/announcements").json()["rows"][0]["title"] == "Campus update"
 
 
-def test_report_submission_and_status_change_email_record_owner(student, admin, db, monkeypatch):
+def test_report_submission_sends_only_admin_status_change_email(student, admin, db, monkeypatch):
     from app.services import gmail_notification_service
 
     sent = []
@@ -520,7 +520,7 @@ def test_report_submission_and_status_change_email_record_owner(student, admin, 
     })
     assert response.status_code == 200
     report_id = response.json()["id"]
-    assert "status email was sent" in response.json()["message"]
+    assert sent == []
 
     report = db.get(Report, report_id)
     report.workflow_review = "Accepted"
@@ -530,14 +530,123 @@ def test_report_submission_and_status_change_email_record_owner(student, admin, 
     changed = admin.post(f"/api/admin/records/reports/{report_id}/status",
                          json={"status": "Under Review"})
     assert changed.status_code == 200
-    assert "status email was sent" in changed.json()["message"]
+    assert "notification email was sent" in changed.json()["message"]
     unchanged = admin.post(f"/api/admin/records/reports/{report_id}/status",
                            json={"status": "Under Review"})
     assert unchanged.status_code == 200
     assert sent == [
-        ("sam@nemsu.edu.ph", "reports", report_id, "Pending"),
         ("sam@nemsu.edu.ph", "reports", report_id, "Under Review"),
     ]
+
+
+def test_initial_concern_and_reservation_submissions_do_not_email(student, instructor, monkeypatch):
+    from app.services import gmail_notification_service
+
+    sent = []
+    monkeypatch.setattr(
+        gmail_notification_service, "notify_record_owner",
+        lambda *args: sent.append(args))
+    assert student.post("/api/concerns", data=concern_form()).status_code == 200
+    assert instructor.post("/api/reservations", data=reservation()).status_code == 200
+    student.ask("Where is the library?")
+    assert sent == []
+
+
+def test_super_admin_report_decision_emails_even_when_status_is_unchanged(
+        student, client, monkeypatch):
+    from app.services import gmail_notification_service
+
+    monkeypatch.setattr(config, "super_admin_emails", lambda: {"super@nemsu.edu.ph"})
+    super_admin = client()
+    super_admin.google_login("super@nemsu.edu.ph", "Sam Super")
+    report_response = student.post("/api/reports", data={
+        "location": "Library", "report_type": "Maintenance",
+        "description": "Broken light", "report_date": TODAY,
+    })
+    report_id = report_response.json()["id"]
+    sent = []
+
+    def capture_email(*args):
+        sent.append(args)
+        return gmail_notification_service.NotificationResult("sent", 1)
+
+    monkeypatch.setattr(gmail_notification_service, "notify_report_decision", capture_email)
+    decided = super_admin.post(
+        f"/api/admin/records/reports/{report_id}/decision", json={"decision": "Accepted"})
+    assert decided.status_code == 200
+    assert "notification email was sent" in decided.json()["message"]
+    repeated = super_admin.post(
+        f"/api/admin/records/reports/{report_id}/decision", json={"decision": "Accepted"})
+    assert repeated.status_code == 200
+    assert sent == [("sam@nemsu.edu.ph", "reports", report_id, "Accepted", None)]
+
+
+def test_reservation_emails_only_after_approval_or_rejection(instructor, admin, monkeypatch):
+    from app.services import gmail_notification_service
+
+    sent = []
+
+    def capture_email(*args):
+        sent.append(args)
+        return gmail_notification_service.NotificationResult("sent", 1)
+
+    monkeypatch.setattr(gmail_notification_service, "notify_record_owner", capture_email)
+    reservation_response = instructor.post("/api/reservations", data=reservation())
+    assert reservation_response.status_code == 200
+    reservation_id = reservation_response.json()["id"]
+    assert sent == []
+
+    approved = admin.post(
+        f"/api/admin/records/reservations/{reservation_id}/status", json={"status": "Approved"})
+    assert approved.status_code == 200
+    cancelled = admin.post(
+        f"/api/admin/records/reservations/{reservation_id}/status", json={"status": "Cancelled"})
+    assert cancelled.status_code == 200
+
+    rejected_response = instructor.post(
+        "/api/reservations", data=reservation(start_time="13:00", end_time="15:00"))
+    assert rejected_response.status_code == 200
+    rejected_id = rejected_response.json()["id"]
+    rejected = admin.post(
+        f"/api/admin/records/reservations/{rejected_id}/status", json={"status": "Rejected"})
+    assert rejected.status_code == 200
+    assert sent == [
+        ("ines@nemsu.edu.ph", "reservations", reservation_id, "Approved"),
+        ("ines@nemsu.edu.ph", "reservations", rejected_id, "Rejected"),
+    ]
+
+
+def test_feedback_submission_emails_once_but_admin_actions_do_not(student, admin, monkeypatch):
+    from app.services import gmail_notification_service
+
+    receipts = []
+    status_emails = []
+
+    def capture_receipt(*args):
+        receipts.append(args)
+        return gmail_notification_service.NotificationResult("sent", 1)
+
+    def capture_status(*args):
+        status_emails.append(args)
+        return gmail_notification_service.NotificationResult("sent", 1)
+
+    monkeypatch.setattr(gmail_notification_service, "notify_feedback_submission", capture_receipt)
+    monkeypatch.setattr(gmail_notification_service, "notify_record_owner", capture_status)
+    response = student.post("/api/feedback", data={
+        "area": "Library", "feedback_type": "Suggestion",
+        "message": "Add more study tables.", "feedback_date": TODAY,
+    })
+    assert response.status_code == 200
+    feedback_id = response.json()["id"]
+    assert receipts == [("sam@nemsu.edu.ph", feedback_id, "Library", "Suggestion")]
+
+    status = admin.post(
+        f"/api/admin/records/feedback/{feedback_id}/status", json={"status": "Reviewed"})
+    assert status.status_code == 200
+    reply = admin.post(
+        f"/api/admin/feedback/{feedback_id}/response", json={"message": "Thank you for the suggestion."})
+    assert reply.status_code == 200
+    assert status_emails == []
 
 
 def test_lost_items_and_plain_concerns_from_chat(student, admin):

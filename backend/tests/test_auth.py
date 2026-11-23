@@ -148,6 +148,32 @@ def test_rejection_reason_is_saved_and_audited(admin, db):
     assert event and "ID details do not match." in event.details
 
 
+def test_account_approval_and_rejection_email_applicant(admin, db, monkeypatch):
+    from app.services import gmail_notification_service
+
+    sent = []
+
+    def capture_email(*args):
+        sent.append(args)
+        return gmail_notification_service.NotificationResult("sent", 1)
+
+    monkeypatch.setattr(gmail_notification_service, "notify_account_decision", capture_email)
+    approved = _pending_registration(
+        db, review_status="Checked", face_review_status="Verified", suffix="email-approved")
+    approved_response = admin.post(f"/api/admin/accounts/{approved.id}/approve", json={})
+    assert approved_response.status_code == 200
+    assert "notification email was sent" in approved_response.json()["message"]
+
+    rejected = _pending_registration(db, suffix="email-rejected")
+    rejected_response = admin.post(
+        f"/api/admin/accounts/{rejected.id}/reject", json={"reason": "Please correct your ID."})
+    assert rejected_response.status_code == 200
+    assert sent == [
+        (approved.email, approved.name, "Approved"),
+        (rejected.email, rejected.name, "Rejected", "Please correct your ID."),
+    ]
+
+
 def test_checked_admin_can_approve_and_old_decision_routes_are_removed(admin, db):
     row = _pending_registration(db, review_status="Checked", face_review_status="Verified")
     assert admin.post(f"/api/admin/accounts/{row.id}/approve", json={}).status_code == 200
