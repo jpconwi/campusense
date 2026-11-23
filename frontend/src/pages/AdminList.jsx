@@ -496,13 +496,12 @@ function RecordDetail({ row, apiKind, assignees, statuses, onChanged, superAdmin
 function ReportStatusProgress({ status }) {
   const steps = ["Pending", "Under Review", "In Progress", "Resolved"];
   if (status === "Rejected") return <section className="report-status-progress is-rejected" aria-label="Report status: Rejected">
-    <div className="report-status-copy"><strong>Report progress</strong><span>This report was rejected during review.</span></div>
+    <div className="report-status-copy"><strong>Progress</strong><span>Current step: Rejected</span></div>
     <div className="report-status-rejected"><span className="report-status-node">×</span><strong>Rejected</strong></div>
   </section>;
   const active = Math.max(0, steps.indexOf(status));
   return <section className="report-status-progress" aria-label={`Report status: ${status || "Pending"}`}>
-    <div className="report-status-copy"><strong>Report progress</strong><span>Track the report through each review milestone.</span>
-      <small><b>Current step:</b> {status || "Pending"}</small></div>
+    <div className="report-status-copy"><strong>Progress</strong><span>Current step: {status || "Pending"}</span></div>
     <div className="report-status-steps">
       <div className="report-status-track"><span style={{ width: `${active / (steps.length - 1) * 100}%` }} /></div>
       <ol>{steps.map((step, index) => <li key={step} className={index < active ? "complete" : index === active ? "current" : ""}>
@@ -661,64 +660,37 @@ export default function AdminList({ kind }) {
           <p className="report-list-note">{superAdmin
             ? `Priority is set by the Super Admin. Select a row to review, assign, or update its work priority.`
             : `${rows.length} assigned ${rows.length === 1 ? "report" : "reports"} shown. Select one to update its status or send the reporter an update.`}</p>
-          <div className="report-table-wrap">
-            <table className="report-table">
-              <thead>
-                <tr>
-                  <th scope="col">Reference</th>
-                  <th scope="col">Submitted</th>
-                  <th scope="col">Type</th>
-                  <th scope="col">Location</th>
-                  <th scope="col">Reporter</th>
-                  <th scope="col">Priority</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Flags</th>
-                  <th scope="col">Assigned</th>
-                  <th scope="col" aria-label="Details" />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => {
-                  const isConcern = r.record_kind === "concern";
-                  const apiKind = isConcern ? "concerns" : "reports";
-                  const rowKey = `${apiKind}-${r.id}`;
-                  const expanded = open === rowKey;
-                  const reference = `${isConcern ? "NEMSAI-C-" : "NEMSAI-"}${String(r.id).padStart(4, "0")}`;
-                  return (
-                    <Fragment key={rowKey}>
-                      <tr className={`report-row${r.urgent ? " is-urgent" : ""}${expanded ? " is-open" : ""}`}
-                          onClick={() => setOpen(expanded ? null : rowKey)}>
-                        <td className="report-ref"><strong>{reference}</strong></td>
-                        <td className="report-when"><DateCell value={r.created_at} /></td>
-                        <td className="report-type">
-                          <span className={`badge record-kind-badge ${isConcern ? "record-kind-concern" : "record-kind-problem"}`}>{isConcern ? "Concern" : "Problem"}</span>
-                          <strong>{r.concern_type || r.report_type || (isConcern ? "Campus concern" : "Campus report")}</strong>
-                          <small className="report-snippet">{shortText(r.description) || "No description provided."}</small>
-                        </td>
-                        <td className="report-where">{r.location || "Not provided"}
-                          {r.room && <small className="muted">{r.room}</small>}</td>
-                        <td className="report-who"><span>{r.reporter_name || "Unknown"}</span>
-                          {r.reporter_email && <small className="muted">{r.reporter_email}</small>}</td>
-                        <td><span className={`badge priority-${slug(r.priority || "Medium")}`}>{r.priority || "Medium"}</span></td>
-                        <td><span className={"badge s-" + slug(r.status)}>{r.status}</span></td>
-                        <td className="report-flags"><Flags r={r} />
-                          {r.ai?.status === "analyzed" && <span className={`badge severity-${r.ai.severity || "unclear"}`}>{(r.ai.severity || "unclear").toUpperCase()}</span>}</td>
-                        <td className="report-assignee">{r.assigned_admin_email || <span className="muted">Unassigned</span>}</td>
-                        <td className="report-toggle-cell">
-                          <button type="button" className={`report-toggle${expanded ? " is-open" : ""}`} aria-expanded={expanded}
-                            aria-label={`${expanded ? "Hide" : "Show"} details for ${reference}`}
-                            onClick={(event) => { event.stopPropagation(); setOpen(expanded ? null : rowKey); }}>
-                            <Icon d={PATHS.arrow} size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                      <tr className="report-progress-row"><td colSpan={10}><ReportStatusProgress status={r.status} /></td></tr>
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <section className="report-manage-list" aria-label="Reports and concerns">
+            {rows.map((r) => {
+              const isConcern = r.record_kind === "concern";
+              const apiKind = isConcern ? "concerns" : "reports";
+              const rowKey = `${apiKind}-${r.id}`;
+              const reference = `${isConcern ? "NEMSAI-C-" : "NEMSAI-"}${String(r.id).padStart(4, "0")}`;
+              return <article key={rowKey} className={`report-manage-card${r.urgent ? " is-urgent" : ""}`}>
+                <button type="button" className="report-manage-summary" aria-label={`Open details for ${reference}`} onClick={() => setOpen(rowKey)}>
+                  <span className="report-manage-title">
+                    <strong>{reference}</strong>
+                    <span className={`badge record-kind-badge ${isConcern ? "record-kind-concern" : "record-kind-problem"}`}>{isConcern ? "Concern" : "Problem"}</span>
+                    <b>{r.concern_type || r.report_type || (isConcern ? "Campus concern" : "Campus report")}</b>
+                    <small>{shortText(r.description) || "No description provided."}</small>
+                  </span>
+                  <span className="report-manage-status">
+                    <span className={`badge priority-${slug(r.priority || "Medium")}`}>{r.priority || "Medium"}</span>
+                    <span className={`badge s-${slug(r.status)}`}>{r.status}</span>
+                    <Icon d={PATHS.arrow} size={16} />
+                  </span>
+                </button>
+                <div className="report-manage-meta">
+                  <span><b>Submitted</b><DateCell value={r.created_at} /></span>
+                  <span><b>Location</b>{r.location || "Not provided"}{r.room && <small>{r.room}</small>}</span>
+                  <span><b>Reporter</b>{r.reporter_name || "Unknown"}{r.reporter_email && <small>{r.reporter_email}</small>}</span>
+                  <span><b>Assigned</b>{r.assigned_admin_email || "Unassigned"}</span>
+                  <span className="report-manage-flags"><b>Flags</b><Flags r={r} />{r.ai?.status === "analyzed" && <span className={`badge severity-${r.ai.severity || "unclear"}`}>{(r.ai.severity || "unclear").toUpperCase()}</span>}</span>
+                </div>
+                <ReportStatusProgress status={r.status} />
+              </article>;
+            })}
+          </section>
           {openedRecord && (() => {
             const apiKind = openedRecord.record_kind === "concern" ? "concerns" : "reports";
             const reference = `${apiKind === "concerns" ? "NEMSAI-C-" : "NEMSAI-"}${String(openedRecord.id).padStart(4, "0")}`;

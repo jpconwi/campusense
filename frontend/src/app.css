@@ -1187,6 +1187,28 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
 .report-progress-row td { padding: 0 12px 12px; border-bottom: 1px solid var(--line); background: #fff; }
 .report-progress-row .report-status-progress { margin: 0; }
 .report-row.is-open + .report-progress-row td { background: #eef4ff; }
+.report-manage-list { display: grid; gap: 12px; }
+.report-manage-card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: 0 2px 8px rgba(21,22,58,.04); }
+.report-manage-card.is-urgent { border-left: 4px solid var(--error); }
+.report-manage-summary { display: flex; width: 100%; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 16px 18px 12px; border: 0; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.report-manage-summary:hover { background: #f8faff; }
+.report-manage-title { display: grid; grid-template-columns: max-content max-content minmax(0, 1fr); align-items: center; gap: 6px 10px; min-width: 0; }
+.report-manage-title > strong { color: var(--blue-deep); }
+.report-manage-title > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.report-manage-title > small { grid-column: 1 / -1; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.report-manage-status { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
+.report-manage-status > .ico { color: var(--blue-deep); transition: transform .15s ease; }
+.report-manage-summary:hover .ico { transform: translateX(2px); }
+.report-manage-meta { display: grid; grid-template-columns: minmax(110px, .8fr) minmax(130px, 1fr) minmax(170px, 1.25fr) minmax(160px, 1fr) minmax(120px, .8fr); gap: 12px; padding: 0 18px 14px; }
+.report-manage-meta > span { display: grid; align-content: start; gap: 3px; min-width: 0; overflow-wrap: anywhere; font-size: .86rem; }
+.report-manage-meta > span > b { color: var(--muted); font-size: .69rem; letter-spacing: .04em; text-transform: uppercase; }
+.report-manage-meta > span > small { color: var(--muted); font-size: .78rem; }
+.report-manage-flags { display: flex !important; flex-wrap: wrap; align-content: start; gap: 4px !important; }
+.report-manage-flags > b { flex: 0 0 100%; }
+.report-manage-card > .report-status-progress { margin: 0 14px 14px; padding: 10px 12px; grid-template-columns: minmax(100px, .55fr) minmax(0, 1.8fr); gap: 12px; border-radius: 9px; background: #fbfcfe; }
+.report-manage-card .report-status-copy > strong { font-size: .78rem; }
+.report-manage-card .report-status-copy > span { font-size: .7rem; }
+.report-manage-card .report-status-progress li { font-size: .65rem; }
 .report-row { cursor: pointer; }
 .report-row:hover { background: #f7f9ff; }
 .report-row:focus-within { background: #f2f7ff; }
@@ -1286,6 +1308,7 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
   .report-row td.report-when, .report-row td.report-assignee { display: none; }
   .report-detail-body { grid-template-columns: 1fr; gap: 14px; }
   .report-status-progress { grid-template-columns: minmax(130px, .65fr) minmax(0, 1.8fr); gap: 12px; padding: 12px; }
+  .report-manage-meta { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
   .photo-detail { grid-template-columns: minmax(0, 1fr); gap: 12px; }
@@ -1301,6 +1324,14 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
   .report-detail { padding: 16px; }
   .report-status-progress, .report-status-progress.is-rejected { grid-template-columns: 1fr; gap: 12px; }
   .report-status-progress li { font-size: .62rem; }
+  .report-manage-summary { padding: 13px 12px 10px; gap: 8px; }
+  .report-manage-title { grid-template-columns: max-content max-content; gap: 5px 7px; }
+  .report-manage-title > b { grid-column: 1 / -1; white-space: normal; }
+  .report-manage-title > small { white-space: normal; }
+  .report-manage-status { flex-direction: column; align-items: flex-end; gap: 5px; }
+  .report-manage-status > .ico { display: none; }
+  .report-manage-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 0 12px 12px; }
+  .report-manage-card > .report-status-progress { margin: 0 10px 10px; }
   .admin-assignment-form { grid-template-columns: minmax(0, 1fr) auto; }
   .report-priority-control, .report-admin-status { grid-template-columns: minmax(0, 1fr) auto; }
   .admin-picker { width: 100%; }
