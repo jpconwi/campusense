@@ -15,6 +15,7 @@ and checks a bounded set of public list pages per run. It never logs in or reads
 """
 
 import hashlib
+from types import SimpleNamespace
 import html as html_lib
 import io
 import json
@@ -989,9 +990,15 @@ def sync(db, *, pages=None, dry_run=False, client=None, delay=None, sources=None
     active = [(n, c) for n, c in SOURCES if n.replace("nemsu_", "") in wanted]
     if not active:
         raise CollectorError("No source selected. Use news, memo, page or a mix like news,memo,page.")
-    existing_rows = list(db.execute(select(KnowledgeDocument)).scalars()) if db is not None else []
-    existing = {row.source_url for row in existing_rows}
-    existing_by_url = {row.source_url: row for row in existing_rows}
+    # Snapshot plain values, then end the read transaction BEFORE the slow web scraping.
+    # Holding it open makes Postgres kill the connection (idle-in-transaction timeout).
+    existing_by_url = {}
+    if db is not None:
+        existing_by_url = {url: SimpleNamespace(content_hash=h) for url, h in
+                           db.execute(select(KnowledgeDocument.source_url,
+                                             KnowledgeDocument.content_hash)).all()}
+        db.rollback()
+    existing = set(existing_by_url)
     fetcher = Fetcher(client=client, delay=delay)
     summary = {"success": True, "new_documents": 0, "updated_documents": 0,
                "unchanged_documents": 0, "skipped_existing": 0,
