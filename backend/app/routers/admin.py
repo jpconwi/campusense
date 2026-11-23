@@ -1379,7 +1379,7 @@ def announcements_add(body: dict, me: CurrentUser = Depends(admin_required), db:
     try:
         result = gmail_notification_service.send_announcement_notification(db, announcement)
     except gmail_notification_service.GmailNotificationError as error:
-        print("GMAIL ANNOUNCEMENT ERROR:", repr(error))
+        print("EMAIL ANNOUNCEMENT ERROR:", repr(error))
         if error.recipient_count:
             message = (f"Announcement posted, but email delivery stopped after "
                        f"{error.delivered_count} of {error.recipient_count} recipients.")

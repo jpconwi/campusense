@@ -93,13 +93,15 @@ GOOGLE_VISION_MODEL = os.getenv("GOOGLE_VISION_MODEL")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 
-# Gmail API OAuth credentials for announcement email notifications.
+# Brevo is the primary sender; Gmail API OAuth is only used when Brevo reaches its quota.
+BREVO_API_KEY = (os.getenv("BREVO_API_KEY") or "").strip()
+BREVO_SENDER_EMAIL = (os.getenv("BREVO_SENDER_EMAIL") or "").strip()
+BREVO_SENDER_NAME = (os.getenv("BREVO_SENDER_NAME") or "NEMSAI").strip()
+
 GMAIL_CLIENT_ID = (os.getenv("GMAIL_CLIENT_ID") or "").strip()
 GMAIL_CLIENT_SECRET = (os.getenv("GMAIL_CLIENT_SECRET") or "").strip()
 GMAIL_REFRESH_TOKEN = (os.getenv("GMAIL_REFRESH_TOKEN") or "").strip()
 GMAIL_SENDER_EMAIL = (os.getenv("GMAIL_SENDER_EMAIL") or "nemsai@gmail.com").strip()
-# Simpler option (no Google Cloud consent screen needed): a Gmail App Password used over SMTP.
-GMAIL_APP_PASSWORD = (os.getenv("GMAIL_APP_PASSWORD") or "").replace(" ", "").strip()
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
