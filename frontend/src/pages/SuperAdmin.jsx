@@ -158,7 +158,7 @@ export default function SuperAdmin() {
         title="Sends small requests to configured providers and may count toward their quotas."
         onClick={checkAllProviderHealth}>{checkingHealth ? "Checking providers…" : "Check health"}</button>
     </div>
-    <p className="muted">Health reflects real model requests handled by this server process and refreshes once a minute. Check health sends a small request to each configured provider in sequence; it tries another model if one is unavailable. Requests may count toward provider quotas. Exact spend and balances are not available here.</p>
+    <p className="muted">Health reflects real model requests handled by this server process and refreshes once a minute. Check health sends a small request to each configured provider in sequence; it tries another model if one is unavailable and selects the first model that responds for subsequent requests in this process. This selection resets when the server restarts. Requests may count toward provider quotas; exact spend and balances are not available here.</p>
     <div className="ai-provider-list">{data.ai_providers.map((provider) => {
       const [label, stateClass] = providerStatus(provider);
       const billingText = provider.billing_signal === "payment_or_credits_required"
@@ -169,8 +169,9 @@ export default function SuperAdmin() {
             : "No payment or quota result yet; this provider has not been checked by a request.";
       return <article className="ai-provider-card" key={provider.name}>
         <div className="ai-provider-heading"><strong>{provider.order}. {provider.name}</strong><span className={`ai-provider-state ${stateClass}`}>{label}{provider.last_http_status ? ` · HTTP ${provider.last_http_status}` : ""}</span></div>
-        <div className="ai-provider-models"><b>Models in fallback order</b><span>{provider.models?.join(", ") || "No models listed"}</span></div>
-        {provider.last_model && <p className="ai-provider-last">Last model: <strong>{provider.last_model}</strong> · {provider.last_mode || "chat"}
+        <div className="ai-provider-models"><b>Current model</b><span>{provider.current_model || "No model selected"}</span></div>
+        <details className="ai-provider-fallbacks"><summary>Fallback order</summary><span>{provider.models?.join(" → ") || "No models listed"}</span></details>
+        {provider.last_model && <p className="ai-provider-last">Last checked model: <strong>{provider.last_model}</strong> · {provider.last_mode || "chat"}
           {provider.last_checked_at && <> · {new Date(provider.last_checked_at).toLocaleString()}</>}</p>}
         <p className="ai-provider-billing">{billingText} <span>Check the provider console for current spend and balance.</span></p>
         <small className="muted">Observed in this server process: {provider.checks || 0} checks · {provider.successes || 0} succeeded · {provider.failures || 0} failed.</small>

@@ -1232,6 +1232,9 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
 .ai-provider-models { display: grid; gap: 3px; min-width: 0; }
 .ai-provider-models > b { color: var(--muted); font-size: .7rem; letter-spacing: .04em; text-transform: uppercase; }
 .ai-provider-models > span { overflow-wrap: anywhere; font-size: .82rem; }
+.ai-provider-fallbacks { min-width: 0; color: var(--muted); font-size: .76rem; }
+.ai-provider-fallbacks summary { width: fit-content; cursor: pointer; font-weight: 650; }
+.ai-provider-fallbacks > span { display: block; margin-top: 5px; overflow-wrap: anywhere; line-height: 1.45; }
 .ai-provider-last, .ai-provider-billing { margin: 0; overflow-wrap: anywhere; font-size: .8rem; }
 .ai-provider-last { color: var(--muted); }
 .ai-provider-billing { padding: 9px 10px; border-radius: 8px; background: #f5f8fc; }

@@ -75,6 +75,7 @@ _dead = {}                          # (provider key, model) -> until when the mo
 _hf_client = None
 _provider_enabled = {}
 _provider_health = {}
+_preferred_models = {}
 
 
 # ------------------------------------------------------------ settings
@@ -86,7 +87,9 @@ def _models(provider):
     # Your *_MODEL setting goes FIRST, then the built-in defaults as backup. (Old names left in
     # Render / .env after a provider retires a model can then never block the working defaults.)
     configured = _split(getattr(config, f"{provider.upper()}_MODEL", None))
-    return configured + [m for m in DEFAULT_MODELS[provider] if m not in configured]
+    models = configured + [m for m in DEFAULT_MODELS[provider] if m not in configured]
+    preferred = _preferred_models.get(provider)
+    return ([preferred] + [model for model in models if model != preferred]) if preferred else models
 
 
 def has_credentials(provider):
@@ -110,7 +113,8 @@ def chain_status():
         rows.append({"order": i + 1, "provider": provider, "name": LABELS[provider],
                      "enabled": _provider_enabled.get(provider, True),
                      "configured": is_configured(provider), "has_credentials": has_credentials(provider),
-                     "models": _models(provider), "cooling_down": _cooldown_until.get(provider, 0) > now,
+                     "models": _models(provider), "current_model": _models(provider)[0],
+                     "cooling_down": _cooldown_until.get(provider, 0) > now,
                      "health": health.get("health", "not_checked"),
                      "last_outcome": health.get("last_outcome"), "last_issue": health.get("last_issue"),
                      "last_model": health.get("last_model"), "last_mode": health.get("last_mode"),
@@ -189,6 +193,7 @@ def check_provider_health(provider):
             _record_provider_health(provider, outcome, model=model, error=error, models_checked=checked)
             return {"success": False, "health": outcome, "model": model,
                     "models_checked": checked, "last_http_status": _status_of(error)}
+        _preferred_models[provider] = model
         _record_provider_health(provider, "success", model=model, models_checked=checked)
         return {"success": True, "health": "healthy", "model": model, "models_checked": checked}
     outcome = "model_unavailable" if last_error and _is_model_gone(last_error) else "request_failed"
