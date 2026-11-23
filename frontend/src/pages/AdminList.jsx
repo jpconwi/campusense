@@ -225,7 +225,7 @@ function ReviewWorkflow({ row, kind, assignees, onChanged }) {
     } catch (error) { setFlash({ text: error.message, kind: "error" }); }
   }
   return <section className="report-review-workflow">
-    <h4>Super Admin review</h4>
+    <h4>Report actions</h4>
     <p><b>Review status:</b> {row.workflow_review || "Pending"}</p>
     <div className="report-priority-control">
       <label htmlFor={`priority-${kind}-${row.id}`}>Set work priority</label>
@@ -480,7 +480,7 @@ function RecordDetail({ row, apiKind, assignees, statuses, onChanged, superAdmin
           alt="Administrator's completion photo" title="Open the administrator's completion photo" />
       </section>}
       {superAdmin ? <ReviewWorkflow row={row} kind={apiKind} assignees={assignees} onChanged={onChanged} /> : <section className="report-review-workflow">
-        <h4>Admin actions</h4>
+        <h4>Report actions</h4>
         <div className="report-admin-status"><label>Update status</label><StatusForm kind={apiKind} row={row} statuses={statuses} onChanged={onChanged} /></div>
         <div className="report-review-actions">
           <a className="btn small ghost" href={`/api/pdf/${apiKind}/${row.id}`} target="_blank" rel="noopener noreferrer">Download PDF</a>
