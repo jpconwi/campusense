@@ -54,7 +54,9 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
 
   function body() {
     const f = new FormData();
-    Object.entries(vals).forEach(([k, v]) => f.append(k, v == null ? "" : String(v).trim()));
+    Object.entries(vals).forEach(([k, v]) => {
+      f.append(k, k === "location" || v == null ? "" : String(v).trim());
+    });
     f.append("destination", destination);
     return f;
   }
@@ -175,15 +177,11 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
 
       {FIELDS.map(([key, label, placeholder]) => (
         <div key={key} className={asked.has(ASKED[key]) ? "asked" : ""}>
-          <label htmlFor={"pr-" + key}>{question(key) || label}</label>
+          <label htmlFor={key === "location" ? undefined : "pr-" + key}>{question(key) || label}</label>
           {key === "location" ? <LocationPicker
-            id={"pr-" + key}
-            value={vals.location || ""}
             latitude={vals.latitude}
             longitude={vals.longitude}
-            placeholder={placeholder}
             disabled={!!busy}
-            onChange={(value) => set("location", value)}
             onCoordinatesChange={(latitude, longitude) => {
               set("latitude", latitude);
               set("longitude", longitude);

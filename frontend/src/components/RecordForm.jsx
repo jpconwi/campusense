@@ -205,8 +205,14 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
         const hasLocationPin = f.name === "location"
           && values.latitude !== "" && values.latitude !== null && values.latitude !== undefined
           && values.longitude !== "" && values.longitude !== null && values.longitude !== undefined;
-        if (f.required && !value && !hasLocationPin) missing[f.name] = true;
-        if (kind !== "reservation" || f.name !== "duration_minutes") data.append(f.name, value);
+        const mapOnlyLocation = f.name === "location" && (kind === "concern" || kind === "report");
+        if (mapOnlyLocation && !hasLocationPin) missing[f.name] = true;
+        else if (f.required && !value && !hasLocationPin) missing[f.name] = true;
+        if ((kind !== "reservation" || f.name !== "duration_minutes") && !mapOnlyLocation) {
+          data.append(f.name, value);
+        } else if (mapOnlyLocation) {
+          data.append(f.name, "");
+        }
         if (f.type === "select" && value === "Other") {        // "Other": the user types what it is
           const typed = (values[f.name + "_other"] || "").trim();
           if (!typed) missing[f.name + "_other"] = true;
@@ -258,14 +264,10 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
     };
     if (f.name === "location" && (kind === "concern" || kind === "report")) {
       return <LocationPicker
-        id={`record-${kind}-location`}
-        value={values.location}
         latitude={values.latitude}
         longitude={values.longitude}
-        placeholder={f.placeholder}
         disabled={done}
         invalid={invalid.location}
-        onChange={(value) => set("location", value)}
         onCoordinatesChange={(latitude, longitude) => {
           set("latitude", latitude);
           set("longitude", longitude);
@@ -312,8 +314,8 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
   function field(f) {
     return (
       <>
-        <label htmlFor={f.name === "location" && (kind === "concern" || kind === "report")
-          ? `record-${kind}-location` : undefined}>{f.label}{f.required ? " *" : ""}</label>
+        <label>{f.name === "location" && (kind === "concern" || kind === "report")
+          ? "Select location on map" : f.label}{f.required ? " *" : ""}</label>
         {control(f)}
         {kind === "reservation" && f.name === "start_time" &&
           <small className="muted">Choose the start time using the clock. The end time is calculated from your selected duration.</small>}
