@@ -598,8 +598,9 @@ export default function AdminList({ kind }) {
   };
 
   return (
-    <div className="page" style={{ maxWidth: 1400 }}>
+    <div className={`page${kind === "reports" ? " report-management-page" : ""}`} style={{ maxWidth: 1400 }}>
       <h2 className="page-title">{pageTitle || spec.title}</h2>
+      <div className={kind === "reports" ? "report-filter-panel" : undefined}>
       {kind === "feedback" && <label className="admin-filter-label" htmlFor="admin-feedback-scope">
         Feedback view
         <select id="admin-feedback-scope" value={feedbackScope} onChange={(event) => {
@@ -629,6 +630,7 @@ export default function AdminList({ kind }) {
         </select>
       </label>}
       <div className="filters">
+        {kind === "reports" && <span className="filter-label">Status</span>}
         <Link to={filterHref()} className={!current ? "on" : ""}>All statuses</Link>
         {visibleStatuses.map((s) => <Link key={s} to={filterHref({ nextStatus: s, nextUrgent: urgent })} className={current === s ? "on" : ""}>{s}</Link>)}
       </div>
@@ -655,6 +657,7 @@ export default function AdminList({ kind }) {
         }} shown={rows.length} total={data.pagination?.total || 0}
                    placeholder={`Search ${spec.title.toLowerCase()}...`} />
       )}
+      </div>
       {rows.length ? kind === "reports" ? (
         <>
           <p className="report-list-note">{superAdmin
