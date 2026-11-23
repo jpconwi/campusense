@@ -38,8 +38,9 @@ def seed_if_empty(db: Session):
         for row in csv.DictReader(f):
             topic = (row.get("topic") or "").strip()
             if topic and topic.lower() not in have:
-                db.add(CampusInfo(topic=topic, keywords=row.get("keywords", ""),
-                                  answer=row.get("answer", "")))
+                keywords = (row.get("keywords") or "").strip() or topic
+                answer = (row.get("answer") or "").strip()
+                db.add(CampusInfo(topic=topic, keywords=keywords, answer=answer))
                 have.add(topic.lower())
                 added = True
     if added:

@@ -109,13 +109,28 @@ def _add_room_department_column():
 def _widen_campus_info_columns():
     """create_all() never alters an existing table, so widen the old
     varchar(200)/varchar(600) columns on databases created before the change.
-    Safe to run on every start (widening to the same size is a no-op)."""
+    Backfill NULL/blank fields before restoring the model's NOT NULL constraints."""
     if engine.dialect.name != "postgresql":
         return
     from sqlalchemy import text
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE campus_info ALTER COLUMN keywords TYPE VARCHAR(500)"))
         conn.execute(text("ALTER TABLE campus_info ALTER COLUMN answer TYPE VARCHAR(2000)"))
+        conn.execute(text("""
+            UPDATE campus_info
+               SET keywords = CASE
+                   WHEN NULLIF(BTRIM(keywords), '') IS NULL THEN topic
+                   ELSE keywords
+               END
+             WHERE keywords IS NULL OR NULLIF(BTRIM(keywords), '') IS NULL
+        """))
+        conn.execute(text("""
+            UPDATE campus_info
+               SET answer = ''
+             WHERE answer IS NULL
+        """))
+        conn.execute(text("ALTER TABLE campus_info ALTER COLUMN keywords SET NOT NULL"))
+        conn.execute(text("ALTER TABLE campus_info ALTER COLUMN answer SET NOT NULL"))
 
 
 def _add_student_registration_columns():
