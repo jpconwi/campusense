@@ -30,6 +30,8 @@ def activity_heartbeat(user: CurrentUser = Depends(login_required), db: Session 
     """Record foreground use, counting only short gaps between heartbeats as active time."""
     now_aware = datetime.now(timezone.utc).replace(microsecond=0)
     now = now_aware.replace(tzinfo=None)  # persisted timestamps are UTC without a tzinfo
+    # Lock the parent row because concurrent first heartbeats have no presence row to lock yet.
+    db.execute(select(User.id).where(User.id == user.id).with_for_update())
     presence = db.get(UserPresence, user.id)
     if presence is None:
         presence = UserPresence(user_id=user.id, last_seen_at=now)
