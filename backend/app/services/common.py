@@ -3,6 +3,7 @@ services/common.py - helpers shared by the concern/report/feedback/
 reservation services: statuses, validation, and generic queries.
 """
 
+import math
 import re
 from datetime import date, datetime, time
 from zoneinfo import ZoneInfo
@@ -106,6 +107,31 @@ def clean_text(value, label, max_len=200, required=True):
     if len(value) > max_len:
         raise ValidationError(f"{label} must be {max_len} characters or fewer.")
     return value
+
+
+def clean_coordinates(latitude, longitude):
+    latitude = "" if latitude is None else str(latitude).strip()
+    longitude = "" if longitude is None else str(longitude).strip()
+    if not latitude and not longitude:
+        return None, None
+    if not latitude or not longitude:
+        raise ValidationError("A map pin must include both latitude and longitude.")
+    try:
+        latitude, longitude = float(latitude), float(longitude)
+    except ValueError as error:
+        raise ValidationError("Choose a valid map location.") from error
+    if (not math.isfinite(latitude) or not math.isfinite(longitude)
+            or not -90 <= latitude <= 90 or not -180 <= longitude <= 180):
+        raise ValidationError("Choose a valid map location.")
+    return latitude, longitude
+
+
+def clean_location_and_coordinates(form, label="Location"):
+    latitude, longitude = clean_coordinates(form.get("latitude"), form.get("longitude"))
+    location = clean_text(form.get("location"), label, 120, required=False)
+    if not location and latitude is None:
+        raise ValidationError(f"{label} is required unless you place a map pin.")
+    return location or "Pinned location", latitude, longitude
 
 
 def clean_choice(value, label, options):

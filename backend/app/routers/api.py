@@ -181,12 +181,14 @@ def chat_delete_all(user: CurrentUser = Depends(login_required), db: Session = D
 def submit_concern(
         location: str = Form(""), room: str = Form(""), concern_type: str = Form(""),
         concern_type_other: str = Form(""),
+        latitude: str = Form(""), longitude: str = Form(""),
         description: str = Form(""), concern_date: str = Form(""),
         image: Optional[UploadFile] = File(None),
         user: CurrentUser = Depends(role_required("student", "instructor")),
         db: Session = Depends(get_db)):
     form = {"location": location, "room": room, "concern_type": concern_type,
-            "concern_type_other": concern_type_other, "description": description, "concern_date": concern_date}
+            "concern_type_other": concern_type_other, "latitude": latitude, "longitude": longitude,
+            "description": description, "concern_date": concern_date}
     row = concern_service.create_concern(db, user, form, image)
     return _ok(row, "Your concern has been submitted. Its status is Pending.", "concerns")
 
@@ -195,12 +197,13 @@ def submit_concern(
 def submit_report(
         location: str = Form(""), area: str = Form(""), room: str = Form(""),
         report_type: str = Form(""), report_type_other: str = Form(""),
+        latitude: str = Form(""), longitude: str = Form(""),
         description: str = Form(""), report_date: str = Form(""),
         image: Optional[UploadFile] = File(None),
         user: CurrentUser = Depends(role_required("student", "instructor")),
         db: Session = Depends(get_db)):
     form = {"location": location, "area": area, "room": room, "report_type": report_type,
-            "report_type_other": report_type_other,
+            "report_type_other": report_type_other, "latitude": latitude, "longitude": longitude,
             "description": description, "report_date": report_date}
     row = report_service.create_report(db, user, form, image)
     return _ok(row, "Your report has been submitted. Its status is Pending.", "reports")
@@ -297,13 +300,14 @@ def photo_resume(response: Response, session_id: Optional[int] = None,
 def photo_submit(
         draft_id: int, description: Optional[str] = Form(None), location: Optional[str] = Form(None),
         noticed_when: Optional[str] = Form(None), observed_cause: Optional[str] = Form(None),
+        latitude: Optional[str] = Form(None), longitude: Optional[str] = Form(None),
         destination: Optional[str] = Form(None),
         user: CurrentUser = Depends(role_required("student", "instructor")),
         db: Session = Depends(get_db)):
     if _too_many(("photo", user.id), limit=6):
         raise HTTPException(429, "Please wait a moment and try again.")
     form = {"description": description, "location": location, "noticed_when": noticed_when,
-            "observed_cause": observed_cause}
+            "observed_cause": observed_cause, "latitude": latitude, "longitude": longitude}
     draft = db.get(PhotoDraft, draft_id)
     session_id = draft.session_id if draft and draft.user_id == user.id else None
     row = photo_report_service.submit(db, user, draft_id, form, destination)

@@ -11,7 +11,7 @@ They are normal tables now, so every part of the system reads one database.)
 from datetime import date, datetime, time
 from typing import Optional
 
-from sqlalchemy import (Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index,
+from sqlalchemy import (Boolean, CheckConstraint, Date, DateTime, Float, ForeignKey, Index,
                         Integer, LargeBinary, String, Text, Time, func)
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -146,6 +146,8 @@ class Concern(Base):
     reporter_name: Mapped[str] = mapped_column(String(200), nullable=False)
     reporter_email: Mapped[str] = mapped_column(String(255), nullable=False)
     location: Mapped[str] = mapped_column(String(120), nullable=False)
+    latitude: Mapped[Optional[float]] = mapped_column(Float)
+    longitude: Mapped[Optional[float]] = mapped_column(Float)
     room: Mapped[Optional[str]] = mapped_column(String(60))
     concern_type: Mapped[str] = mapped_column(String(60), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
@@ -185,6 +187,8 @@ class Report(Base):
     reporter_name: Mapped[str] = mapped_column(String(200), nullable=False)
     reporter_email: Mapped[str] = mapped_column(String(255), nullable=False)
     location: Mapped[str] = mapped_column(String(120), nullable=False)
+    latitude: Mapped[Optional[float]] = mapped_column(Float)
+    longitude: Mapped[Optional[float]] = mapped_column(Float)
     area: Mapped[Optional[str]] = mapped_column(String(120))
     room: Mapped[Optional[str]] = mapped_column(String(60))
     report_type: Mapped[str] = mapped_column(String(60), nullable=False)

@@ -138,6 +138,16 @@ def submit(db: Session, user, draft_id, form, destination=None):
     draft = _own_draft(db, user, draft_id)
     for key, value in _fields(form).items():
         setattr(draft, key, value or None)
+    has_pin_input = form.get("latitude") not in (None, "") or form.get("longitude") not in (None, "")
+    if draft.location or has_pin_input:
+        location, latitude, longitude = common.clean_location_and_coordinates({
+            "location": draft.location,
+            "latitude": form.get("latitude"),
+            "longitude": form.get("longitude"),
+        })
+    else:
+        location = ias.NOT_PROVIDED
+        latitude, longitude = None, None
     description = draft.description or ""
 
     analysis = _loaded(draft)
@@ -166,7 +176,8 @@ def submit(db: Session, user, draft_id, form, destination=None):
                         "Safety": "Safety"}.get(analysis.get("category"), "Building / Structure")
         concern = Concern(
             user_id=user.id, reporter_name=user.name, reporter_email=user.email,
-            location=draft.location or ias.NOT_PROVIDED, room=None, concern_type=concern_type,
+            location=location,
+            latitude=latitude, longitude=longitude, room=None, concern_type=concern_type,
             description=real_text or ias.NO_DESCRIPTION, concern_date=stamp.date(),
             image_filename=draft.image_filename, status="Pending", sentiment=mood["label"],
             sentiment_score=mood["score"], created_at=stamp, updated_at=stamp,
@@ -182,7 +193,9 @@ def submit(db: Session, user, draft_id, form, destination=None):
 
     report = Report(
         user_id=user.id, reporter_name=user.name, reporter_email=user.email,
-        location=draft.location or ias.NOT_PROVIDED, report_type=analysis["category"] if state == "issue" else "Other",
+        location=location,
+        latitude=latitude, longitude=longitude,
+        report_type=analysis["category"] if state == "issue" else "Other",
         description=real_text or ias.NO_DESCRIPTION, report_date=stamp.date(),
         image_filename=draft.image_filename, status="Pending",
         sentiment=mood["label"], sentiment_score=mood["score"], created_at=stamp, updated_at=stamp,

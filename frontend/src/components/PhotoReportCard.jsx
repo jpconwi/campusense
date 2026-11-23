@@ -5,6 +5,7 @@
  */
 import { useState } from "react";
 import { api } from "../api.js";
+import LocationPicker from "./LocationPicker.jsx";
 
 const FIELDS = [
   ["location", "Where did this happen?", "e.g. CITE building, 2nd floor"],
@@ -23,8 +24,12 @@ const NOT_A_REPORT = {
 export default function PhotoReportCard({ result: first, preview, onMessage, onSent, onDiscarded }) {
   const [result, setResult] = useState(first);
   const [vals, setVals] = useState(() => {
-    try { return { ...first.values, ...JSON.parse(sessionStorage.getItem(`photo-draft-${first.draft_id}`) || "{}") }; }
-    catch { return first.values; }
+    try {
+      return {
+        ...first.values, latitude: "", longitude: "",
+        ...JSON.parse(sessionStorage.getItem(`photo-draft-${first.draft_id}`) || "{}"),
+      };
+    } catch { return { ...first.values, latitude: "", longitude: "" }; }
   });
   const [destination, setDestination] = useState(() => {
     const fallback = first.analysis?.status === "unavailable" ? "concern" : first.analysis?.destination || "report";
@@ -41,14 +46,15 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
     try { sessionStorage.setItem(`photo-draft-${result.draft_id}`, JSON.stringify(next)); } catch { /* storage is optional */ }
     return next;
   });
-  const dirty = Object.keys(vals).some((k) => (vals[k] || "") !== (result.values[k] || ""));
+  const dirty = Object.keys(result.values)
+    .some((key) => (vals[key] || "") !== (result.values[key] || ""));
   const asked = new Set(result.questions.map((q) => q.key));
   const question = (key) => (result.questions.find((q) => q.key === ASKED[key]) || {}).question;
   const a = result.analysis;
 
   function body() {
     const f = new FormData();
-    Object.entries(vals).forEach(([k, v]) => f.append(k, (v || "").trim()));
+    Object.entries(vals).forEach(([k, v]) => f.append(k, v == null ? "" : String(v).trim()));
     f.append("destination", destination);
     return f;
   }
@@ -63,7 +69,16 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
     try {
       const f = body(); f.append("draft_id", result.draft_id);
       const data = await api("/api/reports/photo/analyze", { method: "POST", form: f });
-      setResult(data); setVals(data.values);
+      setResult(data);
+      setVals((current) => {
+        const next = {
+          ...data.values,
+          latitude: current.latitude ?? "",
+          longitude: current.longitude ?? "",
+        };
+        try { sessionStorage.setItem(`photo-draft-${result.draft_id}`, JSON.stringify(next)); } catch { /* storage is optional */ }
+        return next;
+      });
       onMessage(data.message);
     } catch (e) { setError(e.message); } finally { setBusy(""); }
   }
@@ -161,10 +176,22 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
       {FIELDS.map(([key, label, placeholder]) => (
         <div key={key} className={asked.has(ASKED[key]) ? "asked" : ""}>
           <label htmlFor={"pr-" + key}>{question(key) || label}</label>
-          <div className="with-mic">
+          {key === "location" ? <LocationPicker
+            id={"pr-" + key}
+            value={vals.location || ""}
+            latitude={vals.latitude}
+            longitude={vals.longitude}
+            placeholder={placeholder}
+            disabled={!!busy}
+            onChange={(value) => set("location", value)}
+            onCoordinatesChange={(latitude, longitude) => {
+              set("latitude", latitude);
+              set("longitude", longitude);
+            }}
+          /> : <div className="with-mic">
             <input id={"pr-" + key} type="text" maxLength={key === "observed_cause" ? 500 : 120} disabled={!!busy}
                    value={vals[key]} placeholder={placeholder} onChange={(e) => set(key, e.target.value)} />
-          </div>
+          </div>}
         </div>
       ))}
 

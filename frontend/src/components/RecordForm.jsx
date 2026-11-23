@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
+import LocationPicker from "./LocationPicker.jsx";
 
 const CONCERN_TYPES = ["Equipment", "Electrical", "Plumbing", "Furniture", "Building / Structure", "Cleanliness", "Safety", "Other"];
 const REPORT_TYPES = ["Maintenance", "Safety", "Security", "Cleanliness", "Equipment", "Lost & Found", "Other"];
@@ -90,6 +91,10 @@ function initialValues(kind, prefill) {
     values[f.name] = f.today && f.type === "date" ? todayISO() : "";
     if (prefill && prefill[f.name]) values[f.name] = prefill[f.name];
   });
+  if (kind === "concern" || kind === "report") {
+    values.latitude = prefill?.latitude ?? "";
+    values.longitude = prefill?.longitude ?? "";
+  }
   return values;
 }
 
@@ -197,7 +202,10 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
         }
       } else {
         const value = (values[f.name] || "").trim();
-        if (f.required && !value) missing[f.name] = true;
+        const hasLocationPin = f.name === "location"
+          && values.latitude !== "" && values.latitude !== null && values.latitude !== undefined
+          && values.longitude !== "" && values.longitude !== null && values.longitude !== undefined;
+        if (f.required && !value && !hasLocationPin) missing[f.name] = true;
         if (kind !== "reservation" || f.name !== "duration_minutes") data.append(f.name, value);
         if (f.type === "select" && value === "Other") {        // "Other": the user types what it is
           const typed = (values[f.name + "_other"] || "").trim();
@@ -206,6 +214,10 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
         }
       }
     });
+    if (kind === "concern" || kind === "report") {
+      data.append("latitude", values.latitude ?? "");
+      data.append("longitude", values.longitude ?? "");
+    }
     if (kind === "reservation" && values.start_time && values.duration_minutes) {
       const timeParts = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(values.start_time);
       const duration = Number(values.duration_minutes);
@@ -244,6 +256,22 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
       disabled: done, className: invalid[f.name] ? "invalid" : "",
       placeholder: f.placeholder, ...dateLimits(kind, f),
     };
+    if (f.name === "location" && (kind === "concern" || kind === "report")) {
+      return <LocationPicker
+        id={`record-${kind}-location`}
+        value={values.location}
+        latitude={values.latitude}
+        longitude={values.longitude}
+        placeholder={f.placeholder}
+        disabled={done}
+        invalid={invalid.location}
+        onChange={(value) => set("location", value)}
+        onCoordinatesChange={(latitude, longitude) => {
+          set("latitude", latitude);
+          set("longitude", longitude);
+        }}
+      />;
+    }
     if (f.type === "textarea")
       return <textarea {...common} value={values[f.name]} onChange={(e) => set(f.name, e.target.value)} />;
     if (f.type === "select")
@@ -284,7 +312,8 @@ export default function RecordForm({ kind, prefill, onSuccess }) {
   function field(f) {
     return (
       <>
-        <label>{f.label}{f.required ? " *" : ""}</label>
+        <label htmlFor={f.name === "location" && (kind === "concern" || kind === "report")
+          ? `record-${kind}-location` : undefined}>{f.label}{f.required ? " *" : ""}</label>
         {control(f)}
         {kind === "reservation" && f.name === "start_time" &&
           <small className="muted">Choose the start time using the clock. The end time is calculated from your selected duration.</small>}

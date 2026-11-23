@@ -19,7 +19,7 @@ def pdf_path(report_id):
 
 
 def create_report(db: Session, user, form, image_file):
-    location = clean_text(form.get("location"), "Location", 120)
+    location, latitude, longitude = common.clean_location_and_coordinates(form)
     area = clean_text(form.get("area"), "Area", 120, required=False)
     room = clean_text(form.get("room"), "Room", 60, required=False)
     report_type = clean_choice_other(form, "report_type", "Report type", REPORT_TYPES)
@@ -30,7 +30,8 @@ def create_report(db: Session, user, form, image_file):
     mood = sentiment_service.analyze(description)
     stamp = now()
     row = Report(user_id=user.id, reporter_name=user.name, reporter_email=user.email,
-                 location=location, area=area, room=room, report_type=report_type,
+                 location=location, latitude=latitude, longitude=longitude,
+                 area=area, room=room, report_type=report_type,
                  description=description, report_date=report_date, image_filename=image,
                  status="Pending", sentiment=mood["label"], sentiment_score=mood["score"],
                  created_at=stamp, updated_at=stamp)

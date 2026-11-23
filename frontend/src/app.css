@@ -234,6 +234,17 @@ button.send:hover { background: var(--blue-deep); } button.send:disabled { backg
 .inline-form .invalid { border-color: var(--error); }
 .inline-form textarea { min-height: 80px; resize: vertical; }
 .inline-form .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.location-picker { display: grid; gap: 8px; }
+.location-picker-actions, .location-map-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.location-picker-actions a { color: var(--blue); font-size: .88rem; font-weight: 700; }
+.location-pin-coordinates, .location-map-toolbar > span { color: var(--muted); font-size: .82rem; }
+.location-map-panel { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.location-map-toolbar { justify-content: space-between; padding: 10px; }
+.location-map { width: 100%; height: 280px; z-index: 0; }
+.location-map-loading { display: grid; place-items: center; color: var(--muted); background: #f3f6f7; }
+.location-map-pin { border: 0; background: transparent; }
+.location-map-pin span { display: block; width: 18px; height: 18px; border: 3px solid #fff; border-radius: 50% 50% 50% 0; background: #d82d45; box-shadow: 0 1px 5px #172b3a99; transform: rotate(-45deg); }
+.location-map-error { margin: 0; padding: 0 10px 10px; color: var(--error); font-size: .86rem; }
 .record-photo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .record-photo-actions .btn { min-height: 40px; }
 .record-photo-preview { margin-top: 10px; }

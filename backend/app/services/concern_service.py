@@ -20,7 +20,7 @@ def pdf_path(concern_id):
 
 def create_concern(db: Session, user, form, image_file):
     """Name and email always come from the logged-in account."""
-    location = clean_text(form.get("location"), "Location / Area", 120)
+    location, latitude, longitude = common.clean_location_and_coordinates(form, "Location / Area")
     room = clean_text(form.get("room"), "Room", 60, required=False)
     concern_type = clean_choice_other(form, "concern_type", "Concern type", CONCERN_TYPES)
     description = clean_text(form.get("description"), "Description", 2000)
@@ -30,7 +30,8 @@ def create_concern(db: Session, user, form, image_file):
     mood = sentiment_service.analyze(description)
     stamp = now()
     row = Concern(user_id=user.id, reporter_name=user.name, reporter_email=user.email,
-                  location=location, room=room, concern_type=concern_type,
+                  location=location, latitude=latitude, longitude=longitude,
+                  room=room, concern_type=concern_type,
                   description=description, concern_date=concern_date, image_filename=image,
                   status="Pending", sentiment=mood["label"], sentiment_score=mood["score"],
                   created_at=stamp, updated_at=stamp)

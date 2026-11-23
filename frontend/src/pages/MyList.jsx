@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api, apiUrl, slug } from "../api.js";
 import RecordForm, { SuccessCard } from "../components/RecordForm.jsx";
 import { EmptyState, Loading, SearchBox, matches } from "../components/Ui.jsx";
+import MapPinLink from "../components/MapPinLink.jsx";
 
 const LONG_TEXT = ["description", "message", "purpose", "additional_info", "admin_response"];
 const FEEDBACK_SCOPE_LABELS = { campus: "Campus services", system: "NEMSAI / application", technical: "Technical issue" };
@@ -164,6 +165,8 @@ function UserReportDetails({ row, onClose }) {
             <div><span>Submitted</span><strong>{row.created_at || "Not available"}</strong></div>
             {row.record_kind && <div><span>Assigned admin</span><strong>{row.assigned_admin || "Not assigned yet"}</strong></div>}
             <div><span>Location</span><strong>{row.location || "Not provided"}</strong></div>
+            {row.latitude != null && row.longitude != null && <div><span>Map pin</span>
+              <strong><MapPinLink latitude={row.latitude} longitude={row.longitude} /></strong></div>}
             {row.room && <div><span>Room</span><strong>{row.room}</strong></div>}
             {row.area && <div><span>Area</span><strong>{row.area}</strong></div>}
           </div>

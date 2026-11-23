@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api, apiUrl, slug } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import { EmptyState, Icon, Loading, PATHS, SearchBox } from "../components/Ui.jsx";
+import MapPinLink from "../components/MapPinLink.jsx";
 
 const LONG_TEXT = ["description", "message", "purpose", "additional_info"];
 
@@ -390,6 +391,8 @@ function PhotoDetail({ row, apiKind, onChanged }) {
         <h4>Student's report</h4>
         <p>{row.description}</p>
         <p className="muted">Location: {row.location}{row.noticed_when ? ` · Noticed: ${row.noticed_when}` : ""}{row.observed_cause ? ` · Cause mentioned: ${row.observed_cause}` : ""}</p>
+        {row.latitude != null && row.longitude != null &&
+          <MapPinLink latitude={row.latitude} longitude={row.longitude} />}
         <h4>NEMSAI analysis <span className="badge ai-guess">unverified</span></h4>
         {ai.status === "unavailable" || !row.ai ? <p>{ai.unavailable_reason === "no_provider_configured"
           ? "No NEMSAI vision provider key is configured for this backend. Add a supported key to the backend environment to enable photo analysis."
@@ -454,6 +457,8 @@ function RecordDetail({ row, apiKind, assignees, statuses, onChanged, superAdmin
             <p className="report-card-description">{row.description || "No description provided."}</p>
             <div className="report-card-meta">
               <span><b>Location</b>{row.location || "Not provided"}</span>
+              {row.latitude != null && row.longitude != null && <span><b>Map pin</b>
+                <MapPinLink latitude={row.latitude} longitude={row.longitude} /></span>}
               {row.area && <span><b>Area</b>{row.area}</span>}
               {row.room && <span><b>Room</b>{row.room}</span>}
               {row.noticed_when && <span><b>When noticed</b>{row.noticed_when}</span>}

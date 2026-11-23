@@ -36,7 +36,7 @@ def test_account_requirements_distinguish_admin_and_super_admin(db):
 
 # ---------------------------------------------------------------- concerns
 def test_concern_with_image(student, student2):
-    r = student.post("/api/concerns", data=concern_form(),
+    r = student.post("/api/concerns", data=concern_form(latitude="9.078", longitude="126.198"),
                      files={"image": ("photo.png", PNG, "image/png")})
     assert r.status_code == 200, r.text
     body = r.json()
@@ -45,6 +45,7 @@ def test_concern_with_image(student, student2):
     rows = student.get("/api/me/records/concerns").json()["rows"]
     assert len(rows) == 1 and rows[0]["reporter_name"] == "Sam Student"   # from the account
     assert rows[0]["image_filename"]
+    assert rows[0]["latitude"] == 9.078 and rows[0]["longitude"] == 126.198
     # the owner sees the PDF + photo, another student does not
     assert student.get(body["pdf_url"]).status_code == 200
     assert student.get(body["pdf_url"]).headers["content-type"] == "application/pdf"
@@ -81,12 +82,21 @@ def test_required_fields_and_choices(student):
     assert r.status_code == 400
     r = student.post("/api/concerns", data=concern_form(concern_date=TOMORROW))
     assert r.status_code == 400 and "future" in r.json()["error"]
+    r = student.post("/api/concerns", data=concern_form(latitude="9.078"))
+    assert r.status_code == 400 and "both latitude and longitude" in r.json()["error"]
+    r = student.post("/api/concerns", data=concern_form(latitude="91", longitude="126.198"))
+    assert r.status_code == 400 and "valid map location" in r.json()["error"]
+    pinned = student.post("/api/concerns", data=concern_form(
+        location="", latitude="9.078", longitude="126.198"))
+    assert pinned.status_code == 200 and pinned.json()["location"] == "Pinned location"
 
 
 def test_report_and_feedback(student, instructor):
     r = student.post("/api/reports", data={"location": "Library", "report_type": "Safety",
-                                           "description": "Loose cable", "report_date": TODAY})
+                                           "description": "Loose cable", "report_date": TODAY,
+                                           "latitude": "9.078", "longitude": "126.198"})
     assert r.status_code == 200 and r.json()["status"] == "Pending"
+    assert r.json()["latitude"] == 9.078 and r.json()["longitude"] == 126.198
     f = instructor.post("/api/feedback", data={"area": "Library", "feedback_type": "Compliment",
                                                "message": "Great place", "feedback_date": TODAY})
     assert f.status_code == 200 and f.json()["pdf_url"].startswith("/api/pdf/feedback/")

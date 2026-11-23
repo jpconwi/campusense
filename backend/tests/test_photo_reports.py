@@ -60,7 +60,8 @@ def test_photo_with_description_asks_what_is_missing_then_submits(student, admin
 
     sub = student.post(f"/api/reports/photo/{body['draft_id']}/submit",
                        data={"location": "CITE building, 2nd floor", "noticed_when": "this morning",
-                             "observed_cause": "pipe above looks old"})
+                             "observed_cause": "pipe above looks old",
+                             "latitude": "9.078", "longitude": "126.198"})
     assert sub.status_code == 200, sub.text
     assert sub.json()["status"] == "Pending"
 
@@ -69,6 +70,7 @@ def test_photo_with_description_asks_what_is_missing_then_submits(student, admin
     row = rows[0]
     assert row["source"] == "photo" and row["report_type"] == "Maintenance"
     assert row["location"] == "CITE building, 2nd floor" and row["noticed_when"] == "this morning"
+    assert row["latitude"] == 9.078 and row["longitude"] == 126.198
     assert row["description"] == "The ceiling is leaking in the hallway"      # the student's own words
     assert row["ai"]["issue_title"] == "Water leaking from the ceiling" and row["verification"] == "Unverified"
     assert row["image_filename"] and admin.get(f"/api/uploads/{row['image_filename']}").status_code == 200
@@ -85,6 +87,16 @@ def test_photo_without_description_gets_follow_up_questions(student, vision):
     assert sub["success"]
     row = student.get("/api/me/records/reports").json()["rows"][0]
     assert row["location"] == "Not provided" and "did not write a description" in row["description"]
+
+
+def test_photo_report_can_use_map_pin_without_typed_location(student, vision):
+    body = analyze(student, description="The ceiling is leaking in the hallway").json()
+    submitted = student.post(f"/api/reports/photo/{body['draft_id']}/submit",
+                             data={"latitude": "9.078", "longitude": "126.198"})
+    assert submitted.status_code == 200, submitted.text
+    row = student.get("/api/me/records/reports").json()["rows"][0]
+    assert row["location"] == "Pinned location"
+    assert row["latitude"] == 9.078 and row["longitude"] == 126.198
 
 
 def test_unrelated_image_is_handled_politely_and_not_sent(student, admin, vision, db):

@@ -44,6 +44,7 @@ def init_db():
     _add_report_workflow_review_columns()
     _add_report_resolution_photo_columns()
     _add_report_priority_columns()
+    _add_report_location_coordinates()
     _add_feedback_routing_columns()
     _add_record_query_indexes()
     _add_faculty_reservation_review_columns()
@@ -331,6 +332,25 @@ def _add_report_priority_columns():
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN priority VARCHAR(20) NOT NULL DEFAULT 'Medium'"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_reports_priority_status ON reports (priority, status)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_concerns_priority_status ON concerns (priority, status)"))
+
+
+def _add_report_location_coordinates():
+    """Add optional map-pin coordinates to existing reports and concerns."""
+    from sqlalchemy import inspect, text
+    tables = {
+        table: {column["name"] for column in inspect(engine).get_columns(table)}
+        for table in ("reports", "concerns")
+    }
+    with engine.begin() as conn:
+        for table in ("reports", "concerns"):
+            for column in ("latitude", "longitude"):
+                if column in tables[table]:
+                    continue
+                if engine.dialect.name == "postgresql":
+                    conn.execute(text(
+                        f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} DOUBLE PRECISION"))
+                else:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} FLOAT"))
 
 
 def _add_feedback_routing_columns():
