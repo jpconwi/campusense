@@ -450,7 +450,6 @@ function RecordDetail({ row, apiKind, assignees, statuses, onChanged, superAdmin
   const photoReport = ["reports", "concerns"].includes(apiKind) && row.source === "photo";
   return (
     <div className="report-detail">
-      <ReportStatusProgress status={row.status} />
       {photoReport ? <PhotoDetail row={row} apiKind={apiKind} onChanged={onChanged} /> : (
         <div className="report-detail-body">
           <section className="report-detail-main">
@@ -713,6 +712,7 @@ export default function AdminList({ kind }) {
                           </button>
                         </td>
                       </tr>
+                      <tr className="report-progress-row"><td colSpan={10}><ReportStatusProgress status={r.status} /></td></tr>
                     </Fragment>
                   );
                 })}

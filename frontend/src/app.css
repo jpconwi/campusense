@@ -1184,6 +1184,9 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
                    font-size: .76rem; font-weight: 700; letter-spacing: .04em; text-align: left; text-transform: uppercase; white-space: nowrap; }
 .report-table td { padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
 .report-table tbody tr:last-child td { border-bottom: 0; }
+.report-progress-row td { padding: 0 12px 12px; border-bottom: 1px solid var(--line); background: #fff; }
+.report-progress-row .report-status-progress { margin: 0; }
+.report-row.is-open + .report-progress-row td { background: #eef4ff; }
 .report-row { cursor: pointer; }
 .report-row:hover { background: #f7f9ff; }
 .report-row:focus-within { background: #f2f7ff; }
