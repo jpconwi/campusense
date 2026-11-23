@@ -12,7 +12,7 @@ export default function SuperAdmin() {
   const [adminPassword, setAdminPassword] = useState("");
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [loadError, setLoadError] = useState("");
-  const [checkingProvider, setCheckingProvider] = useState("");
+  const [checkingHealth, setCheckingHealth] = useState(false);
   const load = useCallback(async () => {
     setLoadError("");
     try {
@@ -56,17 +56,31 @@ export default function SuperAdmin() {
     } catch (error) { setFlash({ text: error.message, kind: "error" }); }
   }
 
-  async function checkProvider(provider) {
-    setCheckingProvider(provider.provider);
+  async function checkAllProviderHealth() {
+    const providers = (data?.ai_providers || []).filter((provider) => provider.has_credentials);
+    if (!providers.length) {
+      setFlash({ text: "No AI providers have credentials configured to check.", kind: "error" });
+      return;
+    }
+    setCheckingHealth(true);
+    let healthy = 0;
+    const failures = [];
     try {
-      const result = await api(`/api/admin/system/ai-provider/${provider.provider}/health`, { method: "POST" });
-      setFlash({ text: result.success
-        ? `${provider.name}: healthy (${result.model}).`
-        : `${provider.name}: ${String(result.health || "check failed").replaceAll("_", " ")}${result.model ? ` (${result.model})` : ""}.`,
-        kind: result.success ? "info" : "error" });
-      await load();
-    } catch (error) { setFlash({ text: error.message || "Could not check provider health.", kind: "error" }); }
-    finally { setCheckingProvider(""); }
+      for (const provider of providers) {
+        try {
+          const result = await api(`/api/admin/system/ai-provider/${provider.provider}/health`, { method: "POST" });
+          if (result.success) healthy += 1;
+          else failures.push(`${provider.name}: ${String(result.health || "check failed").replaceAll("_", " ")}`);
+        } catch (error) { failures.push(`${provider.name}: ${error.message || "check failed"}`); }
+      }
+      try { await load(); }
+      catch (error) {
+        setFlash({ text: error.message || "Health checks completed, but the provider results could not be refreshed.", kind: "error" });
+        return;
+      }
+      setFlash({ text: `Health checks finished: ${healthy} of ${providers.length} checks passed.${failures.length ? ` ${failures.join("; ")}` : " See provider cards for details."}`,
+        kind: healthy === providers.length ? "info" : "error" });
+    } finally { setCheckingHealth(false); }
   }
 
   if (!data && loadError) return <div className="page"><h2 className="page-title">System Control</h2><p role="alert" className="error">{loadError}</p><button className="btn" type="button" onClick={() => load().catch(() => {})}>Try again</button></div>;
@@ -139,8 +153,12 @@ export default function SuperAdmin() {
       {storage.cloud_storage_note && <p className="muted">{storage.cloud_storage_note}</p>}
     </section>
 
-    <h3>AI integrations</h3>
-    <p className="muted">Health reflects model requests handled by this server process and refreshes once a minute. No test calls are made. Exact provider spend and remaining balance are not available through this app.</p>
+    <div className="ai-integrations-heading"><h3>AI integrations</h3>
+      <button className="btn small" type="button" disabled={checkingHealth}
+        title="Sends small requests to configured providers and may count toward their quotas."
+        onClick={checkAllProviderHealth}>{checkingHealth ? "Checking providers…" : "Check health"}</button>
+    </div>
+    <p className="muted">Health reflects real model requests handled by this server process and refreshes once a minute. Check health sends a small request to each configured provider in sequence; it tries another model if one is unavailable. Requests may count toward provider quotas. Exact spend and balances are not available here.</p>
     <div className="ai-provider-list">{data.ai_providers.map((provider) => {
       const [label, stateClass] = providerStatus(provider);
       const billingText = provider.billing_signal === "payment_or_credits_required"
@@ -156,8 +174,6 @@ export default function SuperAdmin() {
           {provider.last_checked_at && <> · {new Date(provider.last_checked_at).toLocaleString()}</>}</p>}
         <p className="ai-provider-billing">{billingText} <span>Check the provider console for current spend and balance.</span></p>
         <small className="muted">Observed in this server process: {provider.checks || 0} checks · {provider.successes || 0} succeeded · {provider.failures || 0} failed.</small>
-        <button className="btn small ghost ai-provider-check" type="button" disabled={!provider.has_credentials || checkingProvider === provider.provider}
-          onClick={() => checkProvider(provider)}>{checkingProvider === provider.provider ? "Checking…" : "Check health"}</button>
         <label className="ai-provider-toggle"><input type="checkbox" checked={provider.enabled} onChange={(event) => setProvider(provider, event.target.checked)} /> Enabled</label>
       </article>;
     })}</div>

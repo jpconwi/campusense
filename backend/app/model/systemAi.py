@@ -114,6 +114,7 @@ def chain_status():
                      "health": health.get("health", "not_checked"),
                      "last_outcome": health.get("last_outcome"), "last_issue": health.get("last_issue"),
                      "last_model": health.get("last_model"), "last_mode": health.get("last_mode"),
+                     "models_checked": health.get("models_checked", []),
                      "last_checked_at": health.get("last_checked_at"),
                      "last_http_status": health.get("last_http_status"),
                      "checks": health.get("checks", 0), "successes": health.get("successes", 0),
@@ -122,7 +123,7 @@ def chain_status():
     return rows
 
 
-def _record_provider_health(provider, outcome, *, model=None, vision=False, error=None):
+def _record_provider_health(provider, outcome, *, model=None, vision=False, error=None, models_checked=None):
     state = _provider_health.setdefault(provider, {"checks": 0, "successes": 0, "failures": 0})
     state["checks"] += 1
     state["last_outcome"] = outcome
@@ -131,6 +132,7 @@ def _record_provider_health(provider, outcome, *, model=None, vision=False, erro
     state["last_mode"] = "photo" if vision else "chat"
     state["last_checked_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     state["last_http_status"] = _status_of(error) if error else None
+    state["models_checked"] = list(models_checked or ([model] if model else []))
     if outcome == "success":
         state["successes"] += 1
         state["last_issue"] = None
@@ -163,25 +165,37 @@ def _failure_category(error):
 
 
 def check_provider_health(provider):
-    """Send one tiny live chat request to a provider's first configured model."""
+    """Send a tiny live request, trying another configured model only if one is gone."""
     if provider not in PROVIDER_ORDER:
         return {"success": False, "health": "unknown_provider", "model": None}
     if not has_credentials(provider):
         return {"success": False, "health": "not_configured", "model": None}
-    model = _models(provider)[0]
+    models = _models(provider)[:4]
     messages = [{"role": "system", "content": "This is a brief service health check. Reply with OK only."},
                 {"role": "user", "content": "OK"}]
-    try:
-        answer = _clean(_CALLERS[provider](model, messages, min(REQUEST_TIMEOUT, 12)))
-        if not answer:
-            raise RuntimeError("Provider returned an empty response")
-    except Exception as error:
-        outcome = _failure_category(error)
-        _record_provider_health(provider, outcome, model=model, error=error)
-        return {"success": False, "health": outcome, "model": model,
-                "last_http_status": _status_of(error)}
-    _record_provider_health(provider, "success", model=model)
-    return {"success": True, "health": "healthy", "model": model}
+    checked = []
+    last_error = None
+    for model in models:
+        checked.append(model)
+        try:
+            answer = _clean(_CALLERS[provider](model, messages, min(REQUEST_TIMEOUT, 6)))
+            if not answer:
+                raise RuntimeError("Provider returned an empty response")
+        except Exception as error:
+            last_error = error
+            if _is_model_gone(error):
+                continue
+            outcome = _failure_category(error)
+            _record_provider_health(provider, outcome, model=model, error=error, models_checked=checked)
+            return {"success": False, "health": outcome, "model": model,
+                    "models_checked": checked, "last_http_status": _status_of(error)}
+        _record_provider_health(provider, "success", model=model, models_checked=checked)
+        return {"success": True, "health": "healthy", "model": model, "models_checked": checked}
+    outcome = "model_unavailable" if last_error and _is_model_gone(last_error) else "request_failed"
+    _record_provider_health(provider, outcome, model=checked[-1] if checked else None,
+                            error=last_error, models_checked=checked)
+    return {"success": False, "health": outcome, "model": checked[-1] if checked else None,
+            "models_checked": checked, "last_http_status": _status_of(last_error) if last_error else None}
 
 
 def set_provider_enabled(provider, enabled):
