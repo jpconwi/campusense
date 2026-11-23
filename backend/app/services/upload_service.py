@@ -121,6 +121,24 @@ def get_image(filename):
     return None, None
 
 
+def get_image_size(filename):
+    """Return the authenticated Cloudinary object's size, or None if unknown."""
+    if not _cloudinary_enabled():
+        return None
+    try:
+        cld = _cloudinary()
+        url = cld.utils.private_download_url(
+            _public_id(filename), filename.rsplit(".", 1)[-1],
+            resource_type="image", type="authenticated",
+            expires_at=int(time.time()) + 60)
+        response = httpx.head(url, timeout=10, follow_redirects=True)
+        response.raise_for_status()
+        value = response.headers.get("content-length")
+        return int(value) if value and value.isdigit() else None
+    except Exception:
+        return None
+
+
 def get_image_path(filename):
     """Get a local path for image analysis/PDF rendering, downloading from Cloudinary if needed."""
     path = config.UPLOAD_DIR / filename

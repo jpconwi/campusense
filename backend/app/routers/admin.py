@@ -11,11 +11,12 @@ import csv
 import io
 import json
 import shutil
+import tempfile
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Response, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, HTTPException, Query, Response, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import select, text
@@ -1053,6 +1054,39 @@ def system_overview(_me: CurrentUser = Depends(super_admin_required), db: Sessio
                           "reviewed_at": r["reviewed_at"].strftime("%Y-%m-%d %I:%M:%S %p") if r["reviewed_at"] else ""}
                          for r in review_audit],
     }
+
+
+@router.post("/system/export/estimate")
+def system_export_estimate(_me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+    """Estimate full archive size before the super admin starts a data transfer."""
+    from app.services.export_service import estimate_export
+    try:
+        return estimate_export(db)
+    except Exception as exc:
+        print("SYSTEM EXPORT ESTIMATE ERROR:", repr(exc)[:300])
+        raise HTTPException(status_code=503, detail="Could not estimate the export size. Check database connectivity and try again.") from exc
+
+
+@router.post("/system/export")
+def system_export(background_tasks: BackgroundTasks,
+                  _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+    """Build a full data archive for the super admin to copy to removable media."""
+    from app.services.export_service import build_export
+    handle, archive_path = tempfile.mkstemp(prefix="nemsai-export-", suffix=".zip")
+    import os
+    os.close(handle)
+    try:
+        build_export(db, archive_path)
+    except Exception as exc:
+        try:
+            os.unlink(archive_path)
+        except OSError:
+            pass
+        print("SYSTEM EXPORT ERROR:", repr(exc)[:300])
+        raise HTTPException(status_code=503, detail="The export could not include all stored data. Check remote storage connectivity and try again.") from exc
+    background_tasks.add_task(os.unlink, archive_path)
+    return FileResponse(archive_path, media_type="application/zip",
+                        filename="nemsai-full-data-export.zip", background=background_tasks)
 
 
 @router.post("/system/integrations/health")

@@ -1258,6 +1258,12 @@ button:focus-visible, a:focus-visible { outline-color: #6b9bc3; }
 .system-health-status.healthy { background: #e5f6ec; color: #176742; }
 .system-health-status.unavailable, .system-health-status.incomplete, .system-health-status.rate_limited { background: #fff0e8; color: #9d3e12; }
 .system-health-empty { margin: 0 0 18px; padding: 12px 14px; border: 1px dashed #cbd6e2; border-radius: 10px; color: var(--muted); font-size: .85rem; }
+.system-export-card { margin: 18px 0; }
+.system-export-card > .ai-integrations-heading { margin-top: 0; }
+.system-export-estimate { display: grid; gap: 6px; margin: 12px 0; padding: 13px 15px; border: 1px solid #cbd9eb; border-radius: 10px; background: #f5f8fd; color: var(--blue-deep); }
+.system-export-estimate > span, .system-export-estimate > small { color: var(--muted); overflow-wrap: anywhere; }
+.system-export-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.system-export-actions > .muted { font-size: .8rem; }
 .report-row { cursor: pointer; }
 .report-row:hover { background: #f7f9ff; }
 .report-row:focus-within { background: #f2f7ff; }

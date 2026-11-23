@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useState } from "react";
-import { api } from "../api.js";
+import { api, downloadApi } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import { Loading } from "../components/Ui.jsx";
 
@@ -15,6 +15,9 @@ export default function SuperAdmin() {
   const [checkingHealth, setCheckingHealth] = useState(false);
   const [serviceHealth, setServiceHealth] = useState(null);
   const [checkingServices, setCheckingServices] = useState(false);
+  const [exportEstimate, setExportEstimate] = useState(null);
+  const [estimatingExport, setEstimatingExport] = useState(false);
+  const [downloadingExport, setDownloadingExport] = useState(false);
   const load = useCallback(async () => {
     setLoadError("");
     try {
@@ -95,6 +98,25 @@ export default function SuperAdmin() {
     } finally { setCheckingServices(false); }
   }
 
+  async function estimateDataExport() {
+    setEstimatingExport(true);
+    setExportEstimate(null);
+    try {
+      const estimate = await api("/api/admin/system/export/estimate", { method: "POST" });
+      setExportEstimate(estimate);
+    } catch (error) { setFlash({ text: error.message || "Could not estimate the export size.", kind: "error" }); }
+    finally { setEstimatingExport(false); }
+  }
+
+  async function downloadDataExport() {
+    setDownloadingExport(true);
+    try {
+      const actualBytes = await downloadApi("/api/admin/system/export");
+      setFlash({ text: `Export downloaded (${formatBytes(actualBytes)}). Copy nemsai-full-data-export.zip to your USB or SD card.`, kind: "info" });
+    } catch (error) { setFlash({ text: error.message || "Could not create the data export.", kind: "error" }); }
+    finally { setDownloadingExport(false); }
+  }
+
   if (!data && loadError) return <div className="page"><h2 className="page-title">System Control</h2><p role="alert" className="error">{loadError}</p><button className="btn" type="button" onClick={() => load().catch(() => {})}>Try again</button></div>;
   if (!data) return <Loading label="Loading system control..." wide={1200} />;
   const formatBytes = (bytes) => {
@@ -163,6 +185,26 @@ export default function SuperAdmin() {
       <strong>Server disk usage</strong><p>{formatBytes(storage.disk_used_bytes)} used of {formatBytes(storage.disk_total_bytes)} ({diskPercent}%)</p>
       <progress max="100" value={diskPercent} style={{ width: "100%" }} aria-label={`Server disk ${diskPercent}% used`} />
       {storage.cloud_storage_note && <p className="muted">{storage.cloud_storage_note}</p>}
+    </section>
+
+    <section className="card system-export-card" aria-labelledby="system-export-title">
+      <div className="ai-integrations-heading"><h3 id="system-export-title">Transfer data to USB or SD card</h3>
+        <button className="btn small ghost" type="button" disabled={estimatingExport || downloadingExport}
+          onClick={estimateDataExport}>{estimatingExport ? "Estimating…" : "Estimate file size"}</button>
+      </div>
+      <p className="muted">Create a ZIP containing database records (including concerns, feedback, reports, analysis, and users) and stored files. The browser cannot write directly to removable media: download the archive, then copy it to your USB drive or SD card.</p>
+      {exportEstimate && <div className="system-export-estimate" aria-live="polite">
+        <strong>Estimated space needed: {formatBytes(exportEstimate.estimated_bytes)}</strong>
+        <span>Database: {formatBytes(exportEstimate.database_bytes)} · Uploaded files: {formatBytes(exportEstimate.local_upload_bytes)} · Generated reports: {formatBytes(exportEstimate.generated_report_bytes)} · Remote attachments: {formatBytes(exportEstimate.remote_attachment_bytes)}</span>
+        <small>{exportEstimate.estimate_complete
+          ? "Estimate includes all attachments and adds room for the ZIP metadata and data formatting."
+          : `${exportEstimate.unknown_remote_files} remote file size(s) could not be checked. The estimate may be low; the export will stop if it cannot retrieve every file.`}</small>
+      </div>}
+      <div className="system-export-actions">
+        <button className="btn" type="button" disabled={!exportEstimate || downloadingExport || estimatingExport}
+          onClick={downloadDataExport}>{downloadingExport ? "Preparing full archive…" : "Download full data archive"}</button>
+        {exportEstimate && <span className="muted">ZIP archive · Sensitive user and administrative data · Super admin only</span>}
+      </div>
     </section>
 
     <div className="ai-integrations-heading"><h3>Connected services</h3>

@@ -47,6 +47,28 @@ def read_document(storage_key):
     return response.content
 
 
+def document_size(storage_key):
+    """Return a private Cloudinary document's size when HEAD exposes it."""
+    if not storage_key or not _cloudinary_enabled():
+        return None
+    resource_type, separator, details = storage_key.partition(":")
+    if not separator or resource_type not in ("image", "raw"):
+        return None
+    public_id, format_separator, extension = details.rpartition(":")
+    if not format_separator:
+        public_id = details
+        extension = public_id.rsplit(".", 1)[-1] if resource_type == "raw" else "jpg"
+    try:
+        url = _cloudinary().utils.private_download_url(
+            public_id, extension, resource_type=resource_type, type="authenticated")
+        response = httpx.head(url, timeout=10, follow_redirects=True)
+        response.raise_for_status()
+        value = response.headers.get("content-length")
+        return int(value) if value and value.isdigit() else None
+    except Exception:
+        return None
+
+
 def content_type_for(filename, fallback="application/octet-stream"):
     return mimetypes.guess_type(filename or "")[0] or fallback
 
