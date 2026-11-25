@@ -1406,7 +1406,9 @@ ROOM_FIELDS = [["room_id", "Room ID", True], ["name", "Name", True],
                ["room_type", "Type", False, "select", ["Classroom", "Computer Laboratory", "Laboratory", "Lecture Hall", "Office", "Conference Room", "Other"]],
                ["capacity", "Capacity", False, "select", ["1-10", "11-20", "21-30", "31-40", "40-50", "51-100", "100+" ]],
                ["equipment", "Equipment", False, "multiselect", ["Projector", "Computers", "TV Screen", "Air Conditioning", "Whiteboard", "Sound System", "None", "Other"]],
-               ["status", "Availability", False, "select", ["Available", "In Use", "Under Maintenance", "Not Available"]]]
+               ["status", "Availability", False, "select", ["Available", "In Use", "Under Maintenance", "Not Available"]],
+               ["available_days", "Days Available", False, "text", [], "e.g. Monday-Friday"],
+               ["available_time", "Available Time", False, "text", [], "e.g. 8:00 AM-5:00 PM"]]
 CAMPUS_FIELDS = [["topic", "Topic", True], ["keywords", "Keywords (use ; between them)", True],
                  ["answer", "Answer", True]]
 

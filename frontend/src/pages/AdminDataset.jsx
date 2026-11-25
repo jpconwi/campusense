@@ -93,7 +93,7 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
   const extraStatus = rows.length > 0 && rows[0].status !== undefined && !fields.some(([n]) => n === "status");
 
   return (
-    <div className="page" style={{ maxWidth: 1300 }}>
+    <div className="page admin-dataset-page">
       <h2 className="page-title">{tabs ? "Campus Data" : title}</h2>
       {tabs && <div className="filters" role="tablist" aria-label="Campus data sections">
         {tabs.map(([key, label]) => (
@@ -107,9 +107,18 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
         <h3>{editing ? "Edit room" : "Add"}</h3>
         {kind === "rooms" && <p className="muted">Room IDs are generated automatically when you add a room.</p>}
         <form className="inline-form" style={{ width: "100%" }} onSubmit={save}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: "0 14px" }}>
-            {fields.filter(([name]) => name !== "room_id").map(([name, label, required, type, options]) => {
-              const set = (e) => setValues((v) => ({ ...v, [name]: e.target.value }));
+          <div className="admin-dataset-form-grid">
+            {fields.filter(([name]) => name !== "room_id"
+              && (!["available_days", "available_time"].includes(name) || values.status === "Available"))
+              .map(([name, label, required, type, options, placeholder]) => {
+              const scheduleRequired = values.status === "Available"
+                && ["available_days", "available_time"].includes(name);
+              const set = (e) => setValues((v) => ({
+                ...v,
+                [name]: e.target.value,
+                ...(name === "status" && e.target.value !== "Available"
+                  ? { available_days: "", available_time: "" } : {}),
+              }));
               const selectOptions = type === "select" ? [...new Map((options || []).map((option) => {
                 const normalized = typeof option === "string"
                   ? { value: option, label: option } : option;
@@ -121,11 +130,11 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
               }
               return (
                 <div key={name} style={type === "textarea" || type === "multiselect" ? { gridColumn: "1 / -1" } : undefined}>
-                  <label>{label}{required ? " *" : ""}</label>
+                  <label>{label}{required || scheduleRequired ? " *" : ""}</label>
                   {type === "textarea" ? (
-                    <textarea rows={4} required={required} value={values[name] || ""} onChange={set} />
+                    <textarea rows={4} required={required || scheduleRequired} value={values[name] || ""} onChange={set} />
                   ) : type === "select" ? (
-                    <select required={required} value={values[name] || ""} onChange={set}>
+                    <select required={required || scheduleRequired} value={values[name] || ""} onChange={set}>
                       <option value="">Choose...</option>
                       {selectOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
@@ -144,8 +153,8 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
                       })}
                     </div>
                   ) : (
-                    <input type={type === "date" ? "date" : "text"} required={required}
-                           value={values[name] || ""} onChange={set} />
+                    <input type={type === "date" ? "date" : "text"} required={required || scheduleRequired}
+                           placeholder={placeholder || ""} value={values[name] || ""} onChange={set} />
                   )}
                 </div>
               );
@@ -184,7 +193,32 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
           {rows.length === 0 ? <p className="empty">{kind === "rooms" && search
             ? "No rooms match this search." : empty}</p>
             : visibleRows.length === 0 ? <p className="empty">No entries match this search.</p>
-              : <div className="table-wrap"><table>
+              : kind === "rooms" ? <div className="admin-room-grid">
+                {visibleRows.map((r) => (
+                  <article className="admin-room-card" key={r.id}>
+                    <div className="admin-room-card-header">
+                      <div>
+                        <h4>{r.name || "Unnamed room"}</h4>
+                        <p>{[r.building, r.floor].filter(Boolean).join(" · ") || "Location not specified"}</p>
+                        {r.room_id && <small>ID: {r.room_id}</small>}
+                      </div>
+                      <div className="dataset-actions">
+                        <button className="btn small" type="button" onClick={() => edit(r)}>Edit</button>
+                        <button className="btn small danger" type="button" onClick={() => remove(r)}>Delete</button>
+                      </div>
+                    </div>
+                    <dl className="admin-room-details">
+                      {fields.filter(([name]) => !["room_id", "name", "building", "floor"].includes(name))
+                        .map(([name, label]) => (
+                          <div className={name === "equipment" ? "admin-room-detail-equipment" : ""} key={name}>
+                            <dt>{label.split(" (")[0]}</dt>
+                            <dd>{r[name] || "-"}</dd>
+                          </div>
+                        ))}
+                    </dl>
+                  </article>
+                ))}
+              </div> : <div className="table-wrap"><table>
                 <thead><tr>{fields.map(([name, label]) => <th key={name}>{label.split(" (")[0]}</th>)}{kind === "announcements" && <th>Posted by</th>}{extraStatus && <th>Status</th>}<th>Actions</th></tr></thead>
                 <tbody>
                   {visibleRows.map((r) => (

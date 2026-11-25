@@ -303,6 +303,8 @@ class Room(Base):
     capacity: Mapped[str] = mapped_column(String(10), default="", nullable=False)
     equipment: Mapped[str] = mapped_column(String(200), default="", nullable=False)
     status: Mapped[str] = mapped_column(String(40), default="", nullable=False)
+    available_days: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    available_time: Mapped[str] = mapped_column(String(80), default="", nullable=False)
 
 
 class CampusInfo(Base):

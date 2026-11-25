@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session
 from app.models import CampusDepartment, Room
 from app.services.common import ValidationError, clean_text, row_to_dict
 
-FIELDS = ["room_id", "name", "building", "floor", "room_type", "capacity", "equipment", "status"]
+FIELDS = ["room_id", "name", "building", "floor", "room_type", "capacity", "equipment", "status",
+          "available_days", "available_time"]
 TANDAG_DEPARTMENTS = [
     ("COA", "College of Accountancy"),
     ("CAS", "College of Arts and Sciences"),
@@ -226,6 +227,7 @@ def seed_from_workbook(db: Session, strict=False):
 
 def add_room(db: Session, form):
     values = _room_values(form)
+    _validate_availability(values)
     if not values["room_id"]:
         values["room_id"] = _next_room_id(
             {room_id.lower() for room_id in db.scalars(select(Room.room_id)).all()})
@@ -248,7 +250,18 @@ def _room_values(form):
         "capacity": clean_text(form.get("capacity"), "Capacity", 10, required=False),
         "equipment": clean_text(form.get("equipment"), "Equipment", 200, required=False),
         "status": clean_text(form.get("status"), "Status", 40, required=False),
+        "available_days": clean_text(form.get("available_days"), "Days available", 120, required=False),
+        "available_time": clean_text(form.get("available_time"), "Available time", 80, required=False),
     }
+
+
+def _validate_availability(values):
+    if (values["status"] or "").casefold() == "available":
+        if not values["available_days"] or not values["available_time"]:
+            raise ValidationError("Enter the days and hours when this room is available.")
+    else:
+        values["available_days"] = ""
+        values["available_time"] = ""
 
 
 def _next_room_id(used_ids):
@@ -265,6 +278,7 @@ def update_room(db: Session, row_id, form):
         raise ValidationError("Room not found.")
     values = _room_values(form)
     values["room_id"] = values["room_id"] or row.room_id
+    _validate_availability(values)
     exists = db.execute(select(Room.id).where(
         func.lower(Room.room_id) == values["room_id"].lower(), Room.id != row_id)).first()
     if exists:
@@ -379,7 +393,8 @@ _ROOM_SYNONYMS = {
     "vacant": {"available", "free"}, "free": {"available", "vacant"},
 }
 _ROOM_SEARCH_FIELDS = ((Room.room_id, 12), (Room.name, 8), (Room.building, 5), (Room.floor, 4),
-                       (Room.room_type, 4), (Room.equipment, 4), (Room.status, 2), (Room.capacity, 2))
+                       (Room.room_type, 4), (Room.equipment, 4), (Room.status, 2), (Room.capacity, 2),
+                       (Room.available_days, 3), (Room.available_time, 3))
 
 
 def retrieve_rooms(db: Session, question, limit=5):
@@ -454,7 +469,10 @@ def room_reply(room):
     parts = [f"**{name}** ({room_label})"]
     for label, key in (("Building", "building"), ("Floor", "floor"), ("Department", "department"), ("Type", "room_type"),
                        ("Capacity", "capacity"), ("Equipment", "equipment"),
-                       ("Status", "status")):
+                       ("Status", "status"), ("Days available", "available_days"),
+                       ("Available time", "available_time")):
+        if key in ("available_days", "available_time") and not _is_free(room):
+            continue
         if room.get(key) and not (key == "department" and
                                   room.get("department", "").casefold() == room.get("building", "").casefold()):
             parts.append(f"{label}: {room[key]}")
@@ -505,7 +523,9 @@ def _room_line(r):
     details = [x for x in (f"department {department}" if department and department.lower() != (building or "").lower() else "",
                            building, r.get("floor"), r.get("room_type"),
                            f"capacity {r['capacity']}" if r.get("capacity") else "",
-                           r.get("equipment")) if x]
+                           r.get("equipment"),
+                           f"available {r.get('available_days')}" if _is_free(r) and r.get("available_days") else "",
+                           f"{r.get('available_time')}" if _is_free(r) and r.get("available_time") else "") if x]
     status = r.get("status") or "status not set"
     return f"- **{r['name'] or r['room_id']}** ({r['room_id']}): " + \
         ", ".join(details + [status])
@@ -524,7 +544,7 @@ def rooms_answer(rooms, question_words, wants_available):
             match_words.update(_ROOM_SYNONYMS.get(word, ()))
         match_words = {part for word in match_words for part in word.split()}
         def matches(r):
-            text = f" {r['building']} {r.get('floor', '')} {r.get('department', '')} {r['name']} {r['room_id']} {r['room_type']} {r['equipment']} {r['capacity']} {r['status']} ".lower()
+            text = f" {r['building']} {r.get('floor', '')} {r.get('department', '')} {r['name']} {r['room_id']} {r['room_type']} {r['equipment']} {r['capacity']} {r['status']} {r.get('available_days', '')} {r.get('available_time', '')} ".lower()
             text = " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
             return any(f" {w} " in f" {text} " for w in match_words)
         found = [r for r in rooms if matches(r)]

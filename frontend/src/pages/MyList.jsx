@@ -80,6 +80,10 @@ function RoomDirectory({ onReserve }) {
                 {room.capacity && <span><b>Capacity</b>{room.capacity}</span>}
                 {room.equipment && <span><b>Equipment</b>{room.equipment}</span>}
                 {room.status && <span><b>Availability</b>{room.status}</span>}
+                {room.status === "Available" && <>
+                  <span><b>Days available</b>{room.available_days || "Schedule not set"}</span>
+                  <span><b>Available time</b>{room.available_time || "Schedule not set"}</span>
+                </>}
               </div>
             </details>
           </article>)}

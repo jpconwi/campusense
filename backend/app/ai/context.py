@@ -74,7 +74,9 @@ def build_system_prompt(db, role, news=None, rooms=None):
                      "only from these records):\n" + "\n".join(
             f"- {r['room_id']}: {r['name']}, {r['building']}, department "
             f"{r.get('department') or 'not listed'}, {r['room_type']}, "
-            f"capacity {r['capacity']}, equipment {r['equipment']}, status {r['status']}"
+            f"capacity {r['capacity']}, equipment {r['equipment']}, status {r['status']}, "
+            f"available days {r.get('available_days') or 'not recorded'}, "
+            f"available time {r.get('available_time') or 'not recorded'}"
             for r in rooms))
 
     extra = campus_service.list_info(db)
