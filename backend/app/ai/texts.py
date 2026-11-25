@@ -300,6 +300,10 @@ TEXTS = {
         "I don't have a record for Room {code} in the campus room data.",
         "Wala akong tala para sa Room {code} sa datos ng mga kwarto sa campus.",
         "Wala koy rekord alang sa Room {code} sa datos sa mga kwarto sa campus."),
+    "room_not_found": (
+        "I couldn't find that room in the campus directory.",
+        "Hindi ko makita ang kwartong iyon sa direktoryo ng campus.",
+        "Wala nako makita kana nga kwarto sa direktoryo sa campus."),
     "faculty_admin": (
         "Faculty absence reports are submitted by instructors. You can review them in Faculty Reports.",
         "Ang mga faculty absence report ay isinusumite ng mga instructor. Makikita mo ang mga ito "
@@ -318,7 +322,7 @@ TEXTS = {
 
 # keys whose replies must stay serious (no emoji) and the ones that may be friendly
 SERIOUS = {"off_topic", "clarify_some", "clarify_none", "private", "reservation_denied",
-           "lost_lost", "lost_found", "lost_admin", "admin_forms", "no_room", "enter_question",
+           "lost_lost", "lost_found", "lost_admin", "admin_forms", "no_room", "room_not_found", "enter_question",
            "hours", "my_email", "my_name", "my_role"}
 FRIENDLY_EMOJI = {"emoji_only": "😊", "help_ask": "🙂", "friends": "😊", "how_are_you": "😊", "course_share": "😊", "greeting_student": "👋", "greeting_instructor": "👋", "greeting_admin": "👋",
                   "greeting_default": "👋", "about_me": "😊", "about_system": "😊",

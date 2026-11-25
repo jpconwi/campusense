@@ -70,14 +70,19 @@ def build_system_prompt(db, role, news=None, rooms=None):
     parts = [SYSTEM_PROMPT, NEMSU_PROMPT, LOCATION_PROMPT, AREA_PROMPT, ROOM_PROMPT]
 
     if rooms:
+        show_room_ids = role in ("admin", "super_admin")
+        room_records = []
+        for room in rooms:
+            room_id = f"Room ID {room['room_id']}: " if show_room_ids else ""
+            room_records.append(
+                f"- {room_id}{room['name']}, {room['building']}, department "
+                f"{room.get('department') or 'not listed'}, {room['room_type']}, "
+                f"capacity {room['capacity']}, equipment {room['equipment']}, status {room['status']}, "
+                f"available days {room.get('available_days') or 'not recorded'}, "
+                f"available time {room.get('available_time') or 'not recorded'}"
+            )
         parts.append("RETRIEVED ROOM RECORDS (from the campus database; answer room questions "
-                     "only from these records):\n" + "\n".join(
-            f"- {r['room_id']}: {r['name']}, {r['building']}, department "
-            f"{r.get('department') or 'not listed'}, {r['room_type']}, "
-            f"capacity {r['capacity']}, equipment {r['equipment']}, status {r['status']}, "
-            f"available days {r.get('available_days') or 'not recorded'}, "
-            f"available time {r.get('available_time') or 'not recorded'}"
-            for r in rooms))
+                     "only from these records):\n" + "\n".join(room_records))
 
     extra = campus_service.list_info(db)
     if extra:

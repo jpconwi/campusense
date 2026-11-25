@@ -1466,7 +1466,8 @@ async def rooms_import(file: UploadFile = File(...), _me: CurrentUser = Depends(
 def rooms_import_seed(_me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
     imported = room_service.seed_from_workbook(db, strict=True)
     total = room_service.count_rooms(db)
-    message = (f"Loaded {imported} room records from Campus_Data.xlsx. {total} rooms are now in the directory."
+    message = (f"Added or updated {imported} room records from Campus_Data.xlsx. "
+               f"{total} rooms are now in the directory."
                if imported else f"Campus_Data.xlsx is already loaded. The directory has {total} rooms.")
     return {"success": True, "imported": imported, "total": total, "message": message}
 

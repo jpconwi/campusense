@@ -183,10 +183,12 @@ def test_instructors_can_browse_room_directory(instructor, student, db):
         "Midwifery", "Administration", "Library", "Gymnasium", "Other",
     }
     assert response.json()["rows"] == [{
-        "id": 1, "room_id": "CITE-204", "name": "Computer Laboratory", "building": "CITE",
+        "name": "Computer Laboratory", "building": "CITE",
         "department": "Computer Studies", "room_type": "Laboratory", "capacity": "31-40",
         "equipment": "Projector", "status": "Available",
     }]
+    assert "id" not in response.json()["rows"][0]
+    assert "room_id" not in response.json()["rows"][0]
     assert student.get("/api/rooms").status_code == 403
 
 
@@ -320,7 +322,9 @@ def test_rooms_and_campus_admin(admin, student):
     # the AI answers room questions from the table, never invents them
     ans = student.ask("Tell me about Room 204")["answer"]
     assert "Room 204" in ans and "Projector" in ans and "Capacity: 40" in ans
-    assert "don't have a record for Room 999" in student.ask("What about room 999?")["answer"]
+    missing_room = student.ask("What about room 000999?")["answer"]
+    assert "couldn't find that room" in missing_room.lower()
+    assert "000999" not in missing_room
     assert student.me()["facilities"] == ["Room 204"]
     assert admin.delete(f"/api/admin/rooms/{rooms[0]['id']}").status_code == 200
 
@@ -473,10 +477,47 @@ def test_available_rooms_question_lists_real_rooms(admin, student):
                                          "status": "Available"})
     r = student.ask("available rooms in cbm")
     assert r["type"] == "message" and "CBM Room 101" in r["answer"]
+    assert "CBM-101" not in r["answer"]
     r = student.ask("what are available rooms?")
     assert "CBM Room 101" in r["answer"]
     r = student.ask("what room now available in nemsu?")
     assert "CBM Room 101" in r["answer"]
+    assert "CBM-101" not in r["answer"]
+    assert "CBM-101" in admin.ask("available rooms in cbm")["answer"]
+
+
+def test_available_rooms_reply_does_not_dump_unavailable_inventory(admin, student):
+    admin.post("/api/admin/rooms", json={"name": "ICT Office", "building": "ICT Building"})
+    answer = student.ask("what room now available in nemsu?")["answer"]
+    assert "No rooms are marked as available right now" in answer
+    assert "ICT Office" not in answer
+    assert "000001" not in answer
+    assert "Showing up to 20 matching room records" not in answer
+
+
+def test_generated_room_ids_are_sequential(admin):
+    for name in ("First room", "Second room"):
+        response = admin.post("/api/admin/rooms", json={"name": name})
+        assert response.status_code == 200
+    rooms = admin.get("/api/admin/rooms").json()["rows"]
+    assert [room["room_id"] for room in rooms] == ["000001", "000002"]
+
+
+def test_workbook_room_ids_are_sequential(db):
+    from app.services import room_service
+
+    imported = room_service.seed_from_workbook(db)
+    rooms = room_service.list_rooms(db)
+    assert imported > 1
+    assert [room["room_id"] for room in rooms[:3]] == ["000001", "000002", "000003"]
+    for index, room in enumerate(db.query(Room).order_by(Room.id).all(), start=1):
+        room.room_id = f"DATA-{index:012d}"
+    db.commit()
+    room_service.seed_from_workbook(db)
+    rooms = room_service.list_rooms(db)
+    assert [room["room_id"] for room in rooms[:3]] == ["000001", "000002", "000003"]
+    assert all(len(room["room_id"]) == 6 and room["room_id"].isdigit() for room in rooms)
+    assert room_service.seed_from_workbook(db) == 0
 
 
 def test_admin_announcements_feed_the_ai(admin, student, monkeypatch):

@@ -244,7 +244,7 @@ def instructor_rooms(user: CurrentUser = Depends(role_required("instructor")),
                      db: Session = Depends(get_db)):
     """Provide instructors with the campus room directory for reservation requests."""
     return {
-        "rows": room_service.list_rooms(db),
+        "rows": room_service.list_public_rooms(db),
         "department_options": room_service.list_department_options(db),
         "building_options": room_service.list_building_options(db),
     }

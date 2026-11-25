@@ -5,7 +5,6 @@ Room records are loaded from the campus workbook at startup and can also be
 managed from the super admin dashboard.
 """
 
-import hashlib
 import re
 import zipfile
 import xml.etree.ElementTree as ET
@@ -47,6 +46,12 @@ TANDAG_BUILDINGS = [
 def list_rooms(db: Session):
     rows = db.execute(select(Room).order_by(Room.id)).scalars()
     return [row_to_dict(r) for r in rows]
+
+
+def list_public_rooms(db: Session):
+    """Room directory for instructors; internal room IDs are admin-only."""
+    return [{key: value for key, value in room.items() if key not in ("id", "room_id")}
+            for room in list_rooms(db)]
 
 
 def list_department_options(db: Session):
@@ -129,11 +134,7 @@ def count_rooms(db: Session):
 
 
 def seed_from_workbook(db: Session, strict=False):
-    """Add missing room records from the bundled Campus_Data workbook.
-
-    IDs are stable hashes of building and room name. Existing records are left
-    alone so edits made by a super admin remain intact across restarts.
-    """
+    """Add missing rooms from Campus_Data and migrate generated IDs to sequence numbers."""
     from app import config
     path = config.ROOM_SEED_XLSX
     if not path.exists():
@@ -185,41 +186,74 @@ def seed_from_workbook(db: Session, strict=False):
             number = number * 26 + ord(char) - 64
         return number
 
-    saved_rooms = db.scalars(select(Room)).all()
-    existing_ids = {row.room_id.lower() for row in saved_rooms}
-    rooms_by_id = {row.room_id.casefold(): row for row in saved_rooms}
-    existing_places = {(row.building.casefold().strip(), row.floor.casefold().strip(), row.name.casefold().strip())
-                       for row in saved_rooms}
-    added = 0
+    workbook_rooms = []
     for row in rows[1:]:
         values = {column_number(cell.attrib.get("r")): cell_value(cell)
                   for cell in row.findall("m:c", ns)}
         building, floor, name = (values.get(i, "") for i in (1, 2, 3))
         if not name or not building:
             continue
-        identity = f"{building.casefold()}|{floor.casefold()}|{name.casefold()}"
-        numbered_room = re.fullmatch(r"(?:room\s*)?([a-z]?\d{1,4}[a-z]?)", name, re.I)
-        room_id = (numbered_room.group(1).upper() if numbered_room
-                   else "DATA-" + hashlib.sha256(identity.encode()).hexdigest()[:12].upper())
-        place = (building.casefold().strip(), floor.casefold().strip(), name.casefold().strip())
-        if room_id.lower() in existing_ids:
-            # Keep the admin-entered room record and fill only a missing floor from the dataset.
-            existing_row = rooms_by_id.get(room_id.casefold())
-            if existing_row and not existing_row.floor and floor:
-                existing_row.floor = floor[:40]
-                added += 1
-            continue
-        if place in existing_places:
-            continue
+        building, floor, name = building[:80], floor[:40], name[:80]
         capacity = values.get(5, "")
         if capacity.endswith(".0"):
             capacity = capacity[:-2]
-        db.add(Room(room_id=room_id, name=name[:80], building=building[:80], floor=floor[:40],
-                    room_type=values.get(4, "")[:60], capacity=capacity[:10],
-                    equipment=values.get(6, "")[:200], status=""))
-        existing_ids.add(room_id.lower())
-        existing_places.add(place)
+        workbook_rooms.append({
+            "building": building,
+            "floor": floor,
+            "name": name,
+            "room_type": values.get(4, "")[:60],
+            "capacity": capacity[:10],
+            "equipment": values.get(6, "")[:200],
+            "place": (building.casefold().strip(), floor.casefold().strip(), name.casefold().strip()),
+        })
+
+    saved_rooms = db.scalars(select(Room).order_by(Room.id)).all()
+    workbook_places = {room["place"] for room in workbook_rooms}
+    existing_by_place = {
+        (row.building.casefold().strip(), row.floor.casefold().strip(), row.name.casefold().strip()): row
+        for row in saved_rooms
+    }
+    used_ids = {
+        row.room_id.casefold() for row in saved_rooms
+        if not row.room_id.upper().startswith(("DATA-", "ROOM-"))
+        and not ((row.building.casefold().strip(), row.floor.casefold().strip(),
+                  row.name.casefold().strip()) in workbook_places
+                 and not re.fullmatch(r"\d{6}", row.room_id))
+    }
+    added = 0
+    for room_data in workbook_rooms:
+        place = room_data["place"]
+        existing_row = existing_by_place.get(place)
+        if existing_row is not None:
+            if not re.fullmatch(r"\d{6}", existing_row.room_id):
+                existing_row.room_id = _next_room_id(used_ids)
+                used_ids.add(existing_row.room_id.casefold())
+                added += 1
+            if not existing_row.floor and room_data["floor"]:
+                existing_row.floor = room_data["floor"]
+                added += 1
+            continue
+        room_id = _next_room_id(used_ids)
+        new_room = Room(
+            room_id=room_id,
+            name=room_data["name"],
+            building=room_data["building"],
+            floor=room_data["floor"],
+            room_type=room_data["room_type"],
+            capacity=room_data["capacity"],
+            equipment=room_data["equipment"],
+            status="",
+        )
+        db.add(new_room)
+        used_ids.add(room_id.casefold())
+        existing_by_place[place] = new_room
         added += 1
+
+    for row in saved_rooms:
+        if row.room_id.upper().startswith(("DATA-", "ROOM-")):
+            row.room_id = _next_room_id(used_ids)
+            used_ids.add(row.room_id.casefold())
+            added += 1
     if added:
         db.commit()
     return added
@@ -265,11 +299,13 @@ def _validate_availability(values):
 
 
 def _next_room_id(used_ids):
-    """Create the next readable room ID without requiring admin input."""
-    number = 1
-    while f"ROOM-{number:06d}".lower() in used_ids:
+    """Create the next zero-padded numeric room ID."""
+    numbers = [int(room_id) for room_id in used_ids
+               if re.fullmatch(r"\d{6}", room_id)]
+    number = max(numbers, default=0) + 1
+    while f"{number:06d}".lower() in used_ids:
         number += 1
-    return f"ROOM-{number:06d}"
+    return f"{number:06d}"
 
 
 def update_room(db: Session, row_id, form):
@@ -302,7 +338,7 @@ def facility_names(db: Session):
 
 def extract_room_code(question):
     """'projector in Room 204 is broken' -> '204'"""
-    match = re.search(r"\broom\s*#?\s*([a-z]?\d{1,4}[a-z]?)\b", question.lower())
+    match = re.search(r"\broom\s*#?\s*([a-z]?\d{1,6}[a-z]?)\b", question.lower())
     return match.group(1).upper() if match else None
 
 
@@ -427,20 +463,27 @@ def retrieve_rooms(db: Session, question, limit=5):
     return rows
 
 
-def room_location_reply(room):
-    room_id = room.get("room_id") or ""
-    room_label = room_id if room_id.lower().startswith("room ") else f"Room {room_id}"
-    name = room.get("name") or room_label
+def _room_title(room, include_id=False):
+    name = (room.get("name") or "").strip()
+    room_id = str(room.get("room_id") or "").strip()
+    if include_id and room_id:
+        room_label = room_id if room_id.lower().startswith("room ") else f"Room {room_id}"
+        return f"{name} ({room_label})" if name else room_label
+    return name or "Room"
+
+
+def room_location_reply(room, include_id=False):
+    name = _room_title(room, include_id)
     building = room.get("building")
     if building:
         floor = room.get("floor")
         floor_text = f" on the **{floor}**" if floor else ""
         detail = "The room record doesn't include a nearby landmark, so I can't give a more precise location."
-        return f"**{name}** ({room_label}) is in **{building}**{floor_text}. {detail}"
-    return f"I found **{name}** ({room_label}), but its building location hasn't been added yet."
+        return f"**{name}** is in **{building}**{floor_text}. {detail}"
+    return f"I found **{name}**, but its building location hasn't been added yet."
 
 
-def room_locations_reply(rooms):
+def room_locations_reply(rooms, include_id=False):
     """List locations for matching rooms when a name refers to more than one room."""
     unique = {}
     for room in rooms:
@@ -449,24 +492,22 @@ def room_locations_reply(rooms):
             unique[key] = room
     rooms = list(unique.values())
     if len(rooms) == 1:
-        return room_location_reply(rooms[0])
+        return room_location_reply(rooms[0], include_id)
     locations = sorted({room.get("building") for room in rooms if room.get("building")})
     if not locations:
-        names = ", ".join(f"**{room.get('name') or room.get('room_id')}**" for room in rooms)
+        names = ", ".join(f"**{_room_title(room, include_id)}**" for room in rooms)
         return f"I found {names}, but their building locations haven't been added yet."
     location_text = ", ".join(f"**{location}**" for location in locations)
     listing = "\n".join(
-        f"- **{room.get('name') or room.get('room_id')}** (Room {room.get('room_id')})"
+        f"- **{_room_title(room, include_id)}**"
         for room in rooms)
     return (f"These rooms are listed in {location_text}:\n{listing}\n"
             "The room records don't include a floor or nearby landmark.")
 
 
-def room_reply(room):
-    room_id = str(room.get("room_id") or "").strip()
-    room_label = room_id if room_id.lower().startswith("room ") else f"Room {room_id}"
-    name = room.get("name") or room_label
-    parts = [f"**{name}** ({room_label})"]
+def room_reply(room, include_id=False):
+    name = _room_title(room, include_id)
+    parts = [f"**{name}**"]
     for label, key in (("Building", "building"), ("Floor", "floor"), ("Department", "department"), ("Type", "room_type"),
                        ("Capacity", "capacity"), ("Equipment", "equipment"),
                        ("Status", "status"), ("Days available", "available_days"),
@@ -479,10 +520,9 @@ def room_reply(room):
     return "\n".join(parts)
 
 
-def room_department_reply(room):
+def room_department_reply(room, include_id=False):
     """Answer department questions from the room's recorded fields."""
-    room_id = room.get("room_id") or ""
-    label = room_id if room_id.lower().startswith("room ") else f"Room {room_id}"
+    label = _room_title(room, include_id)
     name, building = room.get("name"), room.get("building")
     department = room.get("department")
     details = []
@@ -517,7 +557,7 @@ def _is_free(room):
         and "unavail" not in status
 
 
-def _room_line(r):
+def _room_line(r, include_id=False):
     department = r.get("department")
     building = r.get("building")
     details = [x for x in (f"department {department}" if department and department.lower() != (building or "").lower() else "",
@@ -527,11 +567,11 @@ def _room_line(r):
                            f"available {r.get('available_days')}" if _is_free(r) and r.get("available_days") else "",
                            f"{r.get('available_time')}" if _is_free(r) and r.get("available_time") else "") if x]
     status = r.get("status") or "status not set"
-    return f"- **{r['name'] or r['room_id']}** ({r['room_id']}): " + \
+    return f"- **{_room_title(r, include_id)}**: " + \
         ", ".join(details + [status])
 
 
-def rooms_answer(rooms, question_words, wants_available):
+def rooms_answer(rooms, question_words, wants_available, include_id=False):
     """Pure function (easy to test): rooms = list of room dicts, question_words = tokens."""
     if not rooms:
         return ("There are no rooms in the campus room list yet. An administrator can add "
@@ -556,9 +596,8 @@ def rooms_answer(rooms, question_words, wants_available):
     if wants_available:
         free = [r for r in rooms if _is_free(r)]
         if free:
-            return f"Available rooms{scope}:\n" + "\n".join(_room_line(r) for r in free[:20]) + \
+            return f"Available rooms{scope}:\n" + "\n".join(_room_line(r, include_id) for r in free[:20]) + \
                 (f"\n...and {len(free) - 20} more." if len(free) > 20 else "")
-        return (f"No room{scope} is marked as available right now. Here are the rooms "
-                f"I have{scope}:\n" + "\n".join(_room_line(r) for r in rooms[:20]))
-    return f"Rooms{scope}:\n" + "\n".join(_room_line(r) for r in rooms[:20]) + \
+        return f"No rooms are marked as available{scope} right now."
+    return f"Rooms{scope}:\n" + "\n".join(_room_line(r, include_id) for r in rooms[:20]) + \
         (f"\n...and {len(rooms) - 20} more." if len(rooms) > 20 else "")

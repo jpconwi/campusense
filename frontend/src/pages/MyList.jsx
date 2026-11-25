@@ -60,11 +60,11 @@ function RoomDirectory({ onReserve }) {
     {error ? <p className="form-error" role="alert">{error}</p>
       : !rooms ? <Loading label="Loading rooms..." />
         : visibleRooms.length ? <div className="room-directory-list">
-          {visibleRooms.map((room) => <article className="room-directory-card" key={room.id}>
+          {visibleRooms.map((room) => <article className="room-directory-card"
+            key={`${room.name}-${room.building}-${room.floor}`}>
             <div className="room-directory-card-heading">
               <div className="room-directory-room-title">
-                <h4>{room.name || room.room_id}</h4>
-                <span className="muted">{room.room_id}</span>
+                <h4>{room.name}</h4>
                 <span className={`room-availability-badge ${roomAvailabilityClass(room.status)}`}>
                   {room.status || "Availability not set"}
                 </span>
@@ -275,10 +275,10 @@ export default function MyList({ kind, hideForm = false }) {
               <option value="report">Problem &mdash; incident or safety/security issue</option>
             </select>
           </div>}
-          {selectedRoom && kind === "reservations" && <p className="muted">Selected room: <strong>{selectedRoom.name || selectedRoom.room_id}</strong> ({selectedRoom.room_id})</p>}
-          <RecordForm key={`${combined ? formKind : kind}-${selectedRoom?.id || ""}`}
+          {selectedRoom && kind === "reservations" && <p className="muted">Selected room: <strong>{selectedRoom.name}</strong></p>}
+          <RecordForm key={`${combined ? formKind : kind}-${selectedRoom?.name || ""}-${selectedRoom?.building || ""}-${selectedRoom?.floor || ""}`}
             kind={combined ? formKind : spec.form}
-            prefill={selectedRoom && kind === "reservations" ? { facility: `${selectedRoom.name || selectedRoom.room_id} (${selectedRoom.room_id})` } : undefined}
+            prefill={selectedRoom && kind === "reservations" ? { facility: selectedRoom.name } : undefined}
             onSuccess={done} />
           {result && <div style={{ marginTop: 12 }}><SuccessCard result={result} /><p className="desc">Reloading your list...</p></div>}
         </div>

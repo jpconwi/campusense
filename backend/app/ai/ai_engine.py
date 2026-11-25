@@ -157,6 +157,12 @@ def _data(text):
     return _english(response.message(text))
 
 
+def _room_not_found(role, code):
+    if role in ("admin", "super_admin"):
+        return response.message(texts.en("no_room", code=code))
+    return response.message(texts.en("room_not_found"))
+
+
 def _general_reply(question, conversation=None, role="student"):
     """Answer general questions without searching campus pages or attaching unrelated sources."""
     for misspelling, correction in (("calculos", "calculus"), ("discreet", "discrete"),
@@ -402,7 +408,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
             "currently have add and delete actions; to replace an entry, delete it and add the "
             "updated version."
         )
-    room_entry_match = re.match(r"^\s*(?:room\s*)?([a-z]?\d{1,4}[a-z]?)\b", question, re.I)
+    room_entry_match = re.match(r"^\s*(?:room\s*)?([a-z]?\d{1,6}[a-z]?)\b", question, re.I)
     room_entry_code = (room_service.extract_room_code(question)
                        or (room_entry_match.group(1).upper() if room_entry_match else None))
     room_entry_followup = bool(
@@ -438,15 +444,16 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
                 "concern form already shown below.")
     room_code = room_service.extract_room_code(question)
     room_status_match = re.fullmatch(
-        r"(?:does|is|are|what about|how about)?\s*(?:room\s*)?#?([a-z]?\d{1,4}[a-z]?)\s*"
+        r"(?:does|is|are|what about|how about)?\s*(?:room\s*)?#?([a-z]?\d{1,6}[a-z]?)\s*"
         r"(?:is\s*)?(?:currently\s*)?(?:available|free|vacant|open|unoccupied)(?:\s+now)?",
         normalized)
     if room_status_match:
         status_code = room_status_match.group(1).upper()
         status_room = room_service.find_room(db, status_code)
         if status_room:
-            return _data(room_service.room_reply(status_room))
-        return response.message(texts.en("no_room", code=status_code))
+            return _data(room_service.room_reply(
+                status_room, include_id=role in ("admin", "super_admin")))
+        return _room_not_found(role, status_code)
     bare_room_reference = bool(room_code and normalized in {f"room {room_code.lower()}",
                                                             f"room {room_code.lower()} details"})
     room_list_request = room_service.is_room_list_question(question)
@@ -458,7 +465,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if room_lookup_request and room is None and room_code:
         room = room_service.find_room(db, room_code)
         if room is None:
-            return response.message(texts.en("no_room", code=room_code))
+            return _room_not_found(role, room_code)
     if room_lookup_request and room is None and room_service.is_room_location_question(question):
         prior_user_messages = [m.get("text", "") for m in reversed(conversation or [])
                                if m.get("role") == "user"]
@@ -469,14 +476,18 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
                 break
     if room_lookup_request and room is not None:
         if room_service.is_room_location_question(question):
-            return _data(room_service.room_location_reply(room))
+            return _data(room_service.room_location_reply(
+                room, include_id=role in ("admin", "super_admin")))
         if any(term in normalized.split() for term in ("department", "departments", "college", "unit", "belongs", "belong")):
-            return _data(room_service.room_department_reply(room))
-        return _data(room_service.room_reply(room))
+            return _data(room_service.room_department_reply(
+                room, include_id=role in ("admin", "super_admin")))
+        return _data(room_service.room_reply(
+            room, include_id=role in ("admin", "super_admin")))
     if room_lookup_request and room is None:
         retrieved_rooms = room_service.retrieve_rooms(db, question, limit=5)
         if room_service.is_room_location_question(question) and retrieved_rooms:
-            return _data(room_service.room_locations_reply(retrieved_rooms))
+            return _data(room_service.room_locations_reply(
+                retrieved_rooms, include_id=role in ("admin", "super_admin")))
         if retrieved_rooms:
             role = user.role if user else "student"
             prompt = build_system_prompt(db, role, rooms=retrieved_rooms)
@@ -769,8 +780,10 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         candidates = room_service.retrieve_rooms(db, question, limit=20)
         if not candidates:
             candidates = room_service.list_room_preview(db, limit=20)
-        answer = room_service.rooms_answer(candidates, found["words"], found["available"])
-        if len(candidates) == 20:
+        answer = room_service.rooms_answer(
+            candidates, found["words"], found["available"],
+            include_id=role in ("admin", "super_admin"))
+        if len(candidates) == 20 and not found["available"]:
             answer += "\nShowing up to 20 matching room records."
         return _data(answer)
 
@@ -873,8 +886,9 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if code:
         room = room_service.find_room(db, code)
         if room:
-            return _data(room_service.room_reply(room))
-        return response.message(texts.en("no_room", code=code))
+            return _data(room_service.room_reply(
+                room, include_id=role in ("admin", "super_admin")))
+        return _room_not_found(role, code)
 
     # ---- "abri run ang nemsu?" / "is the library open?": opening hours are not in the campus data
     if intents.asks_hours(normalize(question)):

@@ -105,7 +105,7 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
       </div>}
       <div className="card">
         <h3>{editing ? "Edit room" : "Add"}</h3>
-        {kind === "rooms" && <p className="muted">Room IDs are generated automatically when you add a room.</p>}
+        {kind === "rooms" && <p className="muted">Room IDs are assigned sequentially when you add a room.</p>}
         <form className="inline-form" style={{ width: "100%" }} onSubmit={save}>
           <div className="admin-dataset-form-grid">
             {fields.filter(([name]) => name !== "room_id"
