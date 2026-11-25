@@ -1445,9 +1445,8 @@ async def rooms_import(file: UploadFile = File(...), _me: CurrentUser = Depends(
         if not reader.fieldnames:
             raise ValidationError("The CSV must include a header row.")
         headers = {header.strip().lower().replace(" ", "_"): header for header in reader.fieldnames if header}
-        required = {"room_id", "name"}
-        if not required.issubset(headers):
-            raise ValidationError("CSV must include room_id and name columns.")
+        if "name" not in headers:
+            raise ValidationError("CSV must include a name column. Room IDs are generated when omitted.")
         records = []
         for row in reader:
             records.append({key: row.get(original) for key, original in headers.items()})

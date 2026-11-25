@@ -95,10 +95,13 @@ def list_rooms_page(db: Session, page=1, page_size=100, search=""):
 def import_rooms(db: Session, records):
     """Validate a room CSV as a whole, then insert/update rows in one transaction."""
     existing = {row.room_id.lower(): row for row in db.scalars(select(Room)).all()}
+    used_ids = set(existing)
     seen = set()
     prepared = []
     for line_number, record in enumerate(records, start=2):
         values = _room_values(record)
+        if not values["room_id"]:
+            values["room_id"] = _next_room_id(used_ids | seen)
         key = values["room_id"].lower()
         if key in seen:
             raise ValidationError(f"Duplicate room ID on CSV row {line_number}: {values['room_id']}.")
@@ -223,6 +226,9 @@ def seed_from_workbook(db: Session, strict=False):
 
 def add_room(db: Session, form):
     values = _room_values(form)
+    if not values["room_id"]:
+        values["room_id"] = _next_room_id(
+            {room_id.lower() for room_id in db.scalars(select(Room.room_id)).all()})
     exists = db.execute(select(Room.id).where(
         func.lower(Room.room_id) == values["room_id"].lower())).first()
     if exists:
@@ -233,7 +239,7 @@ def add_room(db: Session, form):
 
 def _room_values(form):
     return {
-        "room_id": clean_text(form.get("room_id"), "Room ID", 30),
+        "room_id": clean_text(form.get("room_id"), "Room ID", 30, required=False),
         "name": clean_text(form.get("name"), "Name", 80),
         "building": clean_text(form.get("building"), "Building", 80, required=False),
         "floor": clean_text(form.get("floor"), "Floor", 40, required=False),
@@ -245,11 +251,20 @@ def _room_values(form):
     }
 
 
+def _next_room_id(used_ids):
+    """Create the next readable room ID without requiring admin input."""
+    number = 1
+    while f"ROOM-{number:06d}".lower() in used_ids:
+        number += 1
+    return f"ROOM-{number:06d}"
+
+
 def update_room(db: Session, row_id, form):
     row = db.get(Room, row_id)
     if row is None:
         raise ValidationError("Room not found.")
     values = _room_values(form)
+    values["room_id"] = values["room_id"] or row.room_id
     exists = db.execute(select(Room.id).where(
         func.lower(Room.room_id) == values["room_id"].lower(), Room.id != row_id)).first()
     if exists:

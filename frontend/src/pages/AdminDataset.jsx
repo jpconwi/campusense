@@ -64,7 +64,8 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
 
   function edit(row) {
     setEditing(row);
-    setValues(Object.fromEntries(fields.map(([name]) => [name, row[name] ?? ""])));
+    setValues(Object.fromEntries(fields.filter(([name]) => name !== "room_id")
+      .map(([name]) => [name, row[name] ?? ""])));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -104,9 +105,10 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
       </div>}
       <div className="card">
         <h3>{editing ? "Edit room" : "Add"}</h3>
+        {kind === "rooms" && <p className="muted">Room IDs are generated automatically when you add a room.</p>}
         <form className="inline-form" style={{ width: "100%" }} onSubmit={save}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: "0 14px" }}>
-            {fields.map(([name, label, required, type, options]) => {
+            {fields.filter(([name]) => name !== "room_id").map(([name, label, required, type, options]) => {
               const set = (e) => setValues((v) => ({ ...v, [name]: e.target.value }));
               const selectOptions = type === "select" ? [...new Map((options || []).map((option) => {
                 const normalized = typeof option === "string"
@@ -155,7 +157,7 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
         {kind === "rooms" && <div className="dataset-toolbar" style={{ marginTop: 16 }}>
           <button className="btn secondary" type="button" onClick={loadBundledRooms}>Load bundled Excel dataset</button>
           <label>Import rooms from CSV <input type="file" accept=".csv,text/csv" onChange={importRooms} /></label>
-          <span className="muted">CSV columns: room_id, name, building, floor, room_type, capacity, equipment, status. Up to 25,000 rows per import.</span>
+          <span className="muted">CSV columns: name, building, floor, room_type, capacity, equipment, status. Room IDs are generated if omitted. Up to 25,000 rows per import.</span>
         </div>}
       </div>
 
