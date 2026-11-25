@@ -138,6 +138,8 @@ def submit(db: Session, user, draft_id, form, destination=None):
     draft = _own_draft(db, user, draft_id)
     for key, value in _fields(form).items():
         setattr(draft, key, value or None)
+    if not (draft.location or "").strip():
+        raise ValidationError("Area / location is required so administrators can find the reported issue.")
     has_pin_input = form.get("latitude") not in (None, "") or form.get("longitude") not in (None, "")
     if draft.location or has_pin_input:
         location, latitude, longitude = common.clean_location_and_coordinates({

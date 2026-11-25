@@ -20,7 +20,7 @@ def pdf_path(report_id):
 
 def create_report(db: Session, user, form, image_file):
     location, latitude, longitude = common.clean_location_and_coordinates(form)
-    area = clean_text(form.get("area"), "Area", 120, required=False)
+    area = clean_text(form.get("area"), "Area", 120)
     room = clean_text(form.get("room"), "Room", 60, required=False)
     report_type = clean_choice_other(form, "report_type", "Report type", REPORT_TYPES)
     description = clean_text(form.get("description"), "Description", 2000)

@@ -29,7 +29,7 @@ export const FORMS = {
     title: "Report Form", endpoint: "/api/reports", desc: "Submit a campus report.",
     fields: [
       { name: "location", label: "Location", type: "text", required: true },
-      { name: "area", label: "Area", type: "text", placeholder: "optional" },
+      { name: "area", label: "Area / building", type: "text", required: true, placeholder: "e.g. CITE building, 2nd floor" },
       { name: "room", label: "Room", type: "text", placeholder: "optional" },
       { name: "report_type", label: "Report type", type: "select", options: REPORT_TYPES, required: true },
       { name: "description", label: "Description", type: "textarea", required: true },

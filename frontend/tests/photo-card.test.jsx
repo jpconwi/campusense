@@ -28,7 +28,7 @@ describe("PhotoReportCard", () => {
   it("asks the follow-up questions, labels the AI notes as unverified and has no microphone buttons", async () => {
     const Card = await load();
     render(<Card result={result()} onMessage={() => {}} onSent={() => {}} onDiscarded={() => {}} />);
-    expect(screen.getByLabelText("Where on campus is this?")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Where on campus is this/)).toBeInTheDocument();
     expect(screen.getByLabelText("When did you notice it?")).toBeInTheDocument();
     expect(screen.getByText(/AI guess, not verified/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Speak your message/)).toBeNull();
@@ -46,10 +46,18 @@ describe("PhotoReportCard", () => {
     expect(screen.getByText(/Possible safety hazard/)).toBeInTheDocument();
   });
 
+  it("requires a written area before sending", async () => {
+    const Card = await load();
+    render(<Card result={result()} onMessage={() => {}} onSent={() => {}} onDiscarded={() => {}} />);
+    await userEvent.click(screen.getByRole("button", { name: "Send problem" }));
+    expect(await screen.findByText(/Enter the area or building/)).toBeInTheDocument();
+    expect(api).not.toHaveBeenCalled();
+  });
+
   it("cannot be sent when the report is not plausible, and 'Check again' needs an edit", async () => {
     const Card = await load();
     render(<Card result={result({ can_submit: false, outcome: "no_issue", questions: [] })} onMessage={() => {}} onSent={() => {}} onDiscarded={() => {}} />);
-    expect(screen.getByRole("button", { name: "Send report" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send problem" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Check again" })).toBeDisabled();
     await userEvent.type(screen.getByLabelText("Your description"), " more");
     expect(screen.getByRole("button", { name: "Check again" })).toBeEnabled();
@@ -61,11 +69,11 @@ describe("PhotoReportCard", () => {
     r.analysis.image_kind = "people";
     render(<Card result={r} onMessage={() => {}} onSent={() => {}} onDiscarded={() => {}} />);
     expect(screen.getByText("Not a campus report")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Send report" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Send problem" })).toBeNull();
     expect(screen.queryByLabelText("Your description")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "It is a campus problem" }));
     expect(screen.getByLabelText("Your description")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send report" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send problem" })).toBeDisabled();
   });
 
   it("removes a photo that is not a campus report", async () => {
@@ -99,21 +107,22 @@ describe("PhotoReportCard", () => {
     const onSent = vi.fn();
     api.mockResolvedValue({ success: true, id: 12, status: "Pending", message: "sent" });
     render(<Card result={result()} onMessage={() => {}} onSent={onSent} onDiscarded={() => {}} />);
-    await userEvent.type(screen.getByLabelText("Where on campus is this?"), "Library");
-    await userEvent.click(screen.getByRole("button", { name: "Send report" }));
+    await userEvent.type(screen.getByLabelText(/Where on campus is this/), "Library");
+    await userEvent.click(screen.getByRole("button", { name: "Send problem" }));
     await waitFor(() => expect(onSent).toHaveBeenCalled());
     expect(api.mock.calls[0][0]).toBe("/api/reports/photo/7/submit");
     expect(api.mock.calls[0][1].form.get("location")).toBe("Library");
-    expect(screen.getByText("Report sent.")).toBeInTheDocument();
+    expect(screen.getByText("Problem sent.")).toBeInTheDocument();
   });
 
   it("shows the server's error and stays open", async () => {
     const Card = await load();
     api.mockRejectedValue(new Error("I can't send this yet."));
     render(<Card result={result()} onMessage={() => {}} onSent={() => {}} onDiscarded={() => {}} />);
-    await userEvent.click(screen.getByRole("button", { name: "Send report" }));
+    await userEvent.type(screen.getByLabelText(/Where on campus is this/), "Library");
+    await userEvent.click(screen.getByRole("button", { name: "Send problem" }));
     expect(await screen.findByText("I can't send this yet.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send report" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send problem" })).toBeEnabled();
   });
 
   it("discard removes the photo", async () => {

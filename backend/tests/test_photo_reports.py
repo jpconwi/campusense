@@ -46,6 +46,12 @@ def analyze(client, **fields):
     return client.post("/api/reports/photo/analyze", data=fields, files={"image": IMG})
 
 
+def submit_photo(client, draft_id, data=None):
+    fields = {"location": "CITE building"}
+    fields.update(data or {})
+    return client.post(f"/api/reports/photo/{draft_id}/submit", data=fields)
+
+
 def test_photo_with_description_asks_what_is_missing_then_submits(student, admin, vision, db):
     r = analyze(student, description="The ceiling is leaking in the hallway")
     assert r.status_code == 200, r.text
@@ -58,10 +64,10 @@ def test_photo_with_description_asks_what_is_missing_then_submits(student, admin
     # a draft is NOT a report: the administrator sees nothing yet
     assert admin.get("/api/admin/records/reports").json()["rows"] == []
 
-    sub = student.post(f"/api/reports/photo/{body['draft_id']}/submit",
-                       data={"location": "CITE building, 2nd floor", "noticed_when": "this morning",
-                             "observed_cause": "pipe above looks old",
-                             "latitude": "9.078", "longitude": "126.198"})
+    sub = submit_photo(student, body["draft_id"],
+                       {"location": "CITE building, 2nd floor", "noticed_when": "this morning",
+                        "observed_cause": "pipe above looks old",
+                        "latitude": "9.078", "longitude": "126.198"})
     assert sub.status_code == 200, sub.text
     assert sub.json()["status"] == "Pending"
 
@@ -83,19 +89,22 @@ def test_photo_without_description_gets_follow_up_questions(student, vision):
     body = analyze(student).json()
     keys = [q["key"] for q in body["questions"]]
     assert keys == ["location", "when", "cause", "description"]
-    sub = student.post(f"/api/reports/photo/{body['draft_id']}/submit", data={}).json()
+    sub = submit_photo(student, body["draft_id"]).json()
     assert sub["success"]
     row = student.get("/api/me/records/reports").json()["rows"][0]
-    assert row["location"] == "Not provided" and "did not write a description" in row["description"]
+    assert row["location"] == "CITE building" and "did not write a description" in row["description"]
 
 
-def test_photo_report_can_use_map_pin_without_typed_location(student, vision):
+def test_photo_report_requires_written_area_even_with_map_pin(student, vision):
     body = analyze(student, description="The ceiling is leaking in the hallway").json()
     submitted = student.post(f"/api/reports/photo/{body['draft_id']}/submit",
                              data={"latitude": "9.078", "longitude": "126.198"})
+    assert submitted.status_code == 400 and "Area / location is required" in submitted.json()["error"]
+    submitted = submit_photo(student, body["draft_id"],
+                             {"latitude": "9.078", "longitude": "126.198"})
     assert submitted.status_code == 200, submitted.text
     row = student.get("/api/me/records/reports").json()["rows"][0]
-    assert row["location"] == "Pinned location"
+    assert row["location"] == "CITE building"
     assert row["latitude"] == 9.078 and row["longitude"] == 126.198
 
 
@@ -133,7 +142,7 @@ def test_description_that_the_photo_does_not_support_is_flagged_not_dropped(stud
     body = analyze(student, description="The projector in room 3 is broken").json()
     assert body["outcome"] == "issue" and body["can_submit"]
     assert "can't see what you described" in body["message"]
-    student.post(f"/api/reports/photo/{body['draft_id']}/submit", data={})
+    submit_photo(student, body["draft_id"])
     row = admin.get("/api/admin/records/reports").json()["rows"][0]
     assert row["ai"]["description_check"] == "contradicts" and row["verification"] == "Unverified"
 
@@ -143,12 +152,12 @@ def test_ai_down_manual_review_still_possible(student, admin, vision):
     body = analyze(student).json()
     assert body["outcome"] == "unavailable" and body["can_submit"]       # photo alone can go to an admin
     assert "administrator will review it by hand" in body["message"]
-    sent = student.post(f"/api/reports/photo/{body['draft_id']}/submit", data={})
+    sent = submit_photo(student, body["draft_id"])
     assert sent.status_code == 200
     assert admin.get("/api/admin/records/reports").json()["rows"][0]["ai_status"] == "unavailable"
     body = analyze(student, description="Broken chair in the library").json()
     assert body["can_submit"]
-    student.post(f"/api/reports/photo/{body['draft_id']}/submit", data={})
+    submit_photo(student, body["draft_id"])
     row = admin.get("/api/admin/records/reports").json()["rows"][0]
     assert row["ai_status"] == "unavailable" and row["report_type"] == "Other"
     assert row["description"] == "Broken chair in the library"
@@ -173,10 +182,10 @@ def test_urgent_hazard_is_flagged_even_if_the_model_misses_it(student, admin, vi
     body = analyze(student, description="There are exposed wires and sparks near the stairs").json()
     assert body["analysis"]["urgent"] is True and "safety hazard" in body["message"]
     assert "keyword check" in body["analysis"]["urgent_reason"]
-    student.post(f"/api/reports/photo/{body['draft_id']}/submit", data={})
+    submit_photo(student, body["draft_id"])
 
     calm = analyze(student, description="Leaking ceiling").json()
-    student.post(f"/api/reports/photo/{calm['draft_id']}/submit", data={})
+    submit_photo(student, calm["draft_id"])
     rows = admin.get("/api/admin/records/reports").json()["rows"]
     assert rows[0]["urgent"] is True and rows[1]["urgent"] is False           # open hazards first
     assert len(admin.get("/api/admin/records/reports?urgent=1").json()["rows"]) == 1
@@ -192,7 +201,7 @@ def test_fire_extinguisher_is_not_a_hazard(student, vision):
 def test_changed_description_is_rechecked_on_submit(student, vision):
     body = analyze(student, description="Leak").json()
     assert len(vision["calls"]) == 1
-    student.post(f"/api/reports/photo/{body['draft_id']}/submit", data={"description": "Leak near the CR sink"})
+    submit_photo(student, body["draft_id"], {"description": "Leak near the CR sink"})
     assert len(vision["calls"]) == 2 and "CR sink" in vision["calls"][1]["text"]
 
 
@@ -242,7 +251,7 @@ def test_old_drafts_are_purged(student, vision, db):
 
 def test_admin_can_verify_and_students_cannot_see_admin_notes(student, admin, vision):
     body = analyze(student, description="Leak").json()
-    student.post(f"/api/reports/photo/{body['draft_id']}/submit", data={})
+    submit_photo(student, body["draft_id"])
     rid = admin.get("/api/admin/records/reports").json()["rows"][0]["id"]
 
     assert student.post(f"/api/admin/reports/{rid}/verify", json={"verification": "Confirmed"}).status_code in (401, 403, 404)
@@ -260,7 +269,8 @@ def test_admin_can_verify_and_students_cannot_see_admin_notes(student, admin, vi
 
 
 def test_normal_form_reports_are_unchanged(student, admin):
-    r = student.post("/api/reports", data={"location": "Gym", "report_type": "Safety", "description": "Loose rail",
+    r = student.post("/api/reports", data={"location": "Gym", "area": "Gym entrance",
+                                           "report_type": "Safety", "description": "Loose rail",
                                            "report_date": __import__("datetime").date.today().isoformat()})
     assert r.status_code == 200
     row = admin.get("/api/admin/records/reports").json()["rows"][0]

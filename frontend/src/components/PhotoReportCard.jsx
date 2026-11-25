@@ -8,7 +8,7 @@ import { api } from "../api.js";
 import LocationPicker from "./LocationPicker.jsx";
 
 const FIELDS = [
-  ["location", "Where did this happen?", "e.g. CITE building, 2nd floor"],
+  ["location", "Area / building", "e.g. CITE building, 2nd floor"],
   ["noticed_when", "When did you notice it?", "e.g. this morning"],
   ["observed_cause", "Do you know what caused it?", "or write \"I don't know\""],
 ];
@@ -55,7 +55,7 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
   function body() {
     const f = new FormData();
     Object.entries(vals).forEach(([k, v]) => {
-      f.append(k, k === "location" || v == null ? "" : String(v).trim());
+      f.append(k, v == null ? "" : String(v).trim());
     });
     f.append("destination", destination);
     return f;
@@ -86,6 +86,10 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
   }
 
   async function send() {
+    if (!vals.location.trim()) {
+      setError("Enter the area or building so administrators can find the reported issue.");
+      return;
+    }
     setBusy("send"); setError("");
     try {
       const data = await api(`/api/reports/photo/${result.draft_id}/submit`, { method: "POST", form: body() });
@@ -177,19 +181,23 @@ export default function PhotoReportCard({ result: first, preview, onMessage, onS
 
       {FIELDS.map(([key, label, placeholder]) => (
         <div key={key} className={asked.has(ASKED[key]) ? "asked" : ""}>
-          <label htmlFor={key === "location" ? undefined : "pr-" + key}>{question(key) || label}</label>
-          {key === "location" ? <LocationPicker
-            latitude={vals.latitude}
-            longitude={vals.longitude}
-            disabled={!!busy}
-            onCoordinatesChange={(latitude, longitude) => {
-              set("latitude", latitude);
-              set("longitude", longitude);
-            }}
-          /> : <div className="with-mic">
+          <label htmlFor={"pr-" + key}>{question(key) || label}{key === "location" ? " *" : ""}</label>
+          <div className="with-mic">
             <input id={"pr-" + key} type="text" maxLength={key === "observed_cause" ? 500 : 120} disabled={!!busy}
                    value={vals[key]} placeholder={placeholder} onChange={(e) => set(key, e.target.value)} />
-          </div>}
+          </div>
+          {key === "location" && <>
+            <label>Map pin (optional)</label>
+            <LocationPicker
+              latitude={vals.latitude}
+              longitude={vals.longitude}
+              disabled={!!busy}
+              onCoordinatesChange={(latitude, longitude) => {
+                set("latitude", latitude);
+                set("longitude", longitude);
+              }}
+            />
+          </>}
         </div>
       ))}
 

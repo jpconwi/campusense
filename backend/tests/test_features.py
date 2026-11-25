@@ -93,7 +93,7 @@ def test_required_fields_and_choices(student):
 
 def test_report_and_feedback(student, instructor):
     r = student.post("/api/reports", data={"location": "Library", "report_type": "Safety",
-                                           "description": "Loose cable", "report_date": TODAY,
+                                           "area": "Library, 2nd floor", "description": "Loose cable", "report_date": TODAY,
                                            "latitude": "9.078", "longitude": "126.198"})
     assert r.status_code == 200 and r.json()["status"] == "Pending"
     assert r.json()["latitude"] == 9.078 and r.json()["longitude"] == 126.198
@@ -103,10 +103,22 @@ def test_report_and_feedback(student, instructor):
     assert instructor.get(f.json()["pdf_url"]).status_code == 200
 
 
+def test_report_requires_area_and_shows_it_to_admin(student, admin):
+    form = {"location": "Library", "report_type": "Safety",
+            "description": "Loose cable", "report_date": TODAY}
+    missing_area = student.post("/api/reports", data=form)
+    assert missing_area.status_code == 400 and "Area is required" in missing_area.json()["error"]
+
+    submitted = student.post("/api/reports", data={**form, "area": "Library, 2nd floor"})
+    assert submitted.status_code == 200
+    row = admin.get("/api/admin/records/reports").json()["rows"][0]
+    assert row["area"] == "Library, 2nd floor"
+
+
 def test_assigned_admin_must_upload_resolution_photo_and_reporter_and_super_admin_can_view(
         student, student2, admin, client, db, monkeypatch):
     report_response = student.post("/api/reports", data={
-        "location": "Library", "report_type": "Maintenance",
+        "location": "Library", "area": "Library", "report_type": "Maintenance",
         "description": "Broken light", "report_date": TODAY,
     })
     assert report_response.status_code == 200
@@ -209,7 +221,7 @@ def test_admin_approval_and_overlap(instructor, instructor2, admin):
 def test_admin_dashboard_counts_and_lists(student, admin):
     student.post("/api/concerns", data=concern_form())
     student.post("/api/reports", data={"location": "Gate", "report_type": "Security",
-                                       "description": "Door open", "report_date": TODAY})
+                                       "area": "Main gate", "description": "Door open", "report_date": TODAY})
     d = admin.get("/api/admin/dashboard").json()
     stats = dict((k, v) for k, v in d["stats"])
     assert stats["Pending Concerns"] == 1 and stats["Total Reports"] == 1
@@ -229,7 +241,7 @@ def test_admin_dashboard_counts_and_lists(student, admin):
 def test_super_admin_total_reports_includes_concerns(student, admin, monkeypatch):
     student.post("/api/concerns", data=concern_form())
     student.post("/api/reports", data={"location": "Gate", "report_type": "Security",
-                                       "description": "Door open", "report_date": TODAY})
+                                       "area": "Main gate", "description": "Door open", "report_date": TODAY})
     monkeypatch.setattr(config, "super_admin_emails", lambda: {"admin@nemsu.edu.ph"})
 
     dashboard = admin.get("/api/admin/dashboard")
@@ -250,7 +262,7 @@ def test_status_workflow_is_visible_in_chat(student, admin):
 
 def test_admin_chat_reads_real_records(student, student2, admin, prompts):
     student.post("/api/reports", data={"location": "Library", "report_type": "Safety",
-                                       "description": "Loose cable", "report_date": TODAY})
+                                       "area": "Library, 2nd floor", "description": "Loose cable", "report_date": TODAY})
     a = admin.ask("Show pending reports.")["answer"]
     assert "Loose cable" in a and "sam@nemsu.edu.ph" in a
     mine = student.ask("Show pending reports.")["answer"]
@@ -525,7 +537,7 @@ def test_report_submission_sends_only_admin_status_change_email(student, admin, 
 
     monkeypatch.setattr(gmail_notification_service, "notify_record_owner", capture_email)
     response = student.post("/api/reports", data={
-        "location": "Library", "report_type": "Maintenance",
+        "location": "Library", "area": "Library", "report_type": "Maintenance",
         "description": "Broken light", "report_date": TODAY,
     })
     assert response.status_code == 200
@@ -570,7 +582,7 @@ def test_super_admin_report_decision_emails_even_when_status_is_unchanged(
     super_admin = client()
     super_admin.google_login("super@nemsu.edu.ph", "Sam Super")
     report_response = student.post("/api/reports", data={
-        "location": "Library", "report_type": "Maintenance",
+        "location": "Library", "area": "Library", "report_type": "Maintenance",
         "description": "Broken light", "report_date": TODAY,
     })
     report_id = report_response.json()["id"]
@@ -686,7 +698,7 @@ def test_other_type_needs_typed_text(student):
     assert rows[0]["concern_type"] == "Other: Broken clock"
 
     rep = {"location": "Gate", "report_type": "Other", "report_type_other": "Stray dog",
-           "description": "Dog near gate", "report_date": TODAY}
+           "area": "Main gate", "description": "Dog near gate", "report_date": TODAY}
     assert student.post("/api/reports", data=rep).status_code == 200
     fb = {"area": "Library", "feedback_type": "Other", "feedback_type_other": "Question",
           "message": "Hello", "feedback_date": TODAY}

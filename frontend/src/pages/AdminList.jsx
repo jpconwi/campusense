@@ -685,7 +685,8 @@ export default function AdminList({ kind }) {
                 </button>
                 <div className="report-manage-meta">
                   <span><b>Submitted</b><DateCell value={r.created_at} /></span>
-                  <span><b>Location</b>{r.location || "Not provided"}{r.room && <small>{r.room}</small>}
+                  <span><b>Location</b>{r.location || "Not provided"}{r.area && <small>Area: {r.area}</small>}
+                    {r.room && <small>{r.room}</small>}
                     {r.latitude != null && r.longitude != null && <MapPinLink latitude={r.latitude} longitude={r.longitude}>View map pin</MapPinLink>}</span>
                   <span><b>Reporter</b>{r.reporter_name || "Unknown"}{r.reporter_email && <small>{r.reporter_email}</small>}</span>
                   <span><b>Assigned</b>{r.assigned_admin_email || "Unassigned"}</span>
