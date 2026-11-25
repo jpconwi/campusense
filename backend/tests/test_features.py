@@ -474,7 +474,8 @@ def test_pdf_is_rebuilt_when_the_server_lost_the_file(admin, student):
 def test_available_rooms_question_lists_real_rooms(admin, student):
     admin.post("/api/admin/rooms", json={"room_id": "CBM-101", "name": "CBM Room 101",
                                          "building": "CBM Building", "capacity": "40",
-                                         "status": "Available"})
+                                         "status": "Available", "available_days": "Monday-Friday",
+                                         "available_time": "8:00 AM-5:00 PM"})
     r = student.ask("available rooms in cbm")
     assert r["type"] == "message" and "CBM Room 101" in r["answer"]
     assert "CBM-101" not in r["answer"]
@@ -484,6 +485,25 @@ def test_available_rooms_question_lists_real_rooms(admin, student):
     assert "CBM Room 101" in r["answer"]
     assert "CBM-101" not in r["answer"]
     assert "CBM-101" in admin.ask("available rooms in cbm")["answer"]
+
+
+def test_room_availability_followups_return_matching_room_names(admin, student):
+    admin.post("/api/admin/rooms", json={
+        "room_id": "CBM-101", "name": "CBM Room 101", "building": "CBM Building",
+        "status": "Available", "available_days": "Monday-Friday",
+        "available_time": "8:00 AM-5:00 PM",
+    })
+
+    count = student.ask("how many rooms are in nemsu?")
+    availability = student.ask("is there available?", count["session_id"])
+    assert "CBM Room 101" in availability["answer"]
+    assert "CBM-101" not in availability["answer"]
+
+    clarified = student.ask("i mean available rooms?", availability["session_id"])
+    assert "CBM Room 101" in clarified["answer"]
+    names = student.ask("what room name?", clarified["session_id"])
+    assert "CBM Room 101" in names["answer"]
+    assert "CBM-101" not in names["answer"]
 
 
 def test_available_rooms_reply_does_not_dump_unavailable_inventory(admin, student):

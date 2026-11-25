@@ -418,6 +418,7 @@ _ROOM_RETRIEVAL_STOPWORDS = {
     "classrooms", "do", "does", "find", "for", "have", "how", "i", "in", "is", "it", "me", "my",
     "of", "on", "or", "our", "please", "room", "rooms", "show", "the", "there", "this", "to",
     "today", "tell", "what", "when", "where", "wheres", "were", "which", "with", "you", "your",
+    "mean", "name", "names",
     "capacity", "equipment", "status", "type", "details", "information", "located", "location", "near",
     "asa", "saan", "nasaan", "diin", "dapit", "ang", "sa", "naa", "naay", "ba", "bay", "mga", "nga", "unsa", "unsay",
 }
@@ -546,6 +547,7 @@ _ROOM_STOPWORDS = {
     "classrooms", "in", "at", "of", "any", "there", "list", "show", "me", "all", "which",
     "vacant", "free", "open", "now", "today", "right", "can", "i", "use", "building", "a",
     "an", "and", "for", "do", "you", "have", "unoccupied", "currently", "tell", "nemsu",
+    "mean", "name", "names",
     "campus", "tandag", "please", "to", "on", "my", "our", "need", "looking", "find",
 }
 _FREE_WORDS = ("avail", "vacant", "free", "open", "unoccupied")

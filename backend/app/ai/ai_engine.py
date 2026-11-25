@@ -163,6 +163,36 @@ def _room_not_found(role, code):
     return response.message(texts.en("room_not_found"))
 
 
+def _room_followup_request(question, conversation):
+    """Resolve short availability/name follow-ups against the recent room discussion."""
+    messages = conversation or []
+    previous_user = next((normalize(m.get("text", "")) for m in reversed(messages)
+                          if m.get("role") == "user"), "")
+    previous_ai = next((normalize(m.get("text", "")) for m in reversed(messages)
+                        if m.get("role") == "ai"), "")
+    room_terms = ("room", "rooms", "classroom", "classrooms", "laboratory",
+                  "laboratories", "lab", "labs")
+    availability_terms = ("available", "availability", "vacant", "free", "open", "unoccupied")
+    has_room_context = intents.has(previous_user, *room_terms) or intents.has(previous_ai, *room_terms)
+    if not has_room_context:
+        return None
+
+    q = normalize(question)
+    has_room_subject = intents.has(q, *room_terms)
+    asks_availability = intents.has(q, *availability_terms)
+    asks_for_name = bool(re.search(
+        r"\b(?:what|which)\s+(?:(?:is|are)\s+)?(?:the\s+)?rooms?\s+names?\b", q))
+    recent_availability_context = (
+        intents.has(previous_user, *availability_terms)
+        or (intents.has(previous_ai, *availability_terms)
+            and intents.has(previous_ai, *room_terms))
+    )
+    if ((asks_availability and not has_room_subject)
+            or (asks_for_name and recent_availability_context)):
+        return {"intent": "rooms_list", "words": [], "count": False, "available": True}
+    return None
+
+
 def _general_reply(question, conversation=None, role="student"):
     """Answer general questions without searching campus pages or attaching unrelated sources."""
     for misspelling, correction in (("calculos", "calculus"), ("discreet", "discrete"),
@@ -614,7 +644,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         return response.message("I don't see a source link in my previous answer. Tell me which claim you want sourced, and I'll look it up.")
 
     role = user.role if user else "student"
-    found = intents.detect(db, question, role)
+    found = _room_followup_request(question, conversation) or intents.detect(db, question, role)
     name = found["intent"]
     support_reply = _emotional_support_reply(question)
     if support_reply:

@@ -83,8 +83,8 @@ class Client:
     def me(self):
         return self.get("/api/auth/me").json()
 
-    def ask(self, question):
-        return self.post("/api/ask", json={"question": question}).json()
+    def ask(self, question, session_id=None):
+        return self.post("/api/ask", json={"question": question, "session_id": session_id}).json()
 
 
 @pytest.fixture(autouse=True)
