@@ -605,6 +605,12 @@ def detect(db, question, role):
             and has(q, "math", "course", "program", "college", "computer science", "bshm", "bscs")):
         return {"intent": "program_fit"}
 
+    # Room availability is a separate dataset from academic program availability.
+    # Check room requests first so the generic word "in" cannot route them to programs.
+    rooms = rooms_request(q, original)
+    if rooms:
+        return {"intent": "rooms_list", **rooms}
+
     asks_offering = has(q, "available", "availability", "offered", "offer", "which campuses",
                         "what campus")
     asks_program_location = (has(q, "where", "located", "location")
@@ -763,11 +769,6 @@ def detect(db, question, role):
     ann = announcements_request(q)
     if ann:
         return {"intent": "announcements", **ann}
-
-    # "available rooms", "rooms in cbm" -> the real room list from the database
-    rooms = rooms_request(q, original)
-    if rooms:
-        return {"intent": "rooms_list", **rooms}
 
     # where is one of the OTHER campuses -> map card for that campus
     campus_key = other_campus_key(q)

@@ -475,6 +475,8 @@ def test_available_rooms_question_lists_real_rooms(admin, student):
     assert r["type"] == "message" and "CBM Room 101" in r["answer"]
     r = student.ask("what are available rooms?")
     assert "CBM Room 101" in r["answer"]
+    r = student.ask("what room now available in nemsu?")
+    assert "CBM Room 101" in r["answer"]
 
 
 def test_admin_announcements_feed_the_ai(admin, student, monkeypatch):
