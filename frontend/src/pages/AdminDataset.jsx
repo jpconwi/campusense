@@ -10,7 +10,6 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
   const [values, setValues] = useState({});
   const [editing, setEditing] = useState(null);
   const [search, setSearch] = useState("");
-  const [department, setDepartment] = useState("");
   const [page, setPage] = useState(1);
 
   const load = useCallback(() => {
@@ -18,13 +17,12 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
     if (kind === "rooms") {
       params.set("page", String(page)); params.set("page_size", "100");
       if (search.trim()) params.set("search", search.trim());
-      if (department) params.set("department", department);
     }
     const query = params.toString();
     const suffix = query ? `?${query}` : "";
     api(`/api/admin/${kind}${suffix}`).then(setData).catch(() => {});
-  }, [kind, page, search, department]);
-  useEffect(() => { setData(null); setValues({}); setSearch(""); setDepartment(""); setPage(1); }, [kind]);
+  }, [kind, page, search]);
+  useEffect(() => { setData(null); setValues({}); setSearch(""); setPage(1); }, [kind]);
   useEffect(() => { const timer = setTimeout(load, kind === "rooms" ? 250 : 0); return () => clearTimeout(timer); }, [load, kind]);
   useEffect(() => {
     if (data) document.title = `${tabs ? "Campus Data" : data.title} | NEMSU`;
@@ -55,6 +53,15 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
     event.target.value = "";
   }
 
+  async function loadBundledRooms() {
+    try {
+      const result = await api("/api/admin/rooms/import-seed", { method: "POST" });
+      setFlash({ text: result.message, kind: "info" });
+      setPage(1);
+      load();
+    } catch (err) { setFlash({ text: err.message, kind: "error" }); }
+  }
+
   function edit(row) {
     setEditing(row);
     setValues(Object.fromEntries(fields.map(([name]) => [name, row[name] ?? ""])));
@@ -75,26 +82,11 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
   const rows = data?.rows || [];
   const empty = data?.empty || "No entries yet.";
   const searchable = kind === "rooms" || kind === "campus";
-  const departments = useMemo(() => {
-    const values = [
-      ...(data?.department_options || []).map((option) => typeof option === "string"
-        ? { value: option, label: option } : option),
-      ...rows.map((row) => row.department || row.building).filter(Boolean)
-        .map((value) => ({ value, label: value })),
-    ];
-    return [...new Map(values.map((option) => [option.value, option])).values()]
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [rows, data?.department_options]);
   const visibleRows = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
-    return rows.filter((row) => {
-      const rowDepartment = row.department || row.building || "";
-      if (kind === "rooms" && department && rowDepartment !== department) return false;
-      if (!query) return true;
-      return kind === "rooms" || fields.some(([field]) => String(row[field] ?? "").toLocaleLowerCase().includes(query))
-        || (kind === "rooms" && String(rowDepartment).toLocaleLowerCase().includes(query));
-    });
-  }, [rows, fields, kind, search, department]);
+    return rows.filter((row) => !query || fields.some(([field]) =>
+      String(row[field] ?? "").toLocaleLowerCase().includes(query)));
+  }, [rows, fields, search]);
   if (!data) return <Loading label="Loading..." wide={1300} />;
   // announcements carry a computed Active / Scheduled / Expired status (rooms already have their own field)
   const extraStatus = rows.length > 0 && rows[0].status !== undefined && !fields.some(([n]) => n === "status");
@@ -161,8 +153,9 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
           {editing && <button className="btn secondary" style={{ margin: "14px 0 0 8px" }} type="button" onClick={() => { setEditing(null); setValues({}); }}>Cancel</button>}
         </form>
         {kind === "rooms" && <div className="dataset-toolbar" style={{ marginTop: 16 }}>
+          <button className="btn secondary" type="button" onClick={loadBundledRooms}>Load bundled Excel dataset</button>
           <label>Import rooms from CSV <input type="file" accept=".csv,text/csv" onChange={importRooms} /></label>
-          <span className="muted">CSV columns: room_id, name, building, floor, department, room_type, capacity, equipment, status. Up to 25,000 rows per import.</span>
+          <span className="muted">CSV columns: room_id, name, building, floor, room_type, capacity, equipment, status. Up to 25,000 rows per import.</span>
         </div>}
       </div>
 
@@ -172,7 +165,7 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
             <div>
               <h3>{kind === "rooms" ? "Room directory" : "Campus knowledge"}</h3>
               <p>{kind === "rooms"
-                ? "Find a room by name, room ID, department, or building. Select a row to edit it."
+                ? "Find a room by name, room ID, building, or floor. Select a row to edit it."
                 : "Search campus topics, keywords, and answers."}</p>
             </div>
             <span className="dataset-count">{kind === "rooms" ? data.pagination?.total ?? rows.length : `${visibleRows.length} of ${rows.length}`}</span>
@@ -183,19 +176,12 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
               <input type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }}
                 placeholder={kind === "rooms" ? "Search room name or ID..." : "Search topics, keywords, or answers..."} />
             </label>
-            {kind === "rooms" && <label className="dataset-department-filter">
-              <span>Department</span>
-              <select value={department} onChange={(event) => { setDepartment(event.target.value); setPage(1); }}>
-                <option value="">All departments</option>
-                {departments.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </label>}
-            {(search || department) && <button className="btn secondary dataset-clear" type="button"
-              onClick={() => { setSearch(""); setDepartment(""); setPage(1); }}>Clear filters</button>}
+            {search && <button className="btn secondary dataset-clear" type="button"
+              onClick={() => { setSearch(""); setPage(1); }}>Clear search</button>}
           </div>
-          {rows.length === 0 ? <p className="empty">{kind === "rooms" && (search || department)
-            ? "No rooms match this search and department." : empty}</p>
-            : visibleRows.length === 0 ? <p className="empty">No entries match this search and department.</p>
+          {rows.length === 0 ? <p className="empty">{kind === "rooms" && search
+            ? "No rooms match this search." : empty}</p>
+            : visibleRows.length === 0 ? <p className="empty">No entries match this search.</p>
               : <div className="table-wrap"><table>
                 <thead><tr>{fields.map(([name, label]) => <th key={name}>{label.split(" (")[0]}</th>)}{kind === "announcements" && <th>Posted by</th>}{extraStatus && <th>Status</th>}<th>Actions</th></tr></thead>
                 <tbody>

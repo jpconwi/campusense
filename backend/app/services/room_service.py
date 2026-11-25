@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.models import CampusDepartment, Room
 from app.services.common import ValidationError, clean_text, row_to_dict
 
-FIELDS = ["room_id", "name", "building", "floor", "department", "room_type", "capacity", "equipment", "status"]
+FIELDS = ["room_id", "name", "building", "floor", "room_type", "capacity", "equipment", "status"]
 TANDAG_DEPARTMENTS = [
     ("COA", "College of Accountancy"),
     ("CAS", "College of Arts and Sciences"),
@@ -81,11 +81,8 @@ def list_building_options(db: Session):
     return options
 
 
-def list_rooms_page(db: Session, page=1, page_size=100, search="", department=""):
+def list_rooms_page(db: Session, page=1, page_size=100, search=""):
     query = select(Room)
-    if department:
-        query = query.where(or_(func.lower(Room.department) == department.lower(),
-                                func.lower(Room.building) == department.lower()))
     if search:
         term = f"%{search.strip().lower()}%"
         query = query.where(or_(*(func.lower(cast(getattr(Room, field), String)).like(term)
@@ -127,7 +124,7 @@ def count_rooms(db: Session):
     return db.scalar(select(func.count(Room.id))) or 0
 
 
-def seed_from_workbook(db: Session):
+def seed_from_workbook(db: Session, strict=False):
     """Add missing room records from the bundled Campus_Data workbook.
 
     IDs are stable hashes of building and room name. Existing records are left
@@ -136,6 +133,8 @@ def seed_from_workbook(db: Session):
     from app import config
     path = config.ROOM_SEED_XLSX
     if not path.exists():
+        if strict:
+            raise ValidationError("The bundled Campus_Data.xlsx room dataset is missing from the backend.")
         return 0
     ns = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
           "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships"}
@@ -157,7 +156,9 @@ def seed_from_workbook(db: Session):
                           for item in strings.findall("m:si", ns)]
             sheet = ET.fromstring(book.read(target))
             rows = sheet.findall("m:sheetData/m:row", ns)
-    except (OSError, KeyError, ValueError, zipfile.BadZipFile, ET.ParseError):
+    except (OSError, KeyError, ValueError, zipfile.BadZipFile, ET.ParseError) as exc:
+        if strict:
+            raise ValidationError("Campus_Data.xlsx could not be read. Check that it is a valid Excel workbook.") from exc
         return 0
 
     def cell_value(cell):
@@ -182,6 +183,7 @@ def seed_from_workbook(db: Session):
 
     saved_rooms = db.scalars(select(Room)).all()
     existing_ids = {row.room_id.lower() for row in saved_rooms}
+    rooms_by_id = {row.room_id.casefold(): row for row in saved_rooms}
     existing_places = {(row.building.casefold().strip(), row.floor.casefold().strip(), row.name.casefold().strip())
                        for row in saved_rooms}
     added = 0
@@ -192,9 +194,18 @@ def seed_from_workbook(db: Session):
         if not name or not building:
             continue
         identity = f"{building.casefold()}|{floor.casefold()}|{name.casefold()}"
-        room_id = "DATA-" + hashlib.sha256(identity.encode()).hexdigest()[:12].upper()
+        numbered_room = re.fullmatch(r"(?:room\s*)?([a-z]?\d{1,4}[a-z]?)", name, re.I)
+        room_id = (numbered_room.group(1).upper() if numbered_room
+                   else "DATA-" + hashlib.sha256(identity.encode()).hexdigest()[:12].upper())
         place = (building.casefold().strip(), floor.casefold().strip(), name.casefold().strip())
-        if room_id.lower() in existing_ids or place in existing_places:
+        if room_id.lower() in existing_ids:
+            # Keep the admin-entered room record and fill only a missing floor from the dataset.
+            existing_row = rooms_by_id.get(room_id.casefold())
+            if existing_row and not existing_row.floor and floor:
+                existing_row.floor = floor[:40]
+                added += 1
+            continue
+        if place in existing_places:
             continue
         capacity = values.get(5, "")
         if capacity.endswith(".0"):
@@ -352,7 +363,7 @@ _ROOM_SYNONYMS = {
     "aircon": {"ac", "air conditioning"}, "air": {"aircon", "ac"},
     "vacant": {"available", "free"}, "free": {"available", "vacant"},
 }
-_ROOM_SEARCH_FIELDS = ((Room.room_id, 12), (Room.name, 8), (Room.building, 5), (Room.floor, 4), (Room.department, 5),
+_ROOM_SEARCH_FIELDS = ((Room.room_id, 12), (Room.name, 8), (Room.building, 5), (Room.floor, 4),
                        (Room.room_type, 4), (Room.equipment, 4), (Room.status, 2), (Room.capacity, 2))
 
 
@@ -429,7 +440,8 @@ def room_reply(room):
     for label, key in (("Building", "building"), ("Floor", "floor"), ("Department", "department"), ("Type", "room_type"),
                        ("Capacity", "capacity"), ("Equipment", "equipment"),
                        ("Status", "status")):
-        if room.get(key):
+        if room.get(key) and not (key == "department" and
+                                  room.get("department", "").casefold() == room.get("building", "").casefold()):
             parts.append(f"{label}: {room[key]}")
     return "\n".join(parts)
 

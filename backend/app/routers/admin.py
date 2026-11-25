@@ -1403,7 +1403,6 @@ def registration_help_resolve(message_id: int, _me: CurrentUser = Depends(super_
 # ------------------------------------------------------ rooms / campus
 ROOM_FIELDS = [["room_id", "Room ID", True], ["name", "Name", True],
                ["building", "Building", False, "select", []], ["floor", "Floor", False],
-               ["department", "Department", False, "select", []],
                ["room_type", "Type", False, "select", ["Classroom", "Computer Laboratory", "Laboratory", "Lecture Hall", "Office", "Conference Room", "Other"]],
                ["capacity", "Capacity", False, "select", ["1-10", "11-20", "21-30", "31-40", "40-50", "51-100", "100+" ]],
                ["equipment", "Equipment", False, "multiselect", ["Projector", "Computers", "TV Screen", "Air Conditioning", "Whiteboard", "Sound System", "None", "Other"]],
@@ -1414,20 +1413,15 @@ CAMPUS_FIELDS = [["topic", "Topic", True], ["keywords", "Keywords (use ; between
 
 @router.get("/rooms")
 def rooms(page: int = Query(1, ge=1), page_size: int = Query(100, ge=1, le=250),
-          search: str = "", department: str = "",
+          search: str = "",
           _me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
-    rows, total = room_service.list_rooms_page(db, page, page_size, search[:120], department[:120])
+    rows, total = room_service.list_rooms_page(db, page, page_size, search[:120])
     fields = [field.copy() for field in ROOM_FIELDS]
     building_options = room_service.list_building_options(db)
-    department_options = room_service.list_department_options(db)
-    if "Other" not in {option["value"] for option in department_options}:
-        department_options.append({"value": "Other", "label": "Other"})
     next(field for field in fields if field[0] == "building")[4] = building_options
-    next(field for field in fields if field[0] == "department")[4] = department_options
     return {"title": "Rooms", "fields": fields, "rows": rows,
             "pagination": {"page": page, "page_size": page_size, "total": total,
                            "pages": max(1, (total + page_size - 1) // page_size)},
-            "department_options": department_options,
             "building_options": building_options,
             "empty": "No rooms yet. Add the real rooms so the AI never has to guess."}
 
@@ -1465,6 +1459,15 @@ async def rooms_import(file: UploadFile = File(...), _me: CurrentUser = Depends(
     except csv.Error as exc:
         raise ValidationError("The CSV format could not be read.") from exc
     return {"success": True, "message": f"Imported {imported} room rows."}
+
+
+@router.post("/rooms/import-seed")
+def rooms_import_seed(_me: CurrentUser = Depends(super_admin_required), db: Session = Depends(get_db)):
+    imported = room_service.seed_from_workbook(db, strict=True)
+    total = room_service.count_rooms(db)
+    message = (f"Loaded {imported} room records from Campus_Data.xlsx. {total} rooms are now in the directory."
+               if imported else f"Campus_Data.xlsx is already loaded. The directory has {total} rooms.")
+    return {"success": True, "imported": imported, "total": total, "message": message}
 
 
 @router.put("/rooms/{row_id}")

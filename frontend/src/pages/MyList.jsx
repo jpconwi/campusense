@@ -19,24 +19,20 @@ function roomAvailabilityClass(status) {
 
 function RoomDirectory({ onReserve }) {
   const [rooms, setRooms] = useState(null);
-  const [departmentOptions, setDepartmentOptions] = useState([]);
   const [buildingOptions, setBuildingOptions] = useState([]);
   const [error, setError] = useState("");
-  const [department, setDepartment] = useState("");
   const [building, setBuilding] = useState("");
   const [availability, setAvailability] = useState("");
 
   useEffect(() => {
     api("/api/rooms").then((data) => {
       setRooms(data.rows);
-      setDepartmentOptions(data.department_options || []);
       setBuildingOptions(data.building_options || []);
     }).catch((loadError) => setError(loadError.message));
   }, []);
 
   const visibleRooms = (rooms || []).filter((room) =>
-    (!department || room.department === department)
-      && (!building || room.building === building)
+    (!building || room.building === building)
       && (!availability || room.status === availability));
 
   return <section className="room-directory" aria-label="Campus room directory">
@@ -45,12 +41,6 @@ function RoomDirectory({ onReserve }) {
       {rooms && <span className="muted">{visibleRooms.length} of {rooms.length} rooms</span>}
     </div>
     <div className="room-directory-filters">
-      <label>Department
-        <select value={department} onChange={(event) => setDepartment(event.target.value)}>
-          <option value="">All departments</option>
-          {departmentOptions.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-        </select>
-      </label>
       <label>Building
         <select value={building} onChange={(event) => setBuilding(event.target.value)}>
           <option value="">All buildings</option>
@@ -81,7 +71,7 @@ function RoomDirectory({ onReserve }) {
               </div>
               <button className="btn small" type="button" onClick={() => onReserve(room)}>Reserve this room</button>
             </div>
-            <p>{[room.building, room.floor, room.department].filter(Boolean).join(" · ") || "Location not listed"}</p>
+            <p>{[room.building, room.floor].filter(Boolean).join(" · ") || "Location not listed"}</p>
             <details>
               <summary>View room details</summary>
               <div className="room-directory-details">
