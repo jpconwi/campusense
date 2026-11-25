@@ -1,9 +1,10 @@
-# NEMSU Knowledge Base
+# Legacy NEMSU Website Knowledge Base (Disabled)
 
-Collects PUBLIC, official NEMSU announcements and linked pages into the PostgreSQL table
-`knowledge_documents`. This table is NEMSAI's retrieval dataset: the chatbot searches its saved
-content when answering, so a sync can make newly published public information available without
-retraining the language model. No Facebook. No login. Nothing private.
+NEMSU website collection and chatbot retrieval from `knowledge_documents` are disabled. The
+`/api/nemsu/sync` endpoints return HTTP 410, and `scripts/nemsu_sync.py` exits without connecting
+to the network or database. Existing website-derived rows remain stored for administrative
+inspection but are excluded from chatbot answers. Institution-specific answers should use the
+provided campus datasets.
 
 ## Files
 | File | What it is |

@@ -191,17 +191,13 @@ def _as_dicts(result):
 
 
 def _rows(db: Session, limit=SCAN_LIMIT, official=True):
-    """Newest news/memos, plus (when official=True) ALL official website pages, which
-    have no date and would otherwise fall off the end of a long newest-first list."""
-    q = _select().where(KnowledgeDocument.source_type != OFFICIAL) \
-        .order_by(KnowledgeDocument.published_at.desc().nullslast(),
-                  KnowledgeDocument.id.desc()).limit(limit)
-    rows = _as_dicts(db.execute(q))
-    if official:
-        pages = _select().where(KnowledgeDocument.source_type == OFFICIAL) \
-            .order_by(KnowledgeDocument.id)
-        rows += _as_dicts(db.execute(pages))
-    return rows
+    """Website-crawled documents are disabled as a chatbot knowledge source.
+
+    NEMSAI answers institution-specific questions from the provided campus dataset.
+    Keep this retrieval boundary centralized so old rows in knowledge_documents
+    cannot leak into answers while the table remains available for admin inspection.
+    """
+    return []
 
 
 _CAMPUS_SLUGS = {

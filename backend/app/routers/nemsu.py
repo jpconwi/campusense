@@ -10,17 +10,13 @@ routers/nemsu.py - the NEMSU knowledge base: sync the public announcements and l
   GET  /api/nemsu/documents         admin - the newest saved documents (to check the result)
 """
 
-import hmac
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import config
 from app.database import get_db
 from app.models import KnowledgeDocument
 from app.security import admin_required, csrf_protect
-from app.services import nemsu_collector
 
 router = APIRouter(prefix="/api/nemsu", tags=["nemsu"])
 
@@ -29,17 +25,12 @@ router = APIRouter(prefix="/api/nemsu", tags=["nemsu"])
 def sync_now(pages: int = Query(None, ge=1, le=30), dry_run: bool = False,
              sources: str = Query(None, description="e.g. page  or  news,memo,page"),
              db: Session = Depends(get_db)):
-    wanted = [x for x in (sources or "").split(",") if x.strip()] or None
-    return nemsu_collector.sync(db, pages=pages, dry_run=dry_run, sources=wanted)
+    raise HTTPException(410, "Website collection is disabled. Use the provided campus datasets.")
 
 
 @router.post("/sync/scheduled")
-def sync_scheduled(request: Request, db: Session = Depends(get_db)):
-    token = config.NEMSU_SYNC_TOKEN
-    sent = request.headers.get("x-sync-token", "")
-    if not token or not hmac.compare_digest(token.encode(), sent.encode()):
-        raise HTTPException(404, "That page was not found.")
-    return nemsu_collector.sync(db)
+def sync_scheduled():
+    raise HTTPException(410, "Website collection is disabled.")
 
 
 @router.get("/documents", dependencies=[Depends(admin_required)])
