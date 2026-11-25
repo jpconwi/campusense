@@ -33,6 +33,7 @@ def init_db():
     Base.metadata.create_all(engine)
     _allow_super_admin_role()
     _add_room_department_column()
+    _add_room_floor_column()
     _add_student_registration_columns()
     _add_help_message_category()
     _widen_campus_info_columns()
@@ -49,13 +50,14 @@ def init_db():
     _add_record_query_indexes()
     _add_faculty_reservation_review_columns()
     _add_announcement_author_columns()
-    from app.services import campus_service, sentiment_service
+    from app.services import campus_service, room_service, sentiment_service
     with SessionLocal() as db:
         from app.model import systemAi
         from app.models import AIProviderSetting
         for setting in db.query(AIProviderSetting).all():
             systemAi.set_provider_enabled(setting.provider, setting.enabled)
         campus_service.seed_if_empty(db)
+        room_service.seed_from_workbook(db)
         sentiment_service.backfill(db)
 
 
@@ -105,6 +107,15 @@ def _add_room_department_column():
             conn.execute(text("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS department VARCHAR(80) NOT NULL DEFAULT ''"))
         else:
             conn.execute(text("ALTER TABLE rooms ADD COLUMN department VARCHAR(80) NOT NULL DEFAULT ''"))
+
+
+def _add_room_floor_column():
+    """Add the floor value provided by the campus room dataset."""
+    from sqlalchemy import inspect, text
+    columns = {column["name"] for column in inspect(engine).get_columns("rooms")}
+    if "floor" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE rooms ADD COLUMN floor VARCHAR(40) NOT NULL DEFAULT ''"))
 
 
 def _widen_campus_info_columns():

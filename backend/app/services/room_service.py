@@ -1,11 +1,14 @@
 """
 services/room_service.py - room information (rooms table).
 
-The table is empty at first. Admins add the real rooms from the dashboard,
-so the AI never has to guess room details.
+Room records are loaded from the campus workbook at startup and can also be
+managed from the super admin dashboard.
 """
 
+import hashlib
 import re
+import zipfile
+import xml.etree.ElementTree as ET
 
 from sqlalchemy import String, case, cast, func, or_, select
 from sqlalchemy.orm import Session
@@ -13,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.models import CampusDepartment, Room
 from app.services.common import ValidationError, clean_text, row_to_dict
 
-FIELDS = ["room_id", "name", "building", "department", "room_type", "capacity", "equipment", "status"]
+FIELDS = ["room_id", "name", "building", "floor", "department", "room_type", "capacity", "equipment", "status"]
 TANDAG_DEPARTMENTS = [
     ("COA", "College of Accountancy"),
     ("CAS", "College of Arts and Sciences"),
@@ -124,6 +127,89 @@ def count_rooms(db: Session):
     return db.scalar(select(func.count(Room.id))) or 0
 
 
+def seed_from_workbook(db: Session):
+    """Add missing room records from the bundled Campus_Data workbook.
+
+    IDs are stable hashes of building and room name. Existing records are left
+    alone so edits made by a super admin remain intact across restarts.
+    """
+    from app import config
+    path = config.ROOM_SEED_XLSX
+    if not path.exists():
+        return 0
+    ns = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+          "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships"}
+    try:
+        with zipfile.ZipFile(path) as book:
+            workbook = ET.fromstring(book.read("xl/workbook.xml"))
+            rels = ET.fromstring(book.read("xl/_rels/workbook.xml.rels"))
+            targets = {rel.attrib["Id"]: rel.attrib["Target"] for rel in rels}
+            first_sheet = workbook.find("m:sheets/m:sheet", ns)
+            if first_sheet is None:
+                return 0
+            target = targets[first_sheet.attrib[f"{{{ns['r']}}}id"]].lstrip("/")
+            if not target.startswith("xl/"):
+                target = "xl/" + target
+            shared = []
+            if "xl/sharedStrings.xml" in book.namelist():
+                strings = ET.fromstring(book.read("xl/sharedStrings.xml"))
+                shared = ["".join(t.text or "" for t in item.findall(".//m:t", ns))
+                          for item in strings.findall("m:si", ns)]
+            sheet = ET.fromstring(book.read(target))
+            rows = sheet.findall("m:sheetData/m:row", ns)
+    except (OSError, KeyError, ValueError, zipfile.BadZipFile, ET.ParseError):
+        return 0
+
+    def cell_value(cell):
+        if cell.attrib.get("t") == "inlineStr":
+            return "".join(t.text or "" for t in cell.findall(".//m:t", ns)).strip()
+        value = cell.find("m:v", ns)
+        if value is None or value.text is None:
+            return ""
+        if cell.attrib.get("t") == "s":
+            try:
+                return shared[int(value.text)].strip()
+            except (ValueError, IndexError):
+                return ""
+        return value.text.strip()
+
+    def column_number(reference):
+        letters = re.match(r"[A-Z]+", reference or "")
+        number = 0
+        for char in letters.group(0) if letters else "":
+            number = number * 26 + ord(char) - 64
+        return number
+
+    saved_rooms = db.scalars(select(Room)).all()
+    existing_ids = {row.room_id.lower() for row in saved_rooms}
+    existing_places = {(row.building.casefold().strip(), row.floor.casefold().strip(), row.name.casefold().strip())
+                       for row in saved_rooms}
+    added = 0
+    for row in rows[1:]:
+        values = {column_number(cell.attrib.get("r")): cell_value(cell)
+                  for cell in row.findall("m:c", ns)}
+        building, floor, name = (values.get(i, "") for i in (1, 2, 3))
+        if not name or not building:
+            continue
+        identity = f"{building.casefold()}|{floor.casefold()}|{name.casefold()}"
+        room_id = "DATA-" + hashlib.sha256(identity.encode()).hexdigest()[:12].upper()
+        place = (building.casefold().strip(), floor.casefold().strip(), name.casefold().strip())
+        if room_id.lower() in existing_ids or place in existing_places:
+            continue
+        capacity = values.get(5, "")
+        if capacity.endswith(".0"):
+            capacity = capacity[:-2]
+        db.add(Room(room_id=room_id, name=name[:80], building=building[:80], floor=floor[:40],
+                    room_type=values.get(4, "")[:60], capacity=capacity[:10],
+                    equipment=values.get(6, "")[:200], status=""))
+        existing_ids.add(room_id.lower())
+        existing_places.add(place)
+        added += 1
+    if added:
+        db.commit()
+    return added
+
+
 def add_room(db: Session, form):
     values = _room_values(form)
     exists = db.execute(select(Room.id).where(
@@ -139,6 +225,7 @@ def _room_values(form):
         "room_id": clean_text(form.get("room_id"), "Room ID", 30),
         "name": clean_text(form.get("name"), "Name", 80),
         "building": clean_text(form.get("building"), "Building", 80, required=False),
+        "floor": clean_text(form.get("floor"), "Floor", 40, required=False),
         "department": clean_text(form.get("department"), "Department", 80, required=False),
         "room_type": clean_text(form.get("room_type"), "Room type", 60, required=False),
         "capacity": clean_text(form.get("capacity"), "Capacity", 10, required=False),
@@ -265,7 +352,7 @@ _ROOM_SYNONYMS = {
     "aircon": {"ac", "air conditioning"}, "air": {"aircon", "ac"},
     "vacant": {"available", "free"}, "free": {"available", "vacant"},
 }
-_ROOM_SEARCH_FIELDS = ((Room.room_id, 12), (Room.name, 8), (Room.building, 5), (Room.department, 5),
+_ROOM_SEARCH_FIELDS = ((Room.room_id, 12), (Room.name, 8), (Room.building, 5), (Room.floor, 4), (Room.department, 5),
                        (Room.room_type, 4), (Room.equipment, 4), (Room.status, 2), (Room.capacity, 2))
 
 
@@ -305,8 +392,10 @@ def room_location_reply(room):
     name = room.get("name") or room_label
     building = room.get("building")
     if building:
-        return (f"**{name}** ({room_label}) is in **{building}**. The room record doesn't "
-                "include a floor or nearby landmark, so I can't give a more precise location.")
+        floor = room.get("floor")
+        floor_text = f" on the **{floor}**" if floor else ""
+        detail = "The room record doesn't include a nearby landmark, so I can't give a more precise location."
+        return f"**{name}** ({room_label}) is in **{building}**{floor_text}. {detail}"
     return f"I found **{name}** ({room_label}), but its building location hasn't been added yet."
 
 
@@ -337,7 +426,7 @@ def room_reply(room):
     room_label = room_id if room_id.lower().startswith("room ") else f"Room {room_id}"
     name = room.get("name") or room_label
     parts = [f"**{name}** ({room_label})"]
-    for label, key in (("Building", "building"), ("Department", "department"), ("Type", "room_type"),
+    for label, key in (("Building", "building"), ("Floor", "floor"), ("Department", "department"), ("Type", "room_type"),
                        ("Capacity", "capacity"), ("Equipment", "equipment"),
                        ("Status", "status")):
         if room.get(key):
@@ -387,7 +476,7 @@ def _room_line(r):
     department = r.get("department")
     building = r.get("building")
     details = [x for x in (f"department {department}" if department and department.lower() != (building or "").lower() else "",
-                           building, r.get("room_type"),
+                           building, r.get("floor"), r.get("room_type"),
                            f"capacity {r['capacity']}" if r.get("capacity") else "",
                            r.get("equipment")) if x]
     status = r.get("status") or "status not set"
@@ -408,7 +497,7 @@ def rooms_answer(rooms, question_words, wants_available):
             match_words.update(_ROOM_SYNONYMS.get(word, ()))
         match_words = {part for word in match_words for part in word.split()}
         def matches(r):
-            text = f" {r['building']} {r.get('department', '')} {r['name']} {r['room_id']} {r['room_type']} {r['equipment']} {r['capacity']} {r['status']} ".lower()
+            text = f" {r['building']} {r.get('floor', '')} {r.get('department', '')} {r['name']} {r['room_id']} {r['room_type']} {r['equipment']} {r['capacity']} {r['status']} ".lower()
             text = " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
             return any(f" {w} " in f" {text} " for w in match_words)
         found = [r for r in rooms if matches(r)]

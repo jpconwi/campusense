@@ -81,11 +81,12 @@ function RoomDirectory({ onReserve }) {
               </div>
               <button className="btn small" type="button" onClick={() => onReserve(room)}>Reserve this room</button>
             </div>
-            <p>{[room.building, room.department].filter(Boolean).join(" · ") || "Location not listed"}</p>
+            <p>{[room.building, room.floor, room.department].filter(Boolean).join(" · ") || "Location not listed"}</p>
             <details>
               <summary>View room details</summary>
               <div className="room-directory-details">
                 {room.room_type && <span><b>Type</b>{room.room_type}</span>}
+                {room.floor && <span><b>Floor</b>{room.floor}</span>}
                 {room.capacity && <span><b>Capacity</b>{room.capacity}</span>}
                 {room.equipment && <span><b>Equipment</b>{room.equipment}</span>}
                 {room.status && <span><b>Availability</b>{room.status}</span>}

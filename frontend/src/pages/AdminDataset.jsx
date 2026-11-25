@@ -162,7 +162,7 @@ export default function AdminDataset({ kind, tabs, onSelectTab }) { // kind = "r
         </form>
         {kind === "rooms" && <div className="dataset-toolbar" style={{ marginTop: 16 }}>
           <label>Import rooms from CSV <input type="file" accept=".csv,text/csv" onChange={importRooms} /></label>
-          <span className="muted">CSV columns: room_id, name, building, department, room_type, capacity, equipment, status. Up to 25,000 rows per import.</span>
+          <span className="muted">CSV columns: room_id, name, building, floor, department, room_type, capacity, equipment, status. Up to 25,000 rows per import.</span>
         </div>}
       </div>
 

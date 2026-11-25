@@ -1402,7 +1402,7 @@ def registration_help_resolve(message_id: int, _me: CurrentUser = Depends(super_
 
 # ------------------------------------------------------ rooms / campus
 ROOM_FIELDS = [["room_id", "Room ID", True], ["name", "Name", True],
-               ["building", "Building", False, "select", []],
+               ["building", "Building", False, "select", []], ["floor", "Floor", False],
                ["department", "Department", False, "select", []],
                ["room_type", "Type", False, "select", ["Classroom", "Computer Laboratory", "Laboratory", "Lecture Hall", "Office", "Conference Room", "Other"]],
                ["capacity", "Capacity", False, "select", ["1-10", "11-20", "21-30", "31-40", "40-50", "51-100", "100+" ]],

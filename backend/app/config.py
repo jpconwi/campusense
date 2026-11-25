@@ -21,6 +21,7 @@ load_dotenv(BACKEND_DIR / ".env")
 # ---------------------------------------------------------------- paths
 SEED_DIR = BACKEND_DIR / "seed"
 CAMPUS_SEED_CSV = SEED_DIR / "campus_info.csv"
+ROOM_SEED_XLSX = SEED_DIR / "datasets" / "Campus_Data.xlsx"
 REPORTS_DIR = BACKEND_DIR / "reports"        # generated PDF files
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", str(BACKEND_DIR / "uploads"))).expanduser()
 # Optional sanitized document-template images used only as visual references during
