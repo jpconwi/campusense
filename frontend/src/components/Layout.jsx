@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth.jsx";
 import { api } from "../api.js";
 import { HistorySkeleton } from "./Skeletons.jsx";
+import { ThemeToggle } from "./Theme.jsx";
 
 /** Header + navigation + flash messages around every signed-in page. */
 export function Header({ children }) {
@@ -15,6 +16,7 @@ export function Header({ children }) {
           <h1>NEMSAI</h1>
           <p>NEMSU Tandag Main Campus Assistant</p>
         </div>
+        <ThemeToggle className="header-theme-toggle" />
         {children}
         {user && (
           <div className="userbox">
@@ -245,6 +247,7 @@ export default function Layout() {
             <Icon d={collapsed ? "M9 6l6 6-6 6" : "M15 6l-6 6 6 6"} />
           </button>
         </div>
+        <ThemeToggle className="sidebar-theme-toggle" />
         {showNav && (
           <button type="button" className="sb-new" onClick={newChat} title="New chat">
             <Icon d="M12 5v14M5 12h14" /><span className="lbl">New chat</span>
@@ -296,6 +299,7 @@ export default function Layout() {
         <div className="mobilebar">
           <button type="button" onClick={() => setOpen(true)} aria-label="Open menu"><Icon d="M4 6h16M4 12h16M4 18h16" /></button>
           <span className="mb-title"><img src="/logo.png" alt="" /><strong>{pageLabel}</strong></span>
+          <ThemeToggle className="mobile-theme-toggle" />
           <button type="button" className="mb-profile" onClick={() => navigate("/profile")} aria-label="Profile">
             <span className="sb-avatar">{initials}</span>
           </button>

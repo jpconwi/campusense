@@ -1,63 +1,23 @@
-# Legacy NEMSU Website Knowledge Base (Disabled)
+# NEMSU website knowledge collection (disabled)
 
-NEMSU website collection and chatbot retrieval from `knowledge_documents` are disabled. The
-`/api/nemsu/sync` endpoints return HTTP 410, and `scripts/nemsu_sync.py` exits without connecting
-to the network or database. Existing website-derived rows remain stored for administrative
-inspection but are excluded from chatbot answers. Institution-specific answers should use the
-provided campus datasets.
+The chatbot does not retrieve or answer from pages crawled from `nemsu.edu.ph` or other websites.
+Website collection endpoints return HTTP 410, and website-derived rows that remain in
+`knowledge_documents` are excluded from chatbot retrieval. They are retained only for admin
+inspection; no database rows are deleted by this change.
 
-## Files
-| File | What it is |
-|---|---|
-| `app/models.py` | new table `KnowledgeDocument` (`knowledge_documents`, unique `source_url`). Created automatically at startup. |
-| `app/services/nemsu_collector.py` | the collector: reads Newsroom posts, memos, official pages, and linked PDF prospectuses; updates changed records |
-| `app/routers/nemsu.py` | `POST /api/nemsu/sync`, `POST /api/nemsu/sync/scheduled`, `GET /api/nemsu/documents` |
-| `scripts/nemsu_sync.py` | command line: `python -m scripts.nemsu_sync [--dry-run] [--pages N]` |
-| `scripts/nemsu_probe.py` | shows what the NEMSU sites really send (use it when a sync finds nothing) |
-| `app/config.py`, `app/main.py`, `requirements.txt` | settings, router registered, `beautifulsoup4` added |
-| `tests/test_nemsu_collector.py` | offline tests (no internet needed) |
+NEMSU-specific answers use the supplied campus datasets, administrator announcements, and live
+operational records. If those sources do not contain an answer, the chatbot says it cannot verify
+the fact from the provided data instead of falling back to website or model-training knowledge.
 
-## Settings (.env / Render environment) - all optional
-`NEMSU_NEWS_BASE`, `NEMSU_MEMO_BASE`, `NEMSU_NEWS_PAGES` (default 30), `NEMSU_MAX_NEW_PER_SYNC` (25),
-`NEMSU_CRAWL_MAX_PAGES` (300), `NEMSU_CRAWL_MAX_DEPTH` (4), `NEMSU_COLLECT_DELAY` (1.0 s),
-`NEMSU_COLLECT_TIMEOUT` (20 s), `NEMSU_SOURCES` (`news,memo,page`), `NEMSU_SYNC_TOKEN` (for schedulers; empty = off).
+## Relevant code
 
-## First test on your own computer (from backend/)
-1. `pip install -r requirements.txt`
-2. `python -m scripts.nemsu_sync --dry-run` - reads the real sites, saves nothing, needs no database.
-   You should see `new_documents` > 0 and a list of titles in `new_items`.
-If it finds nothing, the `errors` list says why. Then run `python -m scripts.nemsu_probe` and read/send its output.
-3. `python -m scripts.nemsu_sync --pages 10` - saves them (first run: also older news).
-4. Run it again: `new_documents` must be 0 and `skipped_existing` > 0.
-5. Check what was stored: sign in as admin, open `/api/nemsu/documents` (or `/api/docs`).
+- `app/services/campus_service.py` reads the supplied campus information dataset and admin-edited
+  campus records.
+- `app/ai/context.py` adds supplied campus records and current admin announcements to prompts.
+- `app/services/knowledge_service.py` keeps legacy website-document helpers, but its retrieval
+  boundary returns no crawled website rows.
+- `app/routers/nemsu.py` disables collection and exposes existing saved rows for admin inspection.
 
-## Triggering from the API
-* Admin signed in: `POST /api/nemsu/sync?pages=3` (add `&dry_run=true` to test). Needs the CSRF header like every admin call.
-* With curl (development): set `NEMSU_SYNC_TOKEN=some-long-random-text` in .env, then
-  `curl -X POST -H "X-Sync-Token: some-long-random-text" http://localhost:8000/api/nemsu/sync/scheduled`
-
-## Automatic updates
-
-The repository includes `.github/workflows/nemsu-sync.yml`, which calls the protected sync endpoint every three hours and can also be started with **Actions → Sync NEMSU public information → Run workflow**.
-
-Configure these repository Actions secrets:
-
-* `NEMSU_SYNC_URL`: the deployed backend URL ending in `/api/nemsu/sync/scheduled`.
-* `NEMSU_SYNC_TOKEN`: the same long random value configured as `NEMSU_SYNC_TOKEN` in the backend environment.
-
-The collector checks up to 30 Newsroom and memo list pages and crawls up to `NEMSU_CRAWL_MAX_PAGES` linked public pages from NEMSU, including campus profiles for Tandag, Bislig, Cantilan, Tagbina, Lianga, San Miguel, and Cagwait, following links up to `NEMSU_CRAWL_MAX_DEPTH` levels. It follows linked pages on the main `nemsu.edu.ph` host and any `*.nemsu.edu.ph` subdomain, including the SDG site. It extracts text from linked PDFs such as program prospectuses (up to 20 MB), adds them to `knowledge_documents`, and refreshes changed records on later syncs. Program availability answers compare the official college program pages with each campus's program-offering list; a course absent from Tandag's complete list can be reported as unavailable there, with its listed campuses named. The collector obeys each origin's `robots.txt`, stays within the NEMSU domain family for discovered pages, and skips private/admin routes and unrelated downloadable assets. It discovers pages through public links; unlinked subdomains, scanned/image-only pages, and JavaScript-only pages that expose no page text or links cannot be discovered this way. The crawl remains bounded by the configured page and depth limits.
-
-## Retrieval
-The current RAG path uses keyword retrieval over saved documents and includes matching passages in
-the model prompt. It does not train or fine-tune the model. Vector embeddings can be added later if
-semantic search is needed. Answers can only use content that was successfully collected and saved;
-the configured page/depth limits, public links, robots.txt, and readable page text affect coverage.
-
-## Official website pages (source `page`)
-
-The chatbot also reads fixed pages of nemsu.edu.ph (leadership, colleges, research, campuses),
-plus linked public pages on any `*.nemsu.edu.ph` subdomain. The list is
-`app/services/official_pages.py` - add a link there to teach the AI a new page.
-Run a sync (`POST /api/nemsu/sync?sources=page`, add `&dry_run=true` to test without saving).
-The scheduled sync rereads these pages and updates their existing records when their content changes.
-`NEMSU_SOURCES` now defaults to `news,memo,page`.
+The old collector and sync scripts remain in the repository for reference, but chatbot answers do
+not use their content. Re-enabling website collection or retrieval would violate the current
+dataset-only grounding rule.

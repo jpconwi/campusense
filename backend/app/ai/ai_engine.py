@@ -154,6 +154,11 @@ def _english(result):
 
 
 def _data(text):
+    # The row itself came from a supplied dataset. Do not turn its embedded source URL
+    # into a website citation that suggests the chatbot retrieved the live webpage.
+    text = re.sub(r"(?i)(?:source|more):\s*https?://[^\s)]+",
+                  "Source: provided campus dataset.", text or "")
+    text = re.sub(r"(?i)https?://(?:www\.)?nemsu\.edu\.ph[^\s)]*", "", text)
     return _english(response.message(text))
 
 
@@ -296,20 +301,14 @@ def _campus_contact_reply(db, question, conversation=None):
             if phone:
                 number = phone.group(0).strip(" .")
                 return _data(f"The official NEMSU contact listing gives the {campus} Campus number "
-                             f"as **{number}**.\n\nSource: [NEMSU contact information]"
-                             "(https://nemsu.edu.ph/academics/academic-affairs)")
+                             f"as **{number}**.\n\nSource: provided NEMSU contact dataset.")
             email = re.search(r"[\w.+-]+@nemsu\.edu\.ph\b", detail, re.I)
             if email:
                 return _data(f"The NEMSU contact listing does not show a phone number for {campus}. "
                              f"It lists this contact email: **{email.group(0)}**.\n\nSource: "
-                             "[NEMSU contact information](https://nemsu.edu.ph/academics/academic-affairs)")
+                             "provided NEMSU contact dataset.")
             return _data(f"I couldn't find a phone number for {campus} in the NEMSU contact listing. "
-                         "[Check the NEMSU contact information]"
-                         "(https://nemsu.edu.ph/academics/academic-affairs).")
-    if campus == "Tagbina":
-        return _data("The official Academic Affairs page lists **aoronquillo@nemsu.edu.ph** as "
-                     "the Tagbina Campus contact. It does not list a phone number there.\n\n"
-                     "Source: [NEMSU Academic Affairs](https://nemsu.edu.ph/academics/academic-affairs)")
+                         "Please check the provided NEMSU contact dataset or contact the campus directly.")
     return None
 
 
@@ -677,12 +676,11 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
             if colleges:
                 scope = ", ".join(colleges)
                 return response.message(
-                    f"I couldn't verify the {scope} Day date in the official NEMSU information "
-                    "currently indexed. Please tell me the campus and school year, or check with "
-                    "the college's official announcements; I don't want to guess a date.")
+                    f"I couldn't verify the {scope} Day date in the provided campus datasets. "
+                    "Please tell me the campus and school year; I don't want to guess a date.")
             return response.message(
-                "I couldn't verify the college-day dates in the official NEMSU information "
-                "currently indexed. Which campus and school year are you asking about?")
+                "I couldn't verify the college-day dates in the provided campus datasets. "
+                "Which campus and school year are you asking about?")
         context = build_user_context(user)
         prompt = build_system_prompt(db, context["role"], news=knowledge_service.for_prompt(docs))
         prompt += ("\n\nCOLLEGE DAY ANSWER RULE: Give a date only if one of these sources explicitly "
@@ -690,7 +688,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
                    "is absent, say it is not listed. Never infer a schedule.")
         answer = ask_model(prompt, question)
         if not answer or response.NO_INFO.lower() in answer.lower():
-            answer = "The indexed official NEMSU sources don't give a confirmed date for that college day."
+            answer = "The provided campus datasets don't give a confirmed date for that college day."
         return response.message(answer + "\n\n" + knowledge_service.sources_text(docs))
 
     directory_person = knowledge_service.directory_lookup(db, question)
@@ -774,8 +772,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         if info:
             return _data(info)
         return response.message(
-            "I couldn't verify the current NEMSU president in my indexed official information. "
-            "The official University Directory is here: https://nemsu.edu.ph/directory")
+            "I couldn't verify the current NEMSU president from the provided campus datasets.")
 
     if name == "nemsu_vice_presidents":
         directory_person = knowledge_service.directory_lookup(db, question)
@@ -790,8 +787,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         if directory_facts:
             return _data(directory_facts)
         return response.message(
-            "I couldn't find a matching vice-president designation in my indexed NEMSU University "
-            "Directory. Please check the official directory: https://nemsu.edu.ph/directory")
+            "I couldn't find a matching vice-president designation in the provided campus datasets.")
 
     if name == "campus_location":               # fixed answer + map, never the LLM
         return response.map_card(texts.en("campus_location"), CAMPUS_MAP_URL, CAMPUS_EMBED_URL)
@@ -870,7 +866,8 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     if name in ("concern_form", "report_form", "feedback_form", "reservation_form"):
         return _form_reply(user, found)
 
-    # Campus-specific enrollment questions must not match the generic Tandag seed fact.
+    # Campus-specific enrollment must come from a record naming that campus, never a
+    # university-wide total or a count belonging to a different campus.
     requested_campuses = [name for name in ("Bislig", "Cantilan", "Tagbina", "Lianga",
                                               "San Miguel", "Cagwait", "Tandag")
                           if intents.has(normalize(question), normalize(name))]
@@ -878,37 +875,37 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
                        and intents.has(normalize(question), "student", "students", "enrollment",
                                        "enrolled", "enrollees", "population"))
     if asks_population and requested_campuses and any(c != "Tandag" for c in requested_campuses):
-        candidates = knowledge_service.search(db, question + " student population enrollment", limit=12)
-        docs = []
-        for doc in candidates:
-            path = normalize(doc.get("source_url", "")).replace(" ", "")
-            evidence = normalize(doc.get("title", "") + " " + doc.get("passage", ""))
-            passage = doc.get("passage", "")
-            has_enrollment_figure = bool(re.search(
-                r"(?:student|enroll|population).{0,100}\d|\d.{0,100}(?:student|enroll|population)",
-                normalize(passage)))
-            if any(normalize(c) in path or (normalize(c) + " campus") in evidence
-                   for c in requested_campuses) and has_enrollment_figure:
-                docs.append(doc)
-        if not docs:
+        dataset_rows = campus_service.list_info(db)
+        population_rows = []
+        for campus in requested_campuses:
+            campus_key = normalize(campus)
+            match = next((row for row in dataset_rows
+                          if re.search(rf"\b{re.escape(campus_key)}\b", normalize(row.get("answer", "")))
+                          and intents.has(normalize(row.get("topic", "") + " " +
+                                                    row.get("keywords", "") + " " +
+                                                    row.get("answer", "")),
+                                          "student", "students", "enrollment", "enrolled",
+                                          "enrollees", "population")
+                          and re.search(r"\d", row.get("answer", ""))), None)
+            if match:
+                population_rows.append((campus, match))
+        if not population_rows:
             return response.message(texts.en("campus_population_unknown",
                                               campuses=" and ".join(requested_campuses)))
-        context = build_user_context(user)
-        prompt = build_system_prompt(db, context["role"], news=knowledge_service.for_prompt(docs))
-        prompt += ("\n\nCAMPUS-SPECIFIC ENROLLMENT: State a campus's student count only when the "
-                   "provided source explicitly gives that campus's count. Keep campuses and academic "
-                   "terms separate. If a requested campus lacks a figure, say so. Never use a "
-                   "university-wide or another campus's total as a substitute.")
-        answer = ask_model(prompt, question)
-        if not answer or response.NO_INFO.lower() in answer.lower():
-            answer = "I found a related official page, but it doesn't provide a clear student count for every campus you named."
-        return response.message(answer + "\n\n" + knowledge_service.sources_text(docs))
+        found_campuses = {campus for campus, _ in population_rows}
+        answer = "\n\n".join(f"**{campus} Campus:** {row['answer']}"
+                               for campus, row in population_rows)
+        missing = [campus for campus in requested_campuses if campus not in found_campuses]
+        if missing:
+            answer += ("\n\nI couldn't verify separate student counts for " +
+                       " and ".join(missing) + " from the provided campus datasets.")
+        return _data(answer)
 
     office_hours = _campus_director_hours_reply(db, normalized, conversation)
     if office_hours:
         return response.message(office_hours)
 
-    # ---- campus information from the CSV files
+    # ---- campus information from the provided CSV/admin datasets
     info = None if asks_population and requested_campuses else campus_service.lookup(db, question)
     if info:
         return _data(info)
@@ -935,9 +932,6 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         contact = campus_service.lookup(db, "nemsu contact numbers")
         return response.message(f"{hint}\n\n{contact}" if contact and "http" not in contact else hint)
 
-    if intents.is_learning_request(question):
-        return _general_reply(question, conversation, role)
-
     # Handle general conversation before searching campus pages; loose matches must not attach
     # unrelated NEMSU links to grief, tutoring, or other general questions.
     related = (_is_campus_related(question)
@@ -955,10 +949,8 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         if not related:
             return _general_reply(question, conversation, role)
 
-    # ---- NEMSU news collected from the Newsroom (knowledge_documents)
-    # Use the current chat to resolve short campus follow-ups ("when is it?", "where is that?")
-    # before grounding the answer in official NEMSU pages. Role-specific instructions are added
-    # by build_system_prompt for both students and instructors.
+    # ---- Optional retrieved campus dataset context (website collection is disabled).
+    # Only supplied campus datasets and operational records may ground NEMSU-specific answers.
     docs = knowledge_service.search(db, question, conversation=conversation)
     if docs and knowledge_service.wants_number(question):    # "how many ...?" needs a figure
         docs = knowledge_service.with_figures(docs)
@@ -967,6 +959,13 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         prompt = build_system_prompt(db, context["role"], news=knowledge_service.for_prompt(docs))
         answer = ask_model(prompt, question) or knowledge_service.fallback_answer(docs)
         return response.message(answer + "\n\n" + knowledge_service.sources_text(docs))
+
+    if related:
+        suggestions = campus_service.suggest_topics(db, question)
+        reply = "I can't verify that from the provided campus datasets."
+        if suggestions:
+            reply += " Did you mean " + ", ".join(f"**{topic}**" for topic in suggestions) + "?"
+        return response.message(reply)
 
     # ---- vague follow-ups ("is that so?", "really?") -> ask what they mean
     if intents.has(normalize(question), "is that so", "is that true", "really", "thats it",
@@ -987,7 +986,7 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
 
 def _learn_about_program(db, question, topic, user, *, earlier=None, conversation=None,
                          resolve_spelling=True):
-    """Teach about a NEMSU program from official pages, with a general intro if needed."""
+    """Teach about a known program using supplied campus data and general background."""
     topic = normalize(topic or question)
     padded_topic = f" {topic} "
     known_program = any(
@@ -1308,11 +1307,9 @@ def _program_list_reply(db, question):
     if not pages:
         if requested_campus:
             return response.message(
-                f"Sorry, I can't retrieve the official {requested_campus} Campus program list right now. "
-                "Please try again later or check NEMSU's official website: https://nemsu.edu.ph/.")
+                f"I can't find the {requested_campus} Campus program list in the provided campus datasets.")
         return response.message(
-            "Sorry, I can't retrieve NEMSU's official program lists right now. Please try again later "
-            "or check the university website: https://nemsu.edu.ph/.")
+            "I can't find program lists in the provided campus datasets, so I can't give a verified university-wide list.")
 
     blocks = []
     for page in sorted(pages, key=lambda item: item["campus"]):
@@ -1340,7 +1337,7 @@ def _program_list_reply(db, question):
         return response.message(
             "I don't have a reliable university-wide course list available right now, and I don't "
             "want to give you incorrect campus information. Ask about a specific course or campus, "
-            "and I can share what I can verify from NEMSU's official pages: https://nemsu.edu.ph/."
+            "and I can check the data that is available."
         )
 
     available = {page["campus"] for page in all_pages}

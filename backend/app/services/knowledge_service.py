@@ -1,13 +1,8 @@
-"""
-services/knowledge_service.py - lets the chatbot use the NEMSU articles saved in
-`knowledge_documents` (news from the Newsroom, later memos / Facebook / PDFs).
+"""Legacy website-document retrieval, disabled for chatbot answers.
 
-Simple keyword search (no embeddings, no new services):
-  * a word that appears in the article TITLE counts 3, in the BODY counts 1
-  * a document needs at least 2 different matching words and a score of 5, so
-    unrelated questions never pull in an article
-  * the best passages of the best documents are given to the language model,
-    which is told to answer ONLY from them
+NEMSU-specific answers are grounded in the supplied campus datasets and operational records.
+Website-crawled rows may remain in ``knowledge_documents`` for administration, but this service
+does not retrieve them for the chatbot.
 """
 
 import re
@@ -23,8 +18,8 @@ from app.services.campus_service import normalize
 MAX_DOCS = 3                 # articles given to the AI per question
 MAX_CHARS_PER_DOC = 1200     # passage length per article
 MIN_SCORE = 5
-PAGE_MIN_SCORE = 4          # official website pages: one strong title word is enough
-PAGE_CHARS_PER_DOC = 2500   # official pages are longer, so give the AI more of them
+PAGE_MIN_SCORE = 4
+PAGE_CHARS_PER_DOC = 2500
 OFFICIAL = "nemsu_page"
 SCAN_LIMIT = 600             # newest documents that are searched
 
@@ -362,10 +357,9 @@ def program_offerings(db, program):
 
 
 def search(db: Session, question, limit=MAX_DOCS, conversation=None):
-    """Retrieve official pages for the current question, using recent turns to resolve follow-ups.
+    """Search the enabled knowledge source (currently no crawled website documents).
 
-    The current question gets the strongest weight. A short contextual query helps with messages
-    such as "when is it?" without letting unrelated older chat dominate retrieval.
+    Campus datasets are retrieved through ``campus_service``; crawled website rows are excluded.
     """
     rows = _rows(db)
     direct = rank(rows, question, limit)
@@ -475,12 +469,10 @@ def for_prompt(docs, education=False):
             "names, dates, positions, requirements, or numbers.\n\n")
     else:
         instruction = (
-            "OFFICIAL NEMSU INFORMATION (NEMSU Newsroom articles and pages of the official NEMSU "
-            "website). Read the retrieved passages before answering. Use a source only when its "
-            "passage directly supports the answer; do not cite merely keyword-matched pages. "
-            "Answer the question ONLY from relevant evidence in these sources. If they do not "
-            "contain the answer, say you could not find it in the official NEMSU information. "
-            "Never invent names, dates, positions or numbers.\n\n")
+            "PROVIDED CAMPUS DATASET EVIDENCE. Read the retrieved passages before answering. "
+            "Use a source only when its passage directly supports the answer. Answer only from "
+            "relevant supplied evidence. If it does not contain the answer, say it is unavailable "
+            "in the provided campus datasets. Never invent names, dates, positions or numbers.\n\n")
     return instruction + "\n\n".join(blocks)
 
 
@@ -501,7 +493,7 @@ def fallback_answer(docs):
 def latest_text(docs):
     lines = [f"- {tidy(d['title'])}" + (f" ({_date(d)})" if _date(d) else "") + f"\n  {d['source_url']}"
              for d in docs]
-    return "Latest from the NEMSU Newsroom:\n" + "\n".join(lines)
+    return "Latest provided campus dataset records:\n" + "\n".join(lines)
 
 
 # ---- "give me the text / details of that news"

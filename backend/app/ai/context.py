@@ -5,6 +5,8 @@ Only the user's ROLE is shared with the AI. Name, email and Google ID
 are never put in the prompt.
 """
 
+import re
+
 from app.prompts.areaPrompt import AREA_PROMPT
 from app.prompts.concernPrompt import CONCERN_PROMPT
 from app.prompts.feedbackPrompt import FEEDBACK_PROMPT
@@ -61,6 +63,12 @@ ROLE_PROMPTS = {
 }
 
 
+def _dataset_text(text):
+    """Keep dataset facts in model context without forwarding their website citations."""
+    return re.sub(r"(?i)(?:source|more):\s*https?://[^\s)]+",
+                  "Source: provided campus dataset.", text or "")
+
+
 def build_user_context(user):
     """The only user data the AI is allowed to see."""
     return {"role": user.role if user else "student"}
@@ -87,7 +95,7 @@ def build_system_prompt(db, role, news=None, rooms=None):
     extra = campus_service.list_info(db)
     if extra:
         parts.append("ADDITIONAL CAMPUS INFORMATION (from the campus database):\n" +
-                     "\n".join(f"- {r['topic']}: {r['answer']}" for r in extra))
+                     "\n".join(f"- {r['topic']}: {_dataset_text(r['answer'])}" for r in extra))
 
     posted = announcement_service.list_active(db)
     if posted:

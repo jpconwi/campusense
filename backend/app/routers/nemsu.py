@@ -1,14 +1,4 @@
-"""
-routers/nemsu.py - the NEMSU knowledge base: sync the public announcements and look at them.
-
-  POST /api/nemsu/sync              admin (signed in + CSRF) - run a sync now
-        ?pages=3                    how many newsroom list pages to read (1-30)
-        &dry_run=true               collect but do NOT save (to test the collector)
-        &sources=page               only the official website pages (news, memo, page)
-  POST /api/nemsu/sync/scheduled    for a scheduler. Needs the header  X-Sync-Token: <NEMSU_SYNC_TOKEN>
-                                    from .env. Without NEMSU_SYNC_TOKEN set it is switched off (404).
-  GET  /api/nemsu/documents         admin - the newest saved documents (to check the result)
-"""
+"""Legacy website collection is disabled; admins can inspect any previously saved rows."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select

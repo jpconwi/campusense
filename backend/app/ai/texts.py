@@ -83,9 +83,9 @@ TEXTS = {
         "Maaari kong tingnan ang availability record ng isang partikular na instructor, pero wala akong kumpletong live na talaan ng lahat ng naroon sa campus. Sinong instructor ang tinutukoy mo?",
         "Makasusi ko sa availability record sa usa ka piho nga instructor, pero wala koy kompletong live nga lista sa tanan nga naa sa campus. Kinsang instructor imong gipasabot?"),
     "campus_population_unknown": (
-        "I couldn’t verify separate student counts for {campuses} from the official information available to me. I don’t want to give you another campus’s number by mistake.",
-        "Wala akong ma-verify na magkakahiwalay na bilang ng estudyante para sa {campuses} mula sa opisyal na impormasyong mayroon ako. Ayokong maibigay ang bilang ng ibang campus.",
-        "Wala koy napamatud-ang bulag nga ihap sa estudyante para sa {campuses} gikan sa opisyal nga impormasyon nga naa nako. Dili ko gusto nga mahatag ang ihap sa laing campus."),
+        "I couldn't verify separate student counts for {campuses} from the provided campus datasets. I don't want to give you another campus's number by mistake.",
+        "Wala akong ma-verify na magkakahiwalay na bilang ng estudyante para sa {campuses} mula sa ibinigay na mga dataset ng campus. Ayokong maibigay ang bilang ng ibang campus.",
+        "Wala koy napamatud-ang bulag nga ihap sa estudyante para sa {campuses} gikan sa gihatag nga mga dataset sa campus. Dili ko gusto nga mahatag ang ihap sa laing campus."),
     "greeting_student": (
         "Hi there! Great to see you 😊 I'm NEMSAI, your NEMSU Tandag Main Campus assistant. "
         "What can I help you with today? I can help with campus locations, rooms, facilities, "
@@ -203,14 +203,13 @@ TEXTS = {
         "Walay sapayan! Sulti lang kung naa kay kinahanglan pa mahitungod sa campus."),
     "hours": (
         "I don't have the official opening hours of NEMSU or its offices, so I can't say if it is "
-        "open right now. Please check with the school directly or look at its official page at "
-        "nemsu.edu.ph.",
+        "open right now. Please contact the school directly for current hours.",
         "Wala akong opisyal na impormasyon tungkol sa oras ng bukas at sara ng NEMSU o ng mga "
         "opisina nito, kaya hindi ko masabi kung bukas ito ngayon. Pakitanong nang direkta sa "
-        "paaralan o tingnan ang opisyal na pahina sa nemsu.edu.ph.",
+        "paaralan.",
         "Wala koy opisyal nga impormasyon sa oras sa pag-abri ug pag-sira sa NEMSU o sa mga "
         "opisina niini, mao nga dili nako masulti kung abri ba kini karon. Palihug pangutana "
-        "direkta sa eskwelahan o tan-awa ang opisyal nga page sa nemsu.edu.ph."),
+        "direkta sa eskwelahan."),
     "form_concern_student": (
         "I can help you report this campus concern. Please complete the form below.",
         "Matutulungan kitang i-report ang concern na ito sa campus. Pakikumpleto ang form sa ibaba.",

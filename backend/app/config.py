@@ -196,9 +196,9 @@ def ensure_folders():
         folder.mkdir(parents=True, exist_ok=True)
 
 
-# ------------------------------------------------- NEMSU knowledge base (collector)
-# Public, official sources only. Nothing here is a secret; change them in .env if the
-# NEMSU websites move.
+# ------------------------------------------------- Legacy NEMSU collector settings
+# Website collection and chatbot retrieval are disabled. Retained only for compatibility with
+# the archival collector code; setting these values does not enable collection endpoints.
 NEMSU_NEWS_BASE = os.getenv("NEMSU_NEWS_BASE", "https://nemsu.edu.ph").strip().rstrip("/")
 NEMSU_MEMO_BASE = os.getenv("NEMSU_MEMO_BASE", "https://memo.nemsu.edu.ph").strip().rstrip("/")
 # how many newsroom / memo list pages one sync checks (up to 30 pages)
@@ -210,8 +210,7 @@ NEMSU_CRAWL_MAX_DEPTH = int(os.getenv("NEMSU_CRAWL_MAX_DEPTH", "4"))
 NEMSU_MAX_NEW_PER_SYNC = int(os.getenv("NEMSU_MAX_NEW_PER_SYNC", "25"))
 NEMSU_COLLECT_DELAY = float(os.getenv("NEMSU_COLLECT_DELAY", "1.0"))     # seconds between requests
 NEMSU_COLLECT_TIMEOUT = float(os.getenv("NEMSU_COLLECT_TIMEOUT", "20"))
-# lets a scheduler (Render cron job, cron-job.org) call POST /api/nemsu/sync/scheduled with
-# the header  X-Sync-Token: <this value>.  Empty = that route is switched off (404).
+# Legacy scheduler token; the scheduled collection endpoint currently returns HTTP 410.
 NEMSU_SYNC_TOKEN = os.getenv("NEMSU_SYNC_TOKEN", "").strip()
-# which sources a sync reads: "news", "memo" or "news,memo". Remove one if its website is down.
+# Legacy source list used only by archival collector code; chatbot retrieval ignores these sources.
 NEMSU_SOURCES = [x.strip().lower() for x in os.getenv("NEMSU_SOURCES", "news,memo,page").split(",") if x.strip()]

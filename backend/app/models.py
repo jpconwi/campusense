@@ -333,11 +333,10 @@ class Announcement(Base):
 
 
 class KnowledgeDocument(Base):
-    """One public NEMSU document (news article, memorandum, later Facebook post, PDF...).
+    """Legacy website-crawled document retained for admin inspection only.
 
-    This is the knowledge base the RAG step will search. `source_url` is unique so the
-    same announcement is never stored twice. `source_type` says where it came from:
-    nemsu_news, nemsu_memo (later: facebook, pdf).
+    Chatbot retrieval excludes this table; NEMSU-specific answers use supplied campus datasets.
+    `source_url` is unique so historical imports did not store the same URL twice.
     """
     __tablename__ = "knowledge_documents"
 
