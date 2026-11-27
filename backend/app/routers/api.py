@@ -103,6 +103,9 @@ def _too_many(user_id, limit=20, window=60):  # user_id may also be a tuple such
     q = _recent[user_id]
     while q and now - q[0] > window:
         q.popleft()
+    if not q:
+        del _recent[user_id]
+        q = _recent[user_id]
     if len(q) >= limit:
         return True
     q.append(now)

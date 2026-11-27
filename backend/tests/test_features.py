@@ -506,6 +506,20 @@ def test_room_availability_followups_return_matching_room_names(admin, student):
     assert "CBM-101" not in names["answer"]
 
 
+def test_new_instructor_availability_question_does_not_inherit_room_context(student):
+    count = student.ask("how many rooms are in nemsu?")
+    for question in (
+            "does instructor available now?",
+            "is there instructor availability in this system?",
+            "faculty availability?"):
+        answer = student.post("/api/ask", json={
+            "question": question,
+            "session_id": count["session_id"],
+        }).json()["answer"]
+        assert "Which instructor do you mean?" in answer
+        assert "rooms are marked as available" not in answer
+
+
 def test_available_rooms_reply_does_not_dump_unavailable_inventory(admin, student):
     admin.post("/api/admin/rooms", json={"name": "ICT Office", "building": "ICT Building"})
     answer = student.ask("what room now available in nemsu?")["answer"]

@@ -73,7 +73,8 @@ NAME_STOPWORDS = HONORIFICS | {
     "will", "would", "be", "return", "returning", "back", "come", "coming",
     "expected", "does", "did", "he", "she", "the", "to", "for", "of", "yet",
     "already", "faculty", "still", "absent", "present", "his", "her", "a", "an",
-    "and", "he", "she", "okay", "ok", "know",
+    "and", "he", "she", "okay", "ok", "know", "this", "system", "app",
+    "website", "chatbot", "nemsai",
 }
 
 ABSENCE_PATTERNS = [
@@ -545,6 +546,10 @@ def detect(db, question, role):
         target = _faculty_target(db, raw_q)
         if target:
             return {"intent": "faculty_availability", "name": target}
+        if has(raw_q, "instructor", "teacher", "professor", "faculty"):
+            # Handle faculty availability before the broader program availability
+            # rules, which also match words such as "in" and "availability".
+            return {"intent": "faculty_availability_ask"}
 
     # Clean high-confidence typos against the official campus vocabulary before
     # classifying intent; keep `question` unchanged for form fields and replies.
@@ -752,7 +757,7 @@ def detect(db, question, role):
         target = _faculty_target(db, q)
         if target:
             return {"intent": "faculty_availability", "name": target}
-        if has(q, "who", "which") and has(q, "instructor", "teacher", "professor", "faculty"):
+        if has(q, "instructor", "teacher", "professor", "faculty"):
             return {"intent": "faculty_availability_ask"}
 
     if not first_person and (has(q, "when") and has(q, "return", "back", "come back",

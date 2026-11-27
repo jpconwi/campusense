@@ -39,9 +39,9 @@ def _friendly(question):
         or "^_^" in question
 
 
-def _tone_emoji(question):
+def _tone_emoji(question, sentiment_label=None):
     """Choose an emoji when wording clearly signals curiosity or emotion."""
-    if sentiment_service.analyze(question)["label"] == "Negative":
+    if (sentiment_label or sentiment_service.analyze(question)["label"]) == "Negative":
         return None
     words = set(_WORD.findall(question.lower()))
     for tone in ("confused", "confusing", "unsure", "curious", "wondering", "wonder",
@@ -67,10 +67,11 @@ def add_emoji(result, question):
     result.pop("serious", None)
 
     theirs = EMOJI.findall(question)
-    tone_emoji = _tone_emoji(question)
+    sentiment_label = sentiment_service.analyze(question)["label"]
+    tone_emoji = _tone_emoji(question, sentiment_label)
     if not theirs and not tone_emoji and not (_friendly(question) and _roll(question)):
         return result
-    if sentiment_service.analyze(question)["label"] == "Negative":
+    if sentiment_label == "Negative":
         return result
 
     canned = texts.FRIENDLY_EMOJI.get(key)

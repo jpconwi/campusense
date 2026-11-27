@@ -182,12 +182,21 @@ def _room_followup_request(question, conversation):
     asks_availability = intents.has(q, *availability_terms)
     asks_for_name = bool(re.search(
         r"\b(?:what|which)\s+(?:(?:is|are)\s+)?(?:the\s+)?rooms?\s+names?\b", q))
+    generic_availability_followup = (
+        asks_availability
+        and not has_room_subject
+        and all(token in {
+            "a", "any", "are", "available", "availability", "currently", "do", "does",
+            "free", "have", "is", "it", "now", "one", "open", "something", "there",
+            "unoccupied", "vacant", "you",
+        } for token in q.split())
+    )
     recent_availability_context = (
         intents.has(previous_user, *availability_terms)
         or (intents.has(previous_ai, *availability_terms)
             and intents.has(previous_ai, *room_terms))
     )
-    if ((asks_availability and not has_room_subject)
+    if (generic_availability_followup
             or (asks_for_name and recent_availability_context)):
         return {"intent": "rooms_list", "words": [], "count": False, "available": True}
     return None
