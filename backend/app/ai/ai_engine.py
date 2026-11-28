@@ -225,6 +225,37 @@ def _is_echo(answer, question):
     return difflib.SequenceMatcher(None, a, q).ratio() >= 0.75 or a.startswith(q) and len(a) < len(q) * 1.6
 
 
+def _is_truth_followup(question):
+    return bool(re.fullmatch(
+        r"(?:is|are) (?:that|this|it|those|these) (?:really )?(?:true|correct|right)|"
+        r"(?:is that so|are you sure|is it true|is this true|really|that true|thats true|"
+        r"is that correct|is that right)", normalize(question)))
+
+
+def _verify_campus_followup(db, question, user, conversation, lang):
+    """Recheck a short truth-check against the campus question it refers to."""
+    if not _is_truth_followup(question):
+        return None
+    turns = list(conversation or [])
+    answer_index = next((index for index in range(len(turns) - 1, -1, -1)
+                         if turns[index].get("role") == "ai" and turns[index].get("text")), None)
+    if answer_index is None:
+        return response.clarify()
+    prior_user = next((turns[index].get("text", "")
+                       for index in range(answer_index - 1, -1, -1)
+                       if turns[index].get("role") == "user" and turns[index].get("text")), "")
+    context_before_question = turns[:next((index for index in range(answer_index - 1, -1, -1)
+                                          if turns[index].get("role") == "user"), answer_index)]
+    if not prior_user or not (_is_campus_related(prior_user)
+                              or _has_explicit_campus_context(prior_user, context_before_question)):
+        return response.clarify()
+
+    checked = _answer(db, prior_user, user, None, lang, conversation=context_before_question)
+    if checked.get("type") == "message" and checked.get("answer") != texts.en("off_topic"):
+        checked["answer"] = "I checked the provided NEMSU information again: " + checked["answer"]
+    return checked
+
+
 def _greeting(role):
     key = f"greeting_{role}" if f"greeting_{role}" in texts.TEXTS else "greeting_default"
     return response.message(texts.en(key))
@@ -455,10 +486,19 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         return response.message(texts.en("emoji_only"))
     normalized = normalize(question)
     role = user.role if user else "student"
+    truth_followup = _verify_campus_followup(db, question, user, conversation, lang)
+    if truth_followup is not None:
+        return truth_followup
     recent_ai_for_admin = next((normalize(m.get("text", "")) for m in reversed(conversation or [])
                                 if m.get("role") == "ai" and m.get("text")), "")
     recent_user_for_admin = next((normalize(m.get("text", "")) for m in reversed(conversation or [])
                                   if m.get("role") == "user" and m.get("text")), "")
+    if (re.fullmatch(r"(?:and )?(?:the )?vice[- ]presidents?", normalized)
+            and any(intents.has(normalize(m.get("text", "")), "nemsu", "university", "campus")
+                    and intents.has(normalize(m.get("text", "")), "president")
+                    for m in (conversation or [])[-6:])):
+        return _answer(db, "Who are the NEMSU vice presidents?", user, None, lang,
+                       conversation=conversation)
     admin_dataset_question = bool(
         role in ("admin", "super_admin")
         and intents.has(normalized, "how do i", "how to", "where can i", "where do i",
@@ -511,6 +551,12 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
                 "What specifically worries you about it? You can describe the issue in the "
                 "concern form already shown below.")
     room_code = room_service.extract_room_code(question)
+    if not room_code:
+        bare_room_match = re.fullmatch(
+            r"\s*(?:room\s+)?([a-z]{2,8}\s*[- ]?\s*\d{1,6}[a-z]?|\d{1,5}[a-z]?)\s*[?.!]*\s*",
+            question, re.I)
+        if bare_room_match:
+            room_code = re.sub(r"\s*[- ]\s*", " ", bare_room_match.group(1)).upper()
     room_status_match = re.fullmatch(
         r"(?:does|is|are|what about|how about)?\s*(?:room\s*)?#?([a-z]?\d{1,6}[a-z]?)\s*"
         r"(?:is\s*)?(?:currently\s*)?(?:available|free|vacant|open|unoccupied)(?:\s+now)?",
@@ -522,8 +568,11 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
             return _data(room_service.room_reply(
                 status_room, include_id=role in ("admin", "super_admin")))
         return _room_not_found(role, status_code)
-    bare_room_reference = bool(room_code and normalized in {f"room {room_code.lower()}",
-                                                            f"room {room_code.lower()} details"})
+    bare_room_reference = bool(room_code and (normalized in {f"room {room_code.lower()}",
+                                                            f"room {room_code.lower()} details"}
+                                                 or re.fullmatch(
+                                                     r"(?:[a-z]{2,8}\s*[- ]?\s*)?\d{1,6}[a-z]?\??",
+                                                     normalized, re.I)))
     room_list_request = room_service.is_room_list_question(question)
     room_lookup_request = (not room_list_request and (room_service.is_room_location_question(question)
                            or room_service.is_room_details_question(question)
