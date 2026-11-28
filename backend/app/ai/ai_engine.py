@@ -179,15 +179,43 @@ def _room_followup_request(question, conversation):
     q = normalize(question)
     has_room_subject = intents.has(q, *room_terms)
     asks_availability = intents.has(q, *availability_terms)
+    scope_aliases = {
+        "CAS": ("cas", "college of arts and sciences"),
+        "CBM": ("cbm", "college of business and management"),
+        "CET": ("cet", "college of engineering and technology"),
+        "CITE": ("cite", "ict", "college of information technology education"),
+        "CTE": ("cte", "college of teacher education"),
+        "COL": ("col", "college of law"),
+        "COM": ("com", "college of medicine"),
+        "GS": ("gs", "graduate studies"),
+    }
+    scope_match = next(((code, alias) for code, aliases in scope_aliases.items()
+                        for alias in aliases
+                        if re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", q)), None)
+    scope, scope_alias = scope_match if scope_match else (None, None)
+    scope_fillers = {"in", "at", "and", "the", "only", "just", "what", "about", "how",
+                     "for", "rooms", "room", "i", "mean", "department", "departments"}
+    if scope_alias:
+        scope_fillers.update(normalize(scope_alias).split())
+    if (scope and len(q.split()) <= 8 and not intents.asks_location(q)
+            and all(token in scope_fillers for token in q.split())):
+        scope_word = {"COL": "law", "GS": "graduate"}.get(scope, scope.lower())
+        was_count_question = intents.has(previous_user, "how many", "count", "number", "total")
+        return {"intent": "rooms_list", "words": [scope_word], "count": was_count_question,
+                "available": asks_availability}
     asks_for_name = bool(re.search(
         r"\b(?:what|which)\s+(?:(?:is|are)\s+)?(?:the\s+)?rooms?\s+names?\b", q))
     generic_availability_followup = (
         asks_availability
-        and not has_room_subject
+        and (not has_room_subject or all(token in {
+            "a", "any", "are", "available", "availability", "but", "currently", "do",
+            "does", "free", "have", "has", "in", "is", "it", "now", "one", "open",
+            "room", "rooms", "something", "there", "unoccupied", "vacant", "you",
+        } for token in q.split()))
         and all(token in {
-            "a", "any", "are", "available", "availability", "currently", "do", "does",
-            "free", "have", "is", "it", "now", "one", "open", "something", "there",
-            "unoccupied", "vacant", "you",
+            "a", "any", "are", "available", "availability", "but", "currently", "do", "does",
+            "free", "have", "has", "in", "is", "it", "now", "one", "open", "room", "rooms",
+            "something", "there", "unoccupied", "vacant", "you",
         } for token in q.split())
     )
     recent_availability_context = (
@@ -891,14 +919,27 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
 
     if name == "rooms_list":                    # real rooms from the admin's room list
         if found.get("count"):
+            words = room_service.room_filter_words(found.get("words", []))
+            if words:
+                total = len(room_service.filter_rooms(room_service.list_rooms(db), words))
+                scope = " ".join(words).upper()
+                return _data(
+                    f"I have **{total} room record{'s' if total != 1 else ''} for {scope}** "
+                    "in NEMSAI's room database. This is the number of records currently entered, "
+                    "not a verified count of every room on campus."
+                )
             total = room_service.count_rooms(db)
             return _data(
                 f"I have **{total} room{'s' if total != 1 else ''} recorded** in NEMSAI's room database. "
                 "This is the number of records currently entered, not a verified count of every room on the NEMSU Tandag campus."
             )
-        candidates = room_service.retrieve_rooms(db, question, limit=20)
-        if not candidates:
-            candidates = room_service.list_room_preview(db, limit=20)
+        if (found.get("available")
+                and not room_service.room_filter_words(found.get("words", []))):
+            candidates = room_service.list_rooms(db)
+        else:
+            candidates = room_service.retrieve_rooms(db, question, limit=20)
+            if not candidates:
+                candidates = room_service.list_room_preview(db, limit=20)
         answer = room_service.rooms_answer(
             candidates, found["words"], found["available"],
             include_id=role in ("admin", "super_admin"))

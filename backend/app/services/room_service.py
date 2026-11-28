@@ -479,8 +479,7 @@ def room_location_reply(room, include_id=False):
     if building:
         floor = room.get("floor")
         floor_text = f" on the **{floor}**" if floor else ""
-        detail = "The room record doesn't include a nearby landmark, so I can't give a more precise location."
-        return f"**{name}** is in **{building}**{floor_text}. {detail}"
+        return f"**{name}** is in **{building}**{floor_text}."
     return f"I found **{name}**, but its building location hasn't been added yet."
 
 
@@ -502,8 +501,7 @@ def room_locations_reply(rooms, include_id=False):
     listing = "\n".join(
         f"- **{_room_title(room, include_id)}**"
         for room in rooms)
-    return (f"These rooms are listed in {location_text}:\n{listing}\n"
-            "The room records don't include a floor or nearby landmark.")
+    return f"These rooms are listed in {location_text}:\n{listing}"
 
 
 def room_reply(room, include_id=False):
@@ -549,6 +547,7 @@ _ROOM_STOPWORDS = {
     "an", "and", "for", "do", "you", "have", "unoccupied", "currently", "tell", "nemsu",
     "mean", "name", "names",
     "campus", "tandag", "please", "to", "on", "my", "our", "need", "looking", "find",
+    "but", "has", "it", "does", "still",
 }
 _FREE_WORDS = ("avail", "vacant", "free", "open", "unoccupied")
 
@@ -557,6 +556,30 @@ def _is_free(room):
     status = (room.get("status") or "").lower()
     return any(w in status for w in _FREE_WORDS) and "not " not in status \
         and "unavail" not in status
+
+
+def room_filter_words(question_words):
+    return [word for word in question_words if word not in _ROOM_STOPWORDS and len(word) > 1]
+
+
+def filter_rooms(rooms, question_words):
+    """Filter room rows using the same aliases as room list answers."""
+    words = room_filter_words(question_words)
+    if not words:
+        return list(rooms)
+    match_words = set(words)
+    for word in words:
+        match_words.update(_ROOM_SYNONYMS.get(word, ()))
+    match_words = {part for word in match_words for part in word.split()}
+
+    def matches(room):
+        text = " ".join(str(room.get(field) or "") for field in (
+            "building", "floor", "department", "name", "room_id", "room_type",
+            "equipment", "capacity", "status", "available_days", "available_time"))
+        text = " " + " ".join(re.sub(r"[^a-z0-9]+", " ", text.lower()).split()) + " "
+        return any(f" {word} " in text for word in match_words)
+
+    return [room for room in rooms if matches(room)]
 
 
 def _room_line(r, include_id=False):
@@ -578,18 +601,10 @@ def rooms_answer(rooms, question_words, wants_available, include_id=False):
     if not rooms:
         return ("There are no rooms in the campus room list yet. An administrator can add "
                 "them in the admin dashboard under Rooms.")
-    words = [w for w in question_words if w not in _ROOM_STOPWORDS and len(w) > 1]
+    words = room_filter_words(question_words)
     scope = ""
     if words:
-        match_words = set(words)
-        for word in words:
-            match_words.update(_ROOM_SYNONYMS.get(word, ()))
-        match_words = {part for word in match_words for part in word.split()}
-        def matches(r):
-            text = f" {r['building']} {r.get('floor', '')} {r.get('department', '')} {r['name']} {r['room_id']} {r['room_type']} {r['equipment']} {r['capacity']} {r['status']} {r.get('available_days', '')} {r.get('available_time', '')} ".lower()
-            text = " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
-            return any(f" {w} " in f" {text} " for w in match_words)
-        found = [r for r in rooms if matches(r)]
+        found = filter_rooms(rooms, words)
         if not found:
             buildings = sorted({r["building"] for r in rooms if r["building"]})
             hint = f" Rooms are recorded for: {', '.join(buildings)}." if buildings else ""
