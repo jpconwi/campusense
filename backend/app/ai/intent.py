@@ -561,6 +561,10 @@ def detect(db, question, role):
     if not q:
         return {"intent": "empty"}
 
+    if has(q, "outside topic", "off topic", "unrelated to campus", "not related to campus",
+           "outside campus topic", "unrelated topic"):
+        return {"intent": "off_topic"}
+
     if current_day_request(q):
         return {"intent": "current_day"}
     colleges = college_day_request(q)

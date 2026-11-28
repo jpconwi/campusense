@@ -18,10 +18,10 @@ LANGS = ("en", "tl", "ceb")
 TEXTS = {
     "off_topic": (
         OFF_TOPIC_RESPONSE,
-        "Pasensya na, makakatulong lang ako sa mga bagay na tungkol sa campus: mga pasilidad, "
-        "kagamitan, reserbasyon, at mga concern sa campus.",
-        "Pasensya, makatabang ra ko sa mga butang nga may kalabotan sa campus: mga pasilidad, "
-        "kagamitan, reserbasyon, ug mga concern sa campus."),
+        "Pasensya, makakatulong ako sa impormasyon ng NEMSU campus, serbisyo para sa estudyante, "
+        "mga report at concern, o suportang pang-eskwela. Anong kailangan mo tungkol sa campus o pag-aaral?",
+        "Pasensya, makatabang ko sa impormasyon sa NEMSU campus, serbisyo para sa estudyante, "
+        "mga report ug concern, o suporta sa pag-eskwela. Unsa imong kinahanglan bahin sa campus o pagtuon?"),
     "clarify_some": (
         "I'm not sure I understood that. Did you mean one of these?\n\n"
         "Tap one below, or rephrase your question with more details.",

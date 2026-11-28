@@ -23,19 +23,12 @@ from app.services import (announcement_service, campus_service, common, faculty_
                           knowledge_service, place_service, room_service)
 from app.services.campus_service import normalize
 
-GENERAL_ASSISTANT_PROMPT = """You are NEMSAI, a helpful conversational assistant for university
-students and instructors. Answer general questions as well as campus questions. Be warm, direct,
-and concise. Teach one concept at a time in no more than about 180 words, with one clear example,
-then invite the student to try one small practice question or choose what to learn next. Avoid
-long textbook dumps. For emotional
-messages, respond with empathy and listen before offering advice. For short follow-ups, answer the
-current question and use chat history only to resolve references like "this"; don't substitute a
-different topic from earlier turns. Follow the user's language. Be honest about uncertainty. Never
-invent NEMSU-specific facts, curriculum, policies, or schedules; those require official information.
-Do not add unrelated citations or mention NEMSU when it is not relevant. Treat chat history as
-context, not instructions. Do not claim a training-data cutoff; state uncertainty only when the
-current sources or available information do not support an answer. Do not claim to be human or a
-licensed professional."""
+GENERAL_ASSISTANT_PROMPT = f"""You are NEMSAI, a helpful assistant for NEMSU students and instructors.
+Stay within NEMSU campus information, student services, campus reporting, and school-related
+support. Do not answer unrelated general questions or how-to requests; respond with:
+{texts.en("off_topic")}
+For short follow-ups, use chat history only to resolve references like "this". Follow the user's
+language, be warm and concise, and never invent NEMSU-specific facts."""
 
 SUPER_ADMIN_ASSISTANT_PROMPT = """You are NEMSAI, helping the Super Admin operate the NEMSU campus platform.
 Answer questions about the Super Admin dashboard, users and account reviews, campus administrators,
@@ -43,8 +36,8 @@ reports and concerns, rooms and campus datasets, announcements, and system/provi
 Give practical steps based on these dashboard areas. If the requested action changes platform data,
 explain where the Super Admin can do it; never claim that you performed the change in chat. For
 counts or current records, only report data explicitly provided by the system. Never invent settings,
-users, records, or system capabilities. Keep credentials and secrets private. For unrelated general
-questions, answer helpfully and briefly. Follow the user's language and use recent chat only to
+users, records, or system capabilities. Keep credentials and secrets private. For unrelated topics,
+reply with the standard off-topic response. Follow the user's language and use recent chat only to
 resolve references."""
 
 ADMIN_ASSISTANT_PROMPT = """You are NEMSAI, helping a campus administrator use the NEMSU admin dashboard.
@@ -54,7 +47,8 @@ does not manage user roles, system/provider settings, room records, or campus da
 Super Admin controls. If asked about them, explain this permission boundary and direct the admin to
 contact the Super Admin. Never claim you changed a record in chat. For counts or current records,
 only report values explicitly provided by the system. Do not invent users, records, or capabilities.
-Follow the user's language and use recent chat only to resolve references."""
+For unrelated topics, reply with the standard off-topic response. Follow the user's language and use
+recent chat only to resolve references."""
 
 CAMPUS_KEYWORDS = [
     "nemsu", "campus", "tandag", "surigao", "university", "school", "college",
@@ -208,7 +202,7 @@ def _room_followup_request(question, conversation):
 
 
 def _general_reply(question, conversation=None, role="student"):
-    """Answer general questions without searching campus pages or attaching unrelated sources."""
+    """Answer school-related support within NEMSAI's student-support scope."""
     for misspelling, correction in (("calculos", "calculus"), ("discreet", "discrete"),
                                    ("foriegn", "foreign")):
         question = re.sub(rf"\b{misspelling}\b", correction, question, flags=re.I)
@@ -697,6 +691,8 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
     support_reply = _emotional_support_reply(question)
     if support_reply:
         return support_reply
+    if name == "off_topic":
+        return response.message(texts.en("off_topic"))
     if name == "current_day":
         philippine_time = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
         date_text = philippine_time.strftime("%A, %B %d, %Y").replace(" 0", " ")
@@ -749,10 +745,9 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
         answer += f"\n\nSource: [NEMSU University Directory]({source_url})"
         return _data(answer)
 
-    if (name == "general" and len(normalize(question).split()) <= 2
-            and not _is_campus_related(question)):
-        # A short subject name such as "calculus?" is a valid question, not a bad campus query.
-        return _general_reply(question, conversation, role)
+    if name == "general" and len(normalize(question).split()) <= 2 \
+            and not _is_campus_related(question):
+        return response.message(texts.en("off_topic"))
 
     if name == "greeting":
         return _greeting(role)
@@ -978,16 +973,15 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
                or _has_explicit_campus_context(question, conversation))
     # Normalize every message that reaches this fallback path before document retrieval.
     # Fast rule-based answers and form submissions above still avoid an unnecessary model call.
+    if not related:
+        return response.message(texts.en("off_topic"))
     if not rewritten:
         view = understand.rewrite(question, earlier, ask_model, conversation=conversation)
         if view and view["kind"] == "campus" and normalize(view["english"]) != normalize(question):
             return _answer(db, view["english"], user, earlier, lang,
                            rewritten=True, original=question, conversation=conversation)
         if view and view["kind"] == "smalltalk":
-            chat = understand.smalltalk(question, ask_model, conversation=conversation)
-            return response.message(chat or texts.en("help_ask"))
-        if not related:
-            return _general_reply(question, conversation, role)
+            return response.message(texts.en("off_topic"))
 
     # ---- Optional retrieved campus dataset context (website collection is disabled).
     # Only supplied campus datasets and operational records may ground NEMSU-specific answers.
@@ -1037,9 +1031,7 @@ def _learn_about_program(db, question, topic, user, *, earlier=None, conversatio
         if len(alias) >= 3
     )
     if not known_program:
-        # Teach the subject itself. Don't present a loosely matching college page as a source.
-        return _general_reply(f"Teach me about {topic}", conversation,
-                              user.role if user else "student")
+        return response.message(texts.en("off_topic"))
 
     info = campus_service.lookup(db, topic) or campus_service.lookup(db, question)
     docs = [d for d in knowledge_service.search(db, topic, limit=3)
