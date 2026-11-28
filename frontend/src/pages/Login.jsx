@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
-import { Header } from "../components/Layout.jsx";
 import { useAuth } from "../auth.jsx";
 import RegistrationHelp from "../components/RegistrationHelp.jsx";
 
@@ -56,8 +55,6 @@ export default function Login() {
 
   return (
     <>
-      <Header showThemeToggle={false} />
-
       <div className="center-wrap login-page">
         <div className="login-card">
           <div className="login-brand">

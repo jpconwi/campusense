@@ -2167,7 +2167,7 @@ html[data-theme="dark"] .leaflet-control-zoom a { background: #172438; color: va
 .login-page {
   position: relative;
   isolation: isolate;
-  min-height: calc(100vh - 72px);
+  min-height: 100vh;
   padding: clamp(16px, 3vw, 36px) 20px;
   background:
     linear-gradient(120deg, rgba(10, 36, 69, .70), rgba(17, 73, 130, .32)),
@@ -2215,14 +2215,10 @@ html[data-theme="dark"] body:has(.login-page) .login-card p.sub,
 html[data-theme="dark"] body:has(.login-page) .login-card .note { color: #5d718a; }
 html[data-theme="dark"] body:has(.login-page) .google-btn { background: #fff; color: #1f1f1f; border-color: #d8e0ea; }
 @media (max-width: 600px) {
-  .login-page { min-height: calc(100vh - 60px); padding: 14px; }
+  .login-page { min-height: 100vh; padding: 14px; }
   .login-page .login-card { padding: 22px 18px; border-radius: 18px; }
 }
 @media (max-width: 600px) {
-  body:has(.login-page) header .header-inner { min-height: 58px; gap: 9px; padding: 7px 12px; }
-  body:has(.login-page) header .header-inner img { width: 34px; height: 34px; }
-  body:has(.login-page) header h1 { font-family: var(--sans); font-size: 1.1rem; }
-  body:has(.login-page) header p { font-size: .74rem; line-height: 1.25; }
   .login-page { align-items: flex-start; padding: 16px 12px; }
   .login-page .login-card { width: min(100%, 380px); padding: 19px 16px; }
   .login-brand { gap: 8px; margin-bottom: 10px; }
@@ -2238,8 +2234,6 @@ html[data-theme="dark"] body:has(.login-page) .google-btn { background: #fff; co
   .login-page .registration-help summary { font-size: .78rem; }
 }
 @media (max-width: 360px) {
-  body:has(.login-page) header .header-inner { padding-inline: 9px; gap: 7px; }
-  body:has(.login-page) header p { font-size: .68rem; }
   .login-page { padding-inline: 9px; }
   .login-page .login-card { padding: 17px 13px; }
   .login-brand-label { max-width: 138px; }
