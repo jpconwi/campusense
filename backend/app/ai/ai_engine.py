@@ -255,6 +255,42 @@ def _records(db, user, found):
     return result
 
 
+def _rejection_reason_followup(db, question, user, conversation):
+    """Resolve a student's why-follow-up against the rejected record just listed."""
+    q = normalize(question)
+    if not re.search(r"\bwhy\b|\breason\b|\bbecause\b", q):
+        return None
+    if user is None or user.role not in ("student", "instructor"):
+        return None
+    previous = next((m.get("text", "") for m in reversed(conversation or [])
+                     if m.get("role") == "ai" and m.get("text")), "")
+    prior = normalize(previous)
+    kind = "concerns" if "rejected concerns" in prior else \
+        "reports" if "rejected reports" in prior else None
+    if not kind:
+        return None
+    rows = common.list_rows(db, kind, user_id=user.id, status="Rejected", limit=10)
+    match = re.search(r"#\s*(\d+)\b", previous)
+    if match:
+        record_id = int(match.group(1))
+        rows = [row for row in rows if row["id"] == record_id]
+    if not rows:
+        return None
+    noun = "Concern" if kind == "concerns" else "Report"
+    lines = []
+    missing_reason = False
+    for row in rows:
+        reason = (row.get("admin_feedback") or "").strip()
+        if reason:
+            lines.append(f"{noun} #{row['id']}: {reason}")
+        else:
+            lines.append(f"{noun} #{row['id']} is marked Rejected, but no rejection reason was recorded in the admin update.")
+            missing_reason = True
+    if missing_reason:
+        lines.append("Please contact an administrator for clarification.")
+    return response.message("\n".join(lines))
+
+
 def _campus_contact_reply(db, question, conversation=None):
     """Answer public campus contact questions from the official contact listing."""
     q = normalize(question)
@@ -650,6 +686,10 @@ def _answer(db, question, user, earlier, lang, rewritten=False, original=None, c
                                  for label, url in unique_links[:5])
             return response.message("Here are the sources cited in my previous answer:\n\n" + sources)
         return response.message("I don't see a source link in my previous answer. Tell me which claim you want sourced, and I'll look it up.")
+
+    rejection_reason = _rejection_reason_followup(db, question, user, conversation)
+    if rejection_reason:
+        return rejection_reason
 
     role = user.role if user else "student"
     found = _room_followup_request(question, conversation) or intents.detect(db, question, role)

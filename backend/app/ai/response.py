@@ -48,7 +48,7 @@ def _short(text, limit=80):
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def _line(kind, r, show_person):
+def _line(kind, r, show_person, own=False):
     if kind == "concerns":
         place = r["location"] + (f", {r['room']}" if r.get("room") else "")
         text = f"#{r['id']} {r['concern_type']} — {place}: {_short(r['description'])}"
@@ -69,6 +69,9 @@ def _line(kind, r, show_person):
         parts.append(person)
     parts.append(r["created_at"][:10])
     parts.append(r["status"])
+    if own and kind in ("concerns", "reports") and r.get("admin_feedback"):
+        label = "Rejection reason" if r["status"] == "Rejected" else "Admin update"
+        parts.append(f"{label}: {_short(r['admin_feedback'], 220)}")
     return "- " + " — ".join(parts)
 
 
@@ -80,7 +83,7 @@ def format_records(kind, rows, total, status, show_person, own=False):
         return f"There are no {status_text}{label} recorded{' for you' if own else ''}."
     title = f"{scope}{status_text}{label} ({total})"
     header = "**" + title[0].upper() + title[1:] + "**"
-    lines = [_line(kind, r, show_person) for r in rows]
+    lines = [_line(kind, r, show_person, own=own) for r in rows]
     text = header + "\n" + "\n".join(lines)
     if total > len(rows):
         extra = total - len(rows)
