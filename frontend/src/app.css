@@ -2235,6 +2235,13 @@ html[data-theme="dark"] body:has(.login-page) .login-card h1 { color: #123e72; }
 html[data-theme="dark"] body:has(.login-page) .login-card p.sub,
 html[data-theme="dark"] body:has(.login-page) .login-card .note { color: #5d718a; }
 html[data-theme="dark"] body:has(.login-page) .google-btn { background: #fff; color: #1f1f1f; border-color: #d8e0ea; }
+html[data-theme="dark"] body:has(.login-page) .login-card .flash.info {
+  background: #eff6ff; border-color: #c9dcf5; color: #365675;
+}
+html[data-theme="dark"] body:has(.login-page) .login-card .registration-help {
+  background: rgba(255,255,255,.96); border-color: #d6dee8; color: #182f49;
+}
+html[data-theme="dark"] body:has(.login-page) .login-card .registration-help summary { color: #104b98; }
 @media (max-width: 600px) {
   .login-page { min-height: 100vh; padding: 14px; }
   .login-page .login-card { padding: 22px 18px; border-radius: 18px; }
