@@ -14,7 +14,7 @@ import re
 import time
 import hashlib
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -24,11 +24,17 @@ from app import config
 from app.database import SessionLocal, get_db
 from app.security import (NAV, authenticated_only, csrf_protect, ensure_csrf_token,
                           get_current_user, is_admin_email, is_nemsu_email, is_super_admin_email)
-from app.services import (registration_help_service, registration_verification_service,
+from app.services import (gmail_notification_service, registration_help_service, registration_verification_service,
                           room_service, user_service)
 from app.services.common import ValidationError, clean_text
 
 router = APIRouter(prefix="/api/auth", tags=["auth"], dependencies=[Depends(csrf_protect)])
+
+
+def _send_registration_email(notification, *args):
+    result = notification(*args)
+    if result.status != "sent":
+        print("REGISTRATION EMAIL NOT SENT:", result.status, result.recipient_count)
 
 oauth = OAuth()
 oauth.register(
@@ -280,6 +286,7 @@ async def student_registration(request: Request, full_name: str = Form(...),
                                school_id_back_document: UploadFile = File(None),
                                cor_document: UploadFile = File(None),
                                ai_review_consent: str = Form(""),
+                               background_tasks: BackgroundTasks = None,
                                db: Session = Depends(get_db)):
     """Submit camera-captured or selected ID/COR images for admin review."""
     identity = request.session.get("student_registration")
@@ -332,7 +339,7 @@ async def student_registration(request: Request, full_name: str = Form(...),
 
     # Keep the existing primary document slot compatible with earlier pending accounts.
     primary = id_scan or cor_scan
-    user_service.submit_student_registration(
+    user = user_service.submit_student_registration(
         db, identity["google_id"], name, email, school_id,
         primary["data"], primary["content_type"], primary["filename"],
         document_kind="school_id" if id_scan else "cor",
@@ -348,8 +355,17 @@ async def student_registration(request: Request, full_name: str = Form(...),
         face_verified=face_verified, department=unit)
     request.session.clear()
     if auto_approve and face_verified:
+        if background_tasks is not None:
+            background_tasks.add_task(_send_registration_email,
+                                      gmail_notification_service.notify_account_welcome, email, name)
         return {"success": True, "approval_status": "Approved",
                 "message": "Your documents matched the reference and the selfie framing check passed. Your account is active; you can sign in now."}
+    if background_tasks is not None:
+        background_tasks.add_task(_send_registration_email,
+                                  gmail_notification_service.notify_account_pending, email, name)
+        background_tasks.add_task(_send_registration_email,
+                                  gmail_notification_service.notify_pending_account_review,
+                                  name, email, "student", user.id)
     if not auto_approve:
         pending_message = "Your face scan is saved as a PDF. Your ID or COR needs administrator approval before you can sign in."
     else:
@@ -383,6 +399,7 @@ async def instructor_registration(request: Request, full_name: str = Form(...),
                                   instructor_id: str = Form(...), department: str = Form(...),
                                   face_photo_front: UploadFile = File(...),
                                   face_photo_consent: str = Form(""),
+                                  background_tasks: BackgroundTasks = None,
                                   db: Session = Depends(get_db)):
     """Submit personal-Gmail instructor details for administrator review."""
     identity = request.session.get("personal_registration")
@@ -414,13 +431,19 @@ async def instructor_registration(request: Request, full_name: str = Form(...),
     if len(unit) < 2:
         raise ValidationError("Enter your department.")
 
-    user_service.submit_instructor_registration(
+    user = user_service.submit_instructor_registration(
         db, identity["google_id"], name, email, employee_id, unit,
         face_image=face_front["data"], face_image_content_type=face_front["content_type"],
         face_image_filename=face_front["filename"], face_scan_pdf=face_pdf,
         face_verified=face_verified)
+    if background_tasks is not None:
+        background_tasks.add_task(_send_registration_email,
+                                  gmail_notification_service.notify_account_pending, email, name)
+        background_tasks.add_task(_send_registration_email,
+                                  gmail_notification_service.notify_pending_account_review,
+                                  name, email, "instructor", user.id)
     request.session.clear()
-    return {"success": True,
+    return {"success": True, "approval_status": "Pending",
             "message": "Your instructor registration is pending admin review. You can sign in after it is approved."}
 
 
@@ -442,6 +465,7 @@ async def nemsu_registration(request: Request, full_name: str = Form(...), role:
                              department: str = Form(...),
                              face_photo_front: UploadFile = File(...),
                              face_photo_consent: str = Form(""),
+                             background_tasks: BackgroundTasks = None,
                              db: Session = Depends(get_db)):
     """NEMSU students/instructors: complete the guided face scan, then sign in right
     away. The account still enters the administrator's first-level check queue."""
@@ -478,6 +502,9 @@ async def nemsu_registration(request: Request, full_name: str = Form(...), role:
         face_image=face_front["data"], face_image_content_type=face_front["content_type"],
         face_image_filename=face_front["filename"], face_scan_pdf=face_pdf,
         face_verified=face_verified, department=unit)
+    if background_tasks is not None:
+        background_tasks.add_task(_send_registration_email,
+                                  gmail_notification_service.notify_account_welcome, email, name)
     request.session.clear()                      # sign the new account in right away
     request.session["user_id"] = user.id
     return {"success": True, "next": _landing(user.role),

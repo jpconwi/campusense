@@ -447,6 +447,78 @@ def send_account_decision_notification(recipient_email, name, decision, reason=N
         recipient_email, subject, content, html_content, "account decision notification")
 
 
+def send_account_welcome_notification(recipient_email, name):
+    if not recipient_email:
+        raise ValueError("A recipient email is required.")
+    subject = "[NEMSAI] Welcome to NEMSAI"
+    content = (
+        f"Welcome to NEMSAI, {name}!\n\n"
+        "Your registration has been approved and your account is ready. You can now sign in "
+        "with your Google account and ask NEMSAI for NEMSU campus information, student services, "
+        "or help with campus concerns.\n\n"
+        f"Sign in: {config.PUBLIC_URL}/login\n"
+    )
+    details_html = (
+        f"<p>Welcome to NEMSAI, {_html_lines(name)}!</p>"
+        "<p>Your registration has been approved and your account is ready. Sign in with your "
+        "Google account and feel free to use NEMSAI for campus information, student services, "
+        "and campus concerns.</p>"
+    )
+    html_content = _branded_email_html(
+        "Your NEMSAI account is ready.", "Welcome to NEMSAI", details_html,
+        "Sign in to NEMSAI", f"{config.PUBLIC_URL}/login")
+    return _send_single_email(
+        recipient_email, subject, content, html_content, "account welcome notification")
+
+
+def send_account_pending_notification(recipient_email, name):
+    if not recipient_email:
+        raise ValueError("A recipient email is required.")
+    subject = "[NEMSAI] Your account is under review"
+    content = (
+        f"Hello {name},\n\n"
+        "Your NEMSAI account registration is under review by the campus administrators. "
+        "You cannot sign in until it is approved. We will email you when a decision is made.\n\n"
+        f"Registration status: {config.PUBLIC_URL}/login\n"
+    )
+    details_html = (
+        f"<p>Hello {_html_lines(name)},</p>"
+        "<p>Your NEMSAI account registration is under review by the campus administrators. "
+        "You cannot sign in until it is approved. We will email you when a decision is made.</p>"
+    )
+    html_content = _branded_email_html(
+        "Your registration is waiting for administrator review.", "Account under review",
+        details_html, "View NEMSAI", f"{config.PUBLIC_URL}/login")
+    return _send_single_email(
+        recipient_email, subject, content, html_content, "account pending notification")
+
+
+def send_pending_account_review_notification(name, recipient_email, registration_type, user_id):
+    if not config.ACCOUNT_REVIEW_EMAIL:
+        raise ValueError("An account review email is required.")
+    review_url = f"{config.PUBLIC_URL}/admin/accounts"
+    subject = "[NEMSAI] 1 account needs approval"
+    registration_type = str(registration_type or "student").strip().title()
+    details = (
+        f"<p>A new {html.escape(registration_type)} account needs manual approval.</p>"
+        f"<p><strong>Applicant:</strong> {_html_lines(name)}<br>"
+        f"<strong>Email:</strong> {_html_lines(recipient_email)}<br>"
+        f"<strong>Account ID:</strong> {int(user_id)}</p>"
+    )
+    content = (
+        "A new account needs manual approval.\n\n"
+        f"Applicant: {name}\nEmail: {recipient_email}\n"
+        f"Account type: {registration_type}\nAccount ID: {int(user_id)}\n\n"
+        f"Review pending accounts: {review_url}\n"
+    )
+    html_content = _branded_email_html(
+        "A new NEMSAI registration is waiting for review.",
+        "New account awaiting approval", details, "Review pending accounts", review_url)
+    return _send_single_email(
+        config.ACCOUNT_REVIEW_EMAIL, subject, content, html_content,
+        "pending account review notification")
+
+
 def send_feedback_receipt(recipient_email, feedback_id, area, feedback_type):
     if not recipient_email:
         raise ValueError("A recipient email is required.")
@@ -508,6 +580,31 @@ def notify_account_decision(recipient_email, name, decision, reason=None):
             recipient_email, name, decision, reason)
     except GmailNotificationError as error:
         print("EMAIL ACCOUNT DECISION ERROR:", repr(error))
+        return NotificationResult("failed", 0)
+
+
+def notify_account_welcome(recipient_email, name):
+    try:
+        return send_account_welcome_notification(recipient_email, name)
+    except GmailNotificationError as error:
+        print("EMAIL ACCOUNT WELCOME ERROR:", repr(error))
+        return NotificationResult("failed", 0)
+
+
+def notify_account_pending(recipient_email, name):
+    try:
+        return send_account_pending_notification(recipient_email, name)
+    except GmailNotificationError as error:
+        print("EMAIL ACCOUNT PENDING ERROR:", repr(error))
+        return NotificationResult("failed", 0)
+
+
+def notify_pending_account_review(name, recipient_email, registration_type, user_id):
+    try:
+        return send_pending_account_review_notification(
+            name, recipient_email, registration_type, user_id)
+    except GmailNotificationError as error:
+        print("EMAIL PENDING ACCOUNT REVIEW ERROR:", repr(error))
         return NotificationResult("failed", 0)
 
 

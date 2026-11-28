@@ -29,6 +29,7 @@ export default function Register() {
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submissionMessage, setSubmissionMessage] = useState("");
+  const [approvalStatus, setApprovalStatus] = useState("Pending");
 
   useEffect(() => {
     document.title = "Personal Gmail registration | NEMSU";
@@ -124,6 +125,7 @@ export default function Register() {
       const result = await api(registrationType === "instructor" ? "/api/auth/instructor-registration" : "/api/auth/student-registration",
         { method: "POST", form });
       setSubmissionMessage(result.message || "Registration submitted.");
+      setApprovalStatus(result.approval_status || "Pending");
       setSubmitted(true);
     } catch (err) {
       setError(err.message || "Registration could not be submitted.");
@@ -143,9 +145,13 @@ export default function Register() {
 
           {submitted ? (
             <div className="registration-success" role="status">
-              <h2>Application submitted</h2>
+              <h2>{approvalStatus === "Approved" ? "Welcome to NEMSAI" : "Application under review"}</h2>
               <p>{submissionMessage}</p>
-              <p>Sign in with <strong>{email}</strong> to continue or check your account status.</p>
+              {approvalStatus === "Approved" ? (
+                <p>Your account is ready. Sign in with <strong>{email}</strong>. A welcome email is on its way.</p>
+              ) : (
+                <p>You cannot sign in yet. We’ll email <strong>{email}</strong> when an administrator makes a decision.</p>
+              )}
               <Link className="btn" to="/login">Back to sign in</Link>
             </div>
           ) : (

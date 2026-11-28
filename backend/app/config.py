@@ -102,7 +102,8 @@ BREVO_SENDER_NAME = (os.getenv("BREVO_SENDER_NAME") or "NEMSAI").strip()
 GMAIL_CLIENT_ID = (os.getenv("GMAIL_CLIENT_ID") or "").strip()
 GMAIL_CLIENT_SECRET = (os.getenv("GMAIL_CLIENT_SECRET") or "").strip()
 GMAIL_REFRESH_TOKEN = (os.getenv("GMAIL_REFRESH_TOKEN") or "").strip()
-GMAIL_SENDER_EMAIL = (os.getenv("GMAIL_SENDER_EMAIL") or "nemsai@gmail.com").strip()
+GMAIL_SENDER_EMAIL = (os.getenv("GMAIL_SENDER_EMAIL") or "nemsai2026@gmail.com").strip()
+ACCOUNT_REVIEW_EMAIL = (os.getenv("ACCOUNT_REVIEW_EMAIL") or "nemsai2026@gmail.com").strip().lower()
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
