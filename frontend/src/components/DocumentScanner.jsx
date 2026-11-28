@@ -85,9 +85,9 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
     setCameraError("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        // Do not silently fall back to the front/selfie camera for an ID scan.
-        // If a rear camera is unavailable, the user can upload the document image.
-        video: { facingMode: { exact: "environment" }, width: { ideal: 1600 }, height: { ideal: 1200 } },
+        // Prefer a rear camera on phones, but allow devices with only one camera
+        // to scan. Face checks below prevent selfie images from being accepted.
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1600 }, height: { ideal: 1200 } },
         audio: false,
       });
       if (!scanActiveRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
@@ -99,8 +99,8 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
         setStatus("unclear");
       }
     } catch (error) {
-      if (error?.name === "OverconstrainedError" || error?.name === "NotFoundError") {
-        setCameraError("A rear camera is required to scan an ID. Upload a photo of the document instead.");
+      if (error?.name === "NotFoundError") {
+        setCameraError("No camera was found. Upload a photo of the document instead.");
       } else {
         setCameraError("Camera access was blocked. Allow camera access or choose a photo instead.");
       }
