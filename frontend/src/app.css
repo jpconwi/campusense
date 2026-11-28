@@ -2159,6 +2159,19 @@ html[data-theme="dark"] .map-popup,
 html[data-theme="dark"] .leaflet-popup-content-wrapper,
 html[data-theme="dark"] .leaflet-popup-tip { background: #131d2c; color: var(--ink); }
 html[data-theme="dark"] .leaflet-control-zoom a { background: #172438; color: var(--ink); border-color: var(--line); }
+html[data-theme="dark"] .home .btn.gold {
+  background: #eaf3ff;
+  color: #164879;
+  border-color: #c6dcf5;
+}
+html[data-theme="dark"] .home .btn.gold:hover { background: #d7e9ff; }
+html[data-theme="dark"] .home .tile2.wide {
+  background: linear-gradient(110deg, #17263a, #1c3450);
+  border-color: #314965;
+}
+html[data-theme="dark"] .home .tile2.wide .tile-body strong { color: #e2edfc; }
+html[data-theme="dark"] .home .tile2.wide .tile-body > span { color: #b8c8dc; }
+html[data-theme="dark"] .home .tile2.wide .tile-ico { background: #233e5b; color: #b5d4ff; }
 @media (prefers-reduced-motion: reduce) {
   .theme-toggle, .theme-toggle-track, .theme-toggle-track > span { transition: none; }
 }

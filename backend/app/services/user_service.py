@@ -6,6 +6,7 @@ NOT stored here: passwords (admin password hashes live in admin_credentials), OA
 """
 
 import calendar
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 
 from sqlalchemy import delete, func, select
@@ -29,11 +30,29 @@ def _offload_registration_files(files):
     from app import config
     result = {}
     try:
-        for key, data, filename, content_type in files:
-            storage_key = store_document(data, filename, content_type) if data else None
-            if data and storage_key is None and config.REGISTRATION_STORAGE_REQUIRED:
-                raise ValidationError("Private document storage is not configured. Please try again later.")
-            result[key] = (None if storage_key else data, storage_key)
+        pending = [(key, data, filename, content_type) for key, data, filename, content_type in files if data]
+        workers = min(4, len(pending))
+        if workers:
+            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="registration-upload") as pool:
+                uploads = [
+                    (key, data, pool.submit(store_document, data, filename, content_type))
+                    for key, data, filename, content_type in pending
+                ]
+                failures = []
+                for key, data, future in uploads:
+                    try:
+                        storage_key = future.result()
+                        if storage_key is None and config.REGISTRATION_STORAGE_REQUIRED:
+                            failures.append(ValidationError(
+                                "Private document storage is not configured. Please try again later."))
+                        result[key] = (None if storage_key else data, storage_key)
+                    except Exception as exc:
+                        failures.append(exc)
+                if failures:
+                    raise failures[0]
+        for key, data, _filename, _content_type in files:
+            if not data:
+                result[key] = (None, None)
         return result
     except Exception as exc:
         from app.services.private_document_service import delete_document
