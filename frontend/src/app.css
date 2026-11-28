@@ -2162,3 +2162,56 @@ html[data-theme="dark"] .leaflet-control-zoom a { background: #172438; color: va
 @media (prefers-reduced-motion: reduce) {
   .theme-toggle, .theme-toggle-track, .theme-toggle-track > span { transition: none; }
 }
+
+/* Login is a focused, light-only entry point, regardless of the saved app theme. */
+.login-page {
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100vh - 72px);
+  padding: clamp(24px, 5vw, 72px) 20px;
+  background:
+    linear-gradient(120deg, rgba(10, 36, 69, .70), rgba(17, 73, 130, .32)),
+    linear-gradient(145deg, #5b9cdb 0%, #d9edff 48%, #4a8c55 100%);
+}
+.login-page::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: "";
+  background: linear-gradient(90deg, rgba(8, 27, 53, .55), rgba(8, 27, 53, .12));
+}
+.login-page .login-card {
+  width: min(100%, 460px);
+  padding: clamp(28px, 4vw, 42px);
+  border: 1px solid rgba(255,255,255,.8);
+  border-radius: 22px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 24px 70px rgba(7, 29, 57, .26);
+  backdrop-filter: blur(12px);
+}
+.login-brand { display: flex; align-items: center; justify-content: center; gap: 11px; margin-bottom: 24px; }
+.login-page .login-brand img { width: 54px; height: 54px; object-fit: contain; margin: 0; }
+.login-brand-label { max-width: 180px; color: #38516f; font-size: .76rem; font-weight: 700; line-height: 1.3; text-align: left; }
+.login-eyebrow { margin-bottom: 5px; color: #3976b8; font-size: .69rem; font-weight: 800; letter-spacing: .16em; }
+.login-page .login-card h1 { color: #123e72; font-size: clamp(2.25rem, 7vw, 2.85rem); font-weight: 800; letter-spacing: -.065em; line-height: 1.08; }
+.login-page .login-card p.sub { margin: 10px 0 25px; color: #5d718a; font-size: .96rem; }
+.login-page .google-btn { min-height: 52px; border: 1px solid #d8e0ea; border-radius: 12px; box-shadow: 0 4px 12px rgba(22,45,75,.06); transition: transform .16s, box-shadow .16s, background .16s; }
+.login-page .google-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(22,45,75,.12); }
+.login-security { margin-top: 12px; color: #55718c; font-size: .78rem; }
+.login-security span { display: inline-grid; width: 17px; height: 17px; margin-right: 4px; place-items: center; border-radius: 50%; background: #e8f5ed; color: #16834c; font-weight: 800; }
+.login-page .login-card .note { margin-top: 20px; color: #5d718a; font-size: .82rem; line-height: 1.65; }
+.login-page .login-legal-links { color: #718198; font-size: .78rem; }
+.login-page .registration-help { text-align: left; }
+html[data-theme="dark"] body:has(.login-page),
+html[data-theme="dark"] body:has(.login-page) .login-page { background-color: #eaf2fb; color: #182f49; color-scheme: light; }
+html[data-theme="dark"] body:has(.login-page) header { background: #104b98; color: #fff; border-color: #9bb8d1; }
+html[data-theme="dark"] body:has(.login-page) header p { color: #d7d9ff; }
+html[data-theme="dark"] body:has(.login-page) .login-card { background: rgba(255,255,255,.96); color: #182f49; }
+html[data-theme="dark"] body:has(.login-page) .login-card h1 { color: #123e72; }
+html[data-theme="dark"] body:has(.login-page) .login-card p.sub,
+html[data-theme="dark"] body:has(.login-page) .login-card .note { color: #5d718a; }
+html[data-theme="dark"] body:has(.login-page) .google-btn { background: #fff; color: #1f1f1f; border-color: #d8e0ea; }
+@media (max-width: 600px) {
+  .login-page { min-height: calc(100vh - 60px); padding: 22px 14px; }
+  .login-page .login-card { border-radius: 18px; }
+}

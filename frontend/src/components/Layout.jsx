@@ -6,7 +6,7 @@ import { HistorySkeleton } from "./Skeletons.jsx";
 import { ThemeToggle } from "./Theme.jsx";
 
 /** Header + navigation + flash messages around every signed-in page. */
-export function Header({ children }) {
+export function Header({ children, showThemeToggle = true }) {
   const { user } = useAuth();
   return (
     <header>
@@ -16,7 +16,7 @@ export function Header({ children }) {
           <h1>NEMSAI</h1>
           <p>NEMSU Tandag Main Campus Assistant</p>
         </div>
-        <ThemeToggle className="header-theme-toggle" />
+        {showThemeToggle && <ThemeToggle className="header-theme-toggle" />}
         {children}
         {user && (
           <div className="userbox">

@@ -56,12 +56,16 @@ export default function Login() {
 
   return (
     <>
-      <Header />
+      <Header showThemeToggle={false} />
 
-      <div className="center-wrap">
+      <div className="center-wrap login-page">
         <div className="login-card">
-          <img src="/logo.png" alt="NEMSU seal" />
+          <div className="login-brand">
+            <img src="/logo.png" alt="NEMSU seal" />
+            <span className="login-brand-label">North Eastern Mindanao State University</span>
+          </div>
 
+          <p className="login-eyebrow">YOUR CAMPUS, CONNECTED</p>
           <h1>NEMSAI</h1>
 
           <p className="sub">
@@ -104,6 +108,8 @@ export default function Login() {
 
             Continue with Google
           </a>
+
+          <p className="login-security"><span aria-hidden="true">✓</span> Secure sign-in with Google</p>
 
           <p className="note">
             Use your NEMSU Google account for automatic setup. Using personal Gmail? Choose Student
