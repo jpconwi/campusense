@@ -323,6 +323,12 @@ async def student_registration(request: Request, full_name: str = Form(...),
     cor_scan = await _read_registration_scan(cor_document, "COR")
     if not id_scan and not cor_scan:
         raise ValidationError("Capture or choose an image of the ID front or COR. The ID back alone is not enough.")
+    if id_scan and not cor_scan and not id_back_scan:
+        raise ValidationError("Upload both the front and back of your school ID.")
+    if id_scan and cor_scan:
+        raise ValidationError("Choose either a school ID or a COR, not both.")
+    if cor_scan and id_back_scan:
+        raise ValidationError("A COR registration only needs the COR and selfie; remove the ID back.")
 
     ai_note = "AI visual review not requested; administrator must inspect the documents manually."
     auto_approve = False
@@ -367,7 +373,7 @@ async def student_registration(request: Request, full_name: str = Form(...),
                                   gmail_notification_service.notify_pending_account_review,
                                   name, email, "student", user.id)
     if not auto_approve:
-        pending_message = "Your face scan is saved as a PDF. Your ID or COR needs administrator approval before you can sign in."
+        pending_message = "Your selfie and selected document are saved. An administrator must review and approve your account before you can sign in."
     else:
         pending_message = "Your documents matched, but automatic selfie framing verification was unavailable. An administrator must review your selfie before approving the account."
     return {"success": True, "approval_status": "Pending",

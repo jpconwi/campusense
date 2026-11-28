@@ -96,9 +96,13 @@ function AccountDetail({ row, isSuperAdmin, onChanged }) {
   const [rejectReason, setRejectReason] = useState("");
   const [lightbox, setLightbox] = useState(null);
   const missing = row.approval_missing || [];
-  const canApprove = missing.length === 0;
+  const alreadyActiveNemsuNeedsReview = row.is_nemsu && row.approval_status === "Approved" && row.review_status !== "Checked";
+  const canApprove = (row.approval_status === "Pending" && missing.length === 0)
+    || (alreadyActiveNemsuNeedsReview && row.face_review_status === "Verified");
   const canCheck = ["Pending", "Approved"].includes(row.approval_status);
   const docsPresent = row.registration_type === "instructor" || row.has_verification_document;
+  const hasIdRegistration = !row.is_nemsu && row.registration_type === "student" && row.verification_document_kind !== "cor";
+  const hasCorRegistration = !row.is_nemsu && row.registration_type === "student" && row.verification_document_kind === "cor";
 
   async function run(action, body = {}, busyKey = action) {
     setBusy(busyKey);
@@ -134,9 +138,9 @@ function AccountDetail({ row, isSuperAdmin, onChanged }) {
       <section className="account-panel-section">
         <h4>Review checklist</h4>
         <ol className="account-checklist">
-          <li className={docsPresent ? "is-done" : "is-blocked"}><span>{docsPresent ? "✓" : "1"}</span><div><b>Documents present</b><small>{row.registration_type === "instructor" ? "No ID document required for this registration type" : docsPresent ? "School ID document uploaded" : "Student ID document missing"}</small></div></li>
+          <li className={docsPresent || row.is_nemsu ? "is-done" : "is-blocked"}><span>{docsPresent || row.is_nemsu ? "✓" : "1"}</span><div><b>Documents present</b><small>{row.is_nemsu ? "Official NEMSU account; selfie required, no ID/COR" : row.registration_type === "instructor" ? "No ID document required for this registration type" : docsPresent ? (hasCorRegistration ? "COR uploaded" : "School ID front and back uploaded") : "Student ID document missing"}</small></div></li>
           <li className={row.face_review_status === "Verified" || row.face_review_status === "Not required" ? "is-done" : "is-blocked"}><span>{row.face_review_status === "Verified" || row.face_review_status === "Not required" ? "✓" : "2"}</span><div><b>Selfie verified</b><small>{row.face_review_status === "Not required" ? "Not required" : row.face_review_status === "Verified" ? "Verified by an administrator" : "Human review required · current: " + (row.face_review_status || "Pending")}</small></div></li>
-          <li className={row.review_status === "Checked" || isSuperAdmin ? "is-done" : "is-blocked"}><span>{row.review_status === "Checked" || isSuperAdmin ? "✓" : "3"}</span><div><b>First-level check passed</b><small>{isSuperAdmin && row.review_status !== "Checked" ? "Super Admin may approve without this check" : row.review_status === "Checked" ? "Checked by an administrator" : row.review_status === "Flagged" ? "Account was flagged" : "First-level check not done"}</small></div></li>
+          <li className={row.review_status === "Checked" ? "is-done" : "is-blocked"}><span>{row.review_status === "Checked" ? "✓" : "3"}</span><div><b>Review status</b><small>{row.review_status === "Checked" ? "Checked by an administrator" : row.review_status === "Flagged" ? "Account was flagged" : "Any administrator can check and approve this application"}</small></div></li>
           <li className={row.approval_status === "Approved" ? "is-done" : "is-blocked"}><span>{row.approval_status === "Approved" ? "✓" : "4"}</span><div><b>Account approved</b><small>{row.approval_status === "Approved" ? "Approved" : "Final approval is still pending"}</small></div></li>
         </ol>
         {row.approval_status === "Pending" && <div className={`account-blockers${canApprove ? " clear" : ""}`} aria-live="polite">
@@ -160,10 +164,12 @@ function AccountDetail({ row, isSuperAdmin, onChanged }) {
 
       <section className="account-panel-section">
         <h4>Documents and selfie</h4>
-        <div className="account-files-grid">
-          <FilePreview title="ID front" available={row.has_verification_document && row.verification_document_kind !== "cor"} url={apiUrl(`${base}/verification-document`)} onOpen={setLightbox} />
-          <FilePreview title="ID back" available={row.has_id_back_document} url={apiUrl(`${base}/verification-document/id-back`)} onOpen={setLightbox} />
-          <FilePreview title="COR" available={row.has_cor_document || (row.has_verification_document && row.verification_document_kind === "cor")} url={apiUrl(`${base}${row.has_cor_document ? "/verification-document/cor" : "/verification-document"}`)} onOpen={setLightbox} />
+        <div className={`account-files-grid${row.is_nemsu || row.registration_type === "instructor" ? " selfie-only" : ""}`}>
+          {hasIdRegistration && <>
+            <FilePreview title="ID front" available={row.has_verification_document} url={apiUrl(`${base}/verification-document`)} onOpen={setLightbox} />
+            <FilePreview title="ID back" available={row.has_id_back_document} url={apiUrl(`${base}/verification-document/id-back`)} onOpen={setLightbox} />
+          </>}
+          {hasCorRegistration && <FilePreview title="COR" available={row.has_cor_document || row.has_verification_document} url={apiUrl(`${base}${row.has_cor_document ? "/verification-document/cor" : "/verification-document"}`)} onOpen={setLightbox} />}
           <FilePreview title="Selfie" available={row.has_face_image} url={apiUrl(`${base}/face-image`)} onOpen={setLightbox} />
         </div>
         {row.has_face_image && <div className="account-selfie-review">
@@ -171,7 +177,7 @@ function AccountDetail({ row, isSuperAdmin, onChanged }) {
           <div className="account-selfie-actions">
             <button className="btn small success" type="button" disabled={Boolean(busy) || !canCheck} onClick={() => run("face-review", { status: "Verified" }, "face-verified")}>
               {busy === "face-verified" ? <><span className="spinner" aria-hidden="true" /> Saving…</> : "Mark Verified"}</button>
-            <button className="btn small outline-danger" type="button" disabled={Boolean(busy) || !canCheck} onClick={() => run("face-review", { status: "Rejected" }, "face-rejected")}>
+            <button className="btn small outline-danger" type="button" disabled={Boolean(busy) || !canCheck || row.approval_status === "Approved"} onClick={() => run("face-review", { status: "Rejected" }, "face-rejected")}>
               {busy === "face-rejected" ? <><span className="spinner" aria-hidden="true" /> Saving…</> : "Mark Rejected"}</button>
           </div>
         </div>}
@@ -193,19 +199,20 @@ function AccountDetail({ row, isSuperAdmin, onChanged }) {
       </button>
       <button className="btn small outline-danger" type="button" disabled={Boolean(busy) || row.approval_status !== "Pending"} onClick={() => setConfirm("reject")}>Reject</button>
       <button className="btn small success" type="button" disabled={Boolean(busy) || !canApprove} aria-describedby={`approve-help-${row.id}`} onClick={() => setConfirm("approve")}>
-        {busy === "approve" ? <><span className="spinner" aria-hidden="true" /> Approving…</> : "Approve"}
+        {busy === "approve" ? <><span className="spinner" aria-hidden="true" /> Saving…</> : alreadyActiveNemsuNeedsReview ? "Complete review" : "Approve"}
       </button>
       {isSuperAdmin && row.approval_status === "Rejected" && <button className="btn small outline-danger" type="button" disabled={Boolean(busy)} onClick={() => setConfirm("delete")}>Delete rejected account</button>}
       <span id={`approve-help-${row.id}`} className={`account-approve-help${canApprove ? " ready" : ""}`}>
-        {row.approval_status !== "Pending" ? `This account is ${String(row.approval_status).toLowerCase()}.`
+        {alreadyActiveNemsuNeedsReview && row.face_review_status === "Verified" ? "Ready to complete review; this account is already active."
+          : row.approval_status !== "Pending" ? `This account is ${String(row.approval_status).toLowerCase()}.`
           : canApprove ? "Ready to approve." : `Cannot approve: ${missing.join(" · ")}`}
       </span>
     </footer>
 
     {confirm && <ConfirmDialog
       title={confirm === "approve" ? "Confirm account approval" : confirm === "delete" ? "Delete rejected account" : "Reject account registration"}
-      text={confirm === "approve" ? `Approve ${row.name} (${row.email})? They will be able to sign in.` : confirm === "delete" ? `Delete ${row.name} (${row.email})? The account will be disabled and scheduled for permanent deletion.` : `Reject ${row.name}'s registration? Add a reason that will be saved with the account.`}
-      confirmLabel={confirm === "approve" ? "Approve account" : confirm === "delete" ? "Delete account" : "Reject account"}
+      text={confirm === "approve" ? alreadyActiveNemsuNeedsReview ? `Complete the review for ${row.name} (${row.email})? The account is already active.` : `Approve ${row.name} (${row.email})? They will be able to sign in.` : confirm === "delete" ? `Delete ${row.name} (${row.email})? The account will be disabled and scheduled for permanent deletion.` : `Reject ${row.name}'s registration? Add a reason that will be saved with the account.`}
+      confirmLabel={confirm === "approve" ? alreadyActiveNemsuNeedsReview ? "Complete review" : "Approve account" : confirm === "delete" ? "Delete account" : "Reject account"}
       tone={confirm === "approve" ? "success" : "outline-danger"}
       reason={confirm === "reject" ? rejectReason : undefined} setReason={setRejectReason}
       busy={Boolean(busy)} onCancel={() => setConfirm("")}

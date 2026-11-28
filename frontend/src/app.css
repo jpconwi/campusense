@@ -471,6 +471,33 @@ button.send { width: 40px; height: 40px; padding: 0; border-radius: 50%; display
 .attach-preview img { width: 54px; height: 54px; object-fit: cover; border-radius: 8px; flex: none; }
 .attach-preview span { flex: 1; min-width: 0; }
 .sent-photo { display: block; max-width: min(260px, 100%); max-height: 220px; border-radius: 10px; margin-bottom: 8px; object-fit: cover; }
+.user .bubble.image-bubble {
+  width: min(100%, 380px);
+  max-width: 100%;
+  padding: 8px;
+  border: 1px solid #dce6f0;
+  border-radius: 17px 17px 5px 17px;
+  background: #fff;
+  color: #34465b;
+  box-shadow: 0 4px 14px rgba(23, 55, 89, .1);
+}
+.user .sent-photo {
+  width: 100%;
+  max-width: none;
+  max-height: 260px;
+  margin: 0;
+  border-radius: 11px;
+  object-fit: contain;
+  background: #f1f5f9;
+}
+.photo-caption { display: block; padding: 7px 4px 2px; color: #64758a; font-size: .8rem; line-height: 1.35; }
+html[data-theme="dark"] .user .bubble.image-bubble {
+  border-color: #35465c;
+  background: #172438;
+  color: #e5ebf4;
+}
+html[data-theme="dark"] .user .sent-photo { background: #101a29; }
+html[data-theme="dark"] .photo-caption { color: #aebbd0; }
 
 .photo-card { width: min(100%, 640px); }
 .photo-head { display: flex; gap: 12px; align-items: center; margin-bottom: 4px; }
@@ -1079,6 +1106,7 @@ h2.page-title { letter-spacing: -.01em; }
 .account-review-note p, .account-rejection-note p { margin: 6px 0 0; }
 .account-rejection-note { background: #fff3f3; color: #79262d; }
 .account-files-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 9px; }
+.account-files-grid.selfie-only { grid-template-columns: minmax(100px, 1fr); max-width: 170px; }
 .account-file { min-width: 0; margin: 0; }
 .account-file figcaption { margin-bottom: 5px; color: var(--muted); font-size: .75rem; font-weight: 700; }
 .account-file-thumb, .account-file-missing { display: grid; position: relative; place-items: center; width: 100%; aspect-ratio: 1.35; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #f4f6f9; color: var(--muted); }
@@ -2313,3 +2341,36 @@ html[data-theme="dark"] .report-status-progress li.complete { color: #8fddb7; }
 html[data-theme="dark"] .report-status-progress li.current { color: #c6dcff; }
 html[data-theme="dark"] .report-status-progress li.current .report-status-node { background: #172438; color: #9fc5ff; }
 html[data-theme="dark"] .report-status-rejected { color: #ff9da3; }
+
+/* Dashboard summary cards and attention links. */
+.stat-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 15px;
+}
+.stat2 { min-height: 112px; padding: 15px 17px; }
+.stat2 .lbl { min-height: 2.6em; line-height: 1.35; }
+.stat2:focus-visible, .attn:focus-visible, .workload-priority:focus-visible {
+  outline: 3px solid rgba(36, 107, 180, .35);
+  outline-offset: 2px;
+}
+.attention { gap: 12px 20px; padding: 14px 18px; }
+.attention-items { flex: 1 1 520px; align-items: center; gap: 8px; }
+.attn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; line-height: 1.25; }
+.attn b { font-size: .95rem; }
+.workload-card, .user-activity-card { padding: 20px 22px; }
+.workload-heading { margin-bottom: 16px; }
+.workload-priorities { gap: 11px; }
+.workload-priority { min-height: 48px; padding: 11px 14px; }
+
+@media (max-width: 600px) {
+  .attention { align-items: stretch; padding: 12px; }
+  .attention strong { padding-bottom: 2px; }
+  .attention-items { flex-basis: 100%; }
+  .attn { max-width: 100%; font-size: .82rem; }
+  .workload-card, .user-activity-card { padding: 15px; }
+  .workload-heading { align-items: stretch; }
+  .workload-heading > .btn { width: 100%; justify-content: center; }
+}
+@media (max-width: 360px) {
+  .stat-grid { grid-template-columns: 1fr; }
+}

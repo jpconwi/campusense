@@ -105,7 +105,7 @@ export default function Register() {
     } else {
       if (fullName.trim().length < 3) return setError("Check the full name detected from your document.");
       if (studentId.trim().length < 3) return setError("Check the student ID detected from your document.");
-      if (studentDocumentType === "school_id" && !idFile) return setError("Capture or choose a photo of your school ID.");
+      if (studentDocumentType === "school_id" && (!idFile || !idBackFile)) return setError("Capture or choose the front and back of your school ID.");
       if (studentDocumentType === "cor" && !corFile) return setError("Capture or choose a photo of your Certificate of Registration.");
       const selectedFiles = studentDocumentType === "school_id" ? [idFile, idBackFile] : [corFile];
       if (selectedFiles.filter(Boolean).some((file) => file.size > 5 * 1024 * 1024)) {
@@ -215,7 +215,7 @@ export default function Register() {
                         </select>
                       </label>
                       <p className="registration-scan-help">To autofill your name and student ID, choose a document and agree to AI reading below. The fields remain editable if the result needs correction.</p>
-                      <p className="registration-scan-help">Center the full document inside the guide. The camera captures automatically when the image is clear and steady. School ID screening uses front and back; a COR can be screened by itself.</p>
+                      <p className="registration-scan-help">Upload your selfie plus either both sides of your school ID or your COR. Do not upload both document types.</p>
                       {studentDocumentType === "school_id" ? (
                         <>
                           <div className="document-scan-field">
@@ -225,10 +225,10 @@ export default function Register() {
                             {!idFile && <small>JPG, PNG, or WEBP; maximum 5 MB.</small>}
                           </div>
                           <div className="document-scan-field">
-                            <strong>School ID back (needed for automatic screening)</strong>
+                            <strong>School ID back</strong>
                             <DocumentScanner label="school ID back" kind="id" value={idBackFile}
                               enabled={Boolean(faceFiles?.front && idFile) && !busy} onCapture={captureIdBack} />
-                            {!idBackFile && <small>Without the back, the application stays pending for admin review.</small>}
+                            {!idBackFile && <small>Required with the front of your school ID.</small>}
                           </div>
                         </>
                       ) : (

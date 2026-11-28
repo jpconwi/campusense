@@ -31,7 +31,7 @@ export default function RegistrationHelp({ defaultName = "", defaultEmail = "", 
 
   return (
     <details className="registration-help">
-      <summary>Need help? Send a message to an admin</summary>
+      <summary>Need help?</summary>
       <form className="registration-form" onSubmit={submit}>
         <label>Name<input name="name" value={form.name} onChange={update} maxLength={120} required /></label>
         <label>Email for reply<input name="email" type="email" value={form.email} onChange={update} maxLength={255} required /></label>

@@ -359,12 +359,12 @@ def account_approval_missing(user, is_super_admin=False):
         review_status=user.review_status, face_review_status=user.face_review_status,
         student_id=user.student_id, registration_type=user.registration_type,
         has_verification_document=bool(user.verification_document), department=user.department,
-        is_super_admin=is_super_admin)
+        is_super_admin=is_super_admin, is_nemsu=user.email.lower().endswith("@nemsu.edu.ph"))
 
 
 def account_approval_missing_values(*, approval_status, deleted_at, review_status, face_review_status,
                                     student_id, registration_type, has_verification_document,
-                                    department, is_super_admin=False):
+                                    department, is_super_admin=False, is_nemsu=False):
     missing = []
     if deleted_at:
         missing.append("Account was deleted")
@@ -372,16 +372,14 @@ def account_approval_missing_values(*, approval_status, deleted_at, review_statu
         missing.append(f"Account is {str(approval_status or 'not pending').lower()}")
     if review_status == "Flagged":
         missing.append("Account was flagged")
-    elif not is_super_admin and review_status != "Checked":
-        missing.append("First-level check not done")
     if face_review_status not in ("Verified", "Not required"):
         missing.append("Selfie not verified yet")
-    if not student_id:
+    if not is_nemsu and not student_id:
         missing.append("Student ID missing")
     if registration_type == "instructor":
         if not department:
             missing.append("Department missing")
-    elif not has_verification_document:
+    elif not is_nemsu and not has_verification_document:
         missing.append("Student ID document missing")
     return missing
 

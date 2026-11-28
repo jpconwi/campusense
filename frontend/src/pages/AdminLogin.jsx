@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Header } from "../components/Layout.jsx";
 import NotFound from "./NotFound.jsx";
 import { Sk } from "../components/Skeletons.jsx";
@@ -11,7 +11,7 @@ export default function AdminLogin() {
   const { secret } = useParams();
   const { refresh } = useAuth();
   const navigate = useNavigate();
-  const [state, setState] = useState("checking");     // checking | ok | missing | admin
+  const [state, setState] = useState("checking");     // checking | ok | missing
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -20,7 +20,7 @@ export default function AdminLogin() {
   useEffect(() => {
     document.title = "Admin sign in | NEMSU";
     api(`/api/admin/login/${encodeURIComponent(secret)}`)
-      .then((r) => setState(r.already_admin ? "admin" : "ok"))
+      .then(() => setState("ok"))
       .catch(() => setState("missing"));
   }, [secret]);
 
@@ -32,8 +32,6 @@ export default function AdminLogin() {
     </div>
   );
   if (state === "missing") return <NotFound />;
-  if (state === "admin") return <Navigate to="/admin" replace />;
-
   async function submit(e) {
     e.preventDefault();
     setBusy(true);
@@ -58,6 +56,7 @@ export default function AdminLogin() {
           <img src="/logo.png" alt="NEMSU seal" />
           <h1>Admin sign in</h1>
           <p className="sub">Authorized administrators only</p>
+          <p className="note">Use the email and password assigned when your administrator account was created.</p>
           {error && <div className="flash error" role="alert">{error}</div>}
           <form onSubmit={submit} autoComplete="off" style={{ textAlign: "left" }}>
             <label htmlFor="email" style={{ fontWeight: 700 }}>Email</label>

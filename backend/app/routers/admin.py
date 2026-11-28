@@ -102,7 +102,7 @@ def _account_review_rows(db, is_super_admin=False):
             review_status=r.get("review_status"), face_review_status=r.get("face_review_status"),
             student_id=r.get("student_id"), registration_type=r.get("registration_type"),
             has_verification_document=r["has_verification_document"],
-            department=r.get("department"), is_super_admin=is_super_admin)
+            department=r.get("department"), is_super_admin=is_super_admin, is_nemsu=r["is_nemsu"])
         rows.append(r)
     return rows
 
@@ -875,6 +875,16 @@ class AccountFaceReviewBody(BaseModel):
 @router.post("/accounts/{user_id}/approve")
 def approve_account(user_id: int, me: CurrentUser = Depends(admin_required), db: Session = Depends(get_db)):
     target = user_service.get_user(db, user_id)
+    if (target is not None and target.approval_status == "Approved"
+            and is_nemsu_email(target.email) and target.review_status != "Checked"):
+        if target.face_review_status != "Verified":
+            return _account_action_refused("Verify the applicant's selfie before completing this review.",
+                                           ["Selfie not verified yet"])
+        if not user_service.check_account(db, user_id, me.email, "Review completed.", False):
+            return _account_action_refused("This account could not be reviewed.", ["Account is not eligible for review"])
+        _log_admin_action(db, me.email, "account_review_completed", target.email,
+                          "Completed review of NEMSU account.")
+        return {"success": True, "message": f"Review completed for {target.email}. The account is already active."}
     is_super_admin = me.role == "super_admin"
     missing = user_service.account_approval_missing(target, is_super_admin=is_super_admin)
     if target is not None and user_id == me.id:
@@ -939,9 +949,12 @@ def review_account_face(user_id: int, body: AccountFaceReviewBody,
     if body.status not in ("Verified", "Rejected"):
         return _account_action_refused("Choose a valid selfie decision.", ["Choose Verified or Rejected"])
     target = user_service.get_user(db, user_id)
-    if (target is None or target.deleted_at or target.approval_status != "Pending"
+    if (target is None or target.deleted_at or target.approval_status not in ("Pending", "Approved")
             or not (target.face_image or target.face_image_storage_key)):
         return _account_action_refused("This account has no pending selfie to review.", ["Pending selfie not found"])
+    if target.approval_status == "Approved" and body.status == "Rejected":
+        return _account_action_refused("An active account's selfie cannot be rejected from this review.",
+                                       ["Use the account review and escalation process"])
     target.face_review_status = body.status
     db.commit()
     _log_admin_action(db, me.email, "account_selfie_reviewed", target.email,

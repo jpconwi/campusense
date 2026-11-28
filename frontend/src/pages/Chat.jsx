@@ -139,9 +139,11 @@ function Row({ item, onSuggest }) {
           <div className="bubble rich"><ReplySkeleton /></div>
         )}
         {item.kind === "text" && (
-          <div className={"bubble" + (item.error ? " error" : "") + (ai && !item.error ? " rich" : "")}>
+          <div className={"bubble" + (item.error ? " error" : "") + (ai && !item.error ? " rich" : "") + (item.image ? " image-bubble" : "")}>
             {item.image && <img className="sent-photo" src={item.image} alt="Photo you sent" />}
-            {ai && !item.error ? <Markdown text={item.text} /> : item.text}
+            {ai && !item.error ? <Markdown text={item.text} /> : item.image ? (
+              <span className="photo-caption">{item.text === "(photo only)" ? "Photo attached" : item.text}</span>
+            ) : item.text}
           </div>
         )}
         {item.kind === "text" && item.suggestions && item.suggestions.length > 0 && (

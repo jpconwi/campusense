@@ -68,7 +68,7 @@ export default function NemsuRegister() {
           <p className="registration-email">NEMSU Google account: <strong>{email || "verifying..."}</strong></p>
           <p className="note">
             Complete the guided face scan to activate your NEMSU account. You can sign in right after the scan.
-            A report manager then checks your account before the super admin reviews it.
+            Your NEMSU account needs only a selfie, not an ID or COR. An administrator can review your selfie after setup.
           </p>
           {error && <div className="flash error" role="alert">{error}</div>}
           {email && (
