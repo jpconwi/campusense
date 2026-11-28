@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getFaceDetector, hasSelfieSizedFace } from "./faceDetection.js";
+import { getFaceDetector, hasSelfieSizedFace, hasVisibleFace } from "./faceDetection.js";
 
 function cropRect(video, stage, kind) {
   const scale = Math.max(stage.clientWidth / video.videoWidth, stage.clientHeight / video.videoHeight);
@@ -61,6 +61,7 @@ async function makePhoto(video, stage, kind) {
 }
 
 export default function DocumentScanner({ label, kind = "id", value, enabled = true, onCapture }) {
+  const allowPrintedPortrait = kind === "id" && /front/i.test(label);
   const videoRef = useRef(null);
   const stageRef = useRef(null);
   const streamRef = useRef(null);
@@ -84,7 +85,9 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
     setCameraError("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1600 }, height: { ideal: 1200 } },
+        // Do not silently fall back to the front/selfie camera for an ID scan.
+        // If a rear camera is unavailable, the user can upload the document image.
+        video: { facingMode: { exact: "environment" }, width: { ideal: 1600 }, height: { ideal: 1200 } },
         audio: false,
       });
       if (!scanActiveRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
@@ -95,8 +98,12 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
         setCameraOn(true);
         setStatus("unclear");
       }
-    } catch {
-      setCameraError("Camera access was blocked. Allow camera access or choose a photo instead.");
+    } catch (error) {
+      if (error?.name === "OverconstrainedError" || error?.name === "NotFoundError") {
+        setCameraError("A rear camera is required to scan an ID. Upload a photo of the document instead.");
+      } else {
+        setCameraError("Camera access was blocked. Allow camera access or choose a photo instead.");
+      }
     }
   }
 
@@ -140,11 +147,16 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
         }
         const crop = cropRect(video, stage, kind);
         const faces = detector.detectForVideo(video, performance.now()).detections;
-        if (hasSelfieSizedFace(faces, crop)) {
+        const hasRejectedFace = allowPrintedPortrait
+          ? hasSelfieSizedFace(faces, crop)
+          : hasVisibleFace(faces, crop);
+        if (hasRejectedFace) {
           readyCountRef.current = 0;
           previousRef.current = null;
           setStatus("unclear");
-          setCameraError("This looks like a face selfie. Scan or upload your school ID or COR instead.");
+          setCameraError(allowPrintedPortrait
+            ? "This looks like a face selfie. Scan or upload your school ID instead."
+            : "A face was detected. Scan or upload the back of your ID or your COR without a face.");
           return;
         }
         capturingRef.current = true;
@@ -183,8 +195,14 @@ export default function DocumentScanner({ label, kind = "id", value, enabled = t
           image.src = url;
         });
         const faces = detector.detect(image).detections;
-        if (hasSelfieSizedFace(faces, { left: 0, top: 0, width: image.naturalWidth, height: image.naturalHeight })) {
-          setCameraError("This looks like a face selfie. Choose a photo of your school ID or COR instead.");
+        const imageFrame = { left: 0, top: 0, width: image.naturalWidth, height: image.naturalHeight };
+        const hasRejectedFace = allowPrintedPortrait
+          ? hasSelfieSizedFace(faces, imageFrame)
+          : hasVisibleFace(faces, imageFrame);
+        if (hasRejectedFace) {
+          setCameraError(allowPrintedPortrait
+            ? "This looks like a face selfie. Choose a photo of your school ID instead."
+            : "A face was detected. Choose a photo of the back of your ID or your COR without a face.");
           return;
         }
       } finally {
