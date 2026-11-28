@@ -2273,3 +2273,43 @@ html[data-theme="dark"] body:has(.login-page) .login-card .registration-help sum
 @media (max-height: 520px) {
   .login-page { place-items: start center; height: auto; }
 }
+
+/* Keep admin review controls legible against the dark theme. */
+html[data-theme="dark"] .account-tabs { background: #101a29; border-color: #34455c; }
+html[data-theme="dark"] .account-tabs button { color: #b8c8dc; }
+html[data-theme="dark"] .account-tabs button.active { background: #26466c; color: #f1f6ff; box-shadow: none; }
+html[data-theme="dark"] .account-search,
+html[data-theme="dark"] .account-desktop-table,
+html[data-theme="dark"] .account-mobile-card { background: #131d2c; border-color: #34455c; color: #e5ebf4; }
+html[data-theme="dark"] .account-desktop-table th { background: #1b293d; color: #c6d5e9; }
+html[data-theme="dark"] .account-desktop-table td { border-color: #29374a; }
+html[data-theme="dark"] .account-desktop-table tbody tr:hover td { background: #18263a; }
+
+html[data-theme="dark"] .report-filter-panel {
+  background: #131d2c; border-color: #34455c; box-shadow: 0 3px 12px rgba(0,0,0,.16);
+}
+html[data-theme="dark"] .report-filter-panel > .admin-filter-label,
+html[data-theme="dark"] .report-filter-panel .filter-label { color: #b8c8dc; }
+html[data-theme="dark"] .report-filter-panel .filters {
+  background: #101a29; border-color: #34455c;
+}
+html[data-theme="dark"] .report-filter-panel .filters a,
+html[data-theme="dark"] .report-filter-panel .filters button {
+  background: #1b293d; border-color: #3a4c64; color: #d5e2f3;
+}
+html[data-theme="dark"] .report-filter-panel .filters a:hover,
+html[data-theme="dark"] .report-filter-panel .filters button:hover { background: #263a55; }
+html[data-theme="dark"] .report-filter-panel .filters a.on,
+html[data-theme="dark"] .report-filter-panel .filters button.on { background: #397bc4; border-color: #5797df; color: #fff; }
+html[data-theme="dark"] .report-filter-panel .search-box { background: #101a29; border-color: #39485c; }
+html[data-theme="dark"] .report-progress-row td,
+html[data-theme="dark"] .report-row.is-open + .report-progress-row td,
+html[data-theme="dark"] .report-status-progress,
+html[data-theme="dark"] .report-manage-card > .report-status-progress {
+  background: #172438; border-color: #34455c;
+}
+html[data-theme="dark"] .report-status-node { background: #1b293d; border-color: #485c76; color: #c6d5e9; }
+html[data-theme="dark"] .report-status-progress li.complete { color: #8fddb7; }
+html[data-theme="dark"] .report-status-progress li.current { color: #c6dcff; }
+html[data-theme="dark"] .report-status-progress li.current .report-status-node { background: #172438; color: #9fc5ff; }
+html[data-theme="dark"] .report-status-rejected { color: #ff9da3; }
