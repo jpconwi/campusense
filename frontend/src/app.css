@@ -2223,6 +2223,11 @@ html[data-theme="dark"] .home .tile2.wide .tile-ico { background: #233e5b; color
 .login-page .registration-help summary { font-size: .76rem; }
 html[data-theme="dark"] body:has(.login-page),
 html[data-theme="dark"] body:has(.login-page) .login-page { background-color: #eaf2fb; color: #182f49; color-scheme: light; }
+html[data-theme="dark"] body:has(.login-page) .center-wrap.login-page {
+  background: linear-gradient(120deg, rgba(10, 36, 69, .70), rgba(17, 73, 130, .32)),
+    url("/nemsu-campus.jpg") center 54% / cover no-repeat,
+    linear-gradient(145deg, #5b9cdb 0%, #d9edff 48%, #4a8c55 100%);
+}
 html[data-theme="dark"] body:has(.login-page) header { background: #104b98; color: #fff; border-color: #9bb8d1; }
 html[data-theme="dark"] body:has(.login-page) header p { color: #d7d9ff; }
 html[data-theme="dark"] body:has(.login-page) .login-card { background: rgba(255,255,255,.96); color: #182f49; }
