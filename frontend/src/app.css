@@ -2167,6 +2167,10 @@ html[data-theme="dark"] .leaflet-control-zoom a { background: #172438; color: va
 .login-page {
   position: relative;
   isolation: isolate;
+  display: grid;
+  place-items: center;
+  flex: none;
+  height: 100vh;
   min-height: 100vh;
   padding: clamp(16px, 3vw, 36px) 20px;
   background:
@@ -2239,8 +2243,8 @@ html[data-theme="dark"] body:has(.login-page) .google-btn { background: #fff; co
   .login-page .login-card .note { font-size: .7rem; }
 }
 @media (max-height: 700px) and (min-width: 601px) {
-  .login-page { align-items: flex-start; padding-top: 16px; padding-bottom: 16px; }
+  .login-page { place-items: start center; height: auto; min-height: 100vh; padding-top: 16px; padding-bottom: 16px; }
 }
 @media (max-height: 520px) {
-  .login-page { align-items: flex-start; }
+  .login-page { place-items: start center; height: auto; }
 }
