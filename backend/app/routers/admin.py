@@ -62,7 +62,9 @@ def _without_cost_estimates(rows):
     """Keep preliminary repair pricing visible to Super Admins only."""
     safe_rows = []
     private_cost_fields = {"estimated_budget_php_min", "estimated_budget_php_max",
-                           "estimate_assumptions", "pricing_basis", "pricing_sources"}
+                           "estimate_assumptions", "pricing_basis", "pricing_sources",
+                           "estimated_staff", "estimated_days_min", "estimated_days_max",
+                           "suggested_materials"}
     for row in rows:
         safe = dict(row)
         safe.pop("ai_analysis", None)

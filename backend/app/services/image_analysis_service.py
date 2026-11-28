@@ -60,6 +60,8 @@ Rules:
   current local price database or site measurements are provided, estimate confidence must not be high.
 - Suggest practical next steps and likely repair approach only as possibilities. Do not claim a root
   cause that is not visible. Distinguish a visual observation from a hypothesis.
+- List likely repair materials only when the photo and repair approach support them. Do not guess
+  quantities or brands; return an empty materials list when the required scope is unclear.
 
 Answer with ONE JSON object and nothing else, with exactly these keys:
 {{
@@ -76,6 +78,7 @@ Answer with ONE JSON object and nothing else, with exactly these keys:
  "severity_reason": short visible-evidence reason,
  "repair_steps": up to 5 short next steps,
  "repair_approach": short possible repair approach, or "" if unclear,
+ "suggested_materials": up to 8 likely materials, each quantity-free; [] if unclear,
  "estimated_budget_php_min": integer or null,
  "estimated_budget_php_max": integer or null,
  "estimated_staff": integer or null,
@@ -161,6 +164,10 @@ def sanitize(raw, has_description):
     if not isinstance(steps, list):
         steps = []
     steps = [_text(step, 180) for step in steps if _text(step, 180)][:MAX_REPAIR_STEPS]
+    materials = raw.get("suggested_materials")
+    if not isinstance(materials, list):
+        materials = []
+    materials = [_text(item, 120) for item in materials if _text(item, 120)][:8]
     category = raw.get("category")
     category = category if category in REPORT_TYPES else "Other"
     destination = raw.get("destination")
@@ -201,6 +208,7 @@ def sanitize(raw, has_description):
         "severity_reason": _text(raw.get("severity_reason"), 240),
         "repair_steps": steps,
         "repair_approach": _text(raw.get("repair_approach"), 400),
+        "suggested_materials": materials if estimate_applicable else [],
         "estimated_budget_php_min": budget_min if budget_valid else None,
         "estimated_budget_php_max": budget_max if budget_valid else None,
         "estimated_staff": staff if staff_valid else None,
@@ -267,7 +275,7 @@ def analyze(image_path, description="", location="", noticed_when="", observed_c
                     "issue_title": "", "category": "Other", "destination": "report", "image_kind": "unclear",
                     "shows_issue": "unclear", "confidence": "low",
                     "severity": "unclear", "severity_reason": "", "repair_steps": [],
-                    "repair_approach": "", "estimated_budget_php_min": None,
+                    "repair_approach": "", "suggested_materials": [], "estimated_budget_php_min": None,
                     "estimated_budget_php_max": None, "estimated_staff": None,
                     "estimated_days_min": None, "estimated_days_max": None,
                     "estimate_confidence": "low", "estimate_assumptions": "AI analysis unavailable; onsite inspection required.",

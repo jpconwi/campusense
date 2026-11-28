@@ -413,6 +413,7 @@ function PhotoDetail({ row, apiKind, onChanged }) {
               <p><strong>Working days:</strong> {ai.estimated_days_min != null && ai.estimated_days_max != null
                 ? `${ai.estimated_days_min} to ${ai.estimated_days_max} (preliminary)` : "Needs onsite scope assessment."}</p>
               {ai.repair_approach && <p><strong>Possible repair approach:</strong> {ai.repair_approach}</p>}
+              {user?.role === "super_admin" && ai.suggested_materials?.length > 0 && <p><strong>Suggested materials:</strong> {ai.suggested_materials.join(", ")}</p>}
               {ai.repair_steps?.length > 0 && <ul>{ai.repair_steps.map((step, i) => <li key={i}>{step}</li>)}</ul>}
               {ai.estimate_assumptions && <p className="muted"><strong>Assumptions:</strong> {ai.estimate_assumptions}</p>}
               {ai.pricing_basis && <p className="muted"><strong>Price basis:</strong> {ai.pricing_basis}</p>}
