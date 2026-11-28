@@ -109,9 +109,8 @@ export default function Login() {
           <p className="login-security"><span aria-hidden="true">✓</span> Secure sign-in with Google</p>
 
           <p className="note">
-            Use your NEMSU Google account for automatic setup. Using personal Gmail? Choose Student
-            or Instructor and submit the requested details. An administrator must approve your account.
-            <br />Google securely handles sign-in; this site never sees your Google password.
+            Sign in with NEMSU Google, or apply with personal Gmail as a Student or Instructor (admin approval required).
+            Google handles your password securely.
           </p>
           <p className="login-legal-links">
             <a href="/privacy-policy">Privacy Policy</a>
