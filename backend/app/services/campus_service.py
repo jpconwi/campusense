@@ -7,6 +7,7 @@ keywords are separated by ";"  and "a+b" means both words must appear.
 """
 
 import csv
+import logging
 import re
 
 from sqlalchemy import func, select
@@ -35,14 +36,21 @@ def seed_if_empty(db: Session):
     have = {t.lower() for t in db.execute(select(CampusInfo.topic)).scalars()}
     added = False
     with config.CAMPUS_SEED_CSV.open("r", newline="", encoding="utf-8-sig") as f:
-        for row in csv.DictReader(f):
+        for line_number, row in enumerate(csv.DictReader(f), start=2):
             topic = (row.get("topic") or "").strip()
-            if topic and topic.lower() not in have:
-                keywords = (row.get("keywords") or "").strip() or topic
-                answer = (row.get("answer") or "").strip()
-                db.add(CampusInfo(topic=topic, keywords=keywords, answer=answer))
-                have.add(topic.lower())
-                added = True
+            if not topic or topic.lower() in have:
+                continue
+            keywords = (row.get("keywords") or "").strip() or topic
+            answer = (row.get("answer") or "").strip()
+            if len(topic) > 80 or len(keywords) > 500 or len(answer) > 2000:
+                logging.warning(
+                    "Skipping invalid campus seed row %s: topic/keywords/answer exceed the database limits.",
+                    line_number,
+                )
+                continue
+            db.add(CampusInfo(topic=topic, keywords=keywords, answer=answer))
+            have.add(topic.lower())
+            added = True
     if added:
         db.commit()
 
