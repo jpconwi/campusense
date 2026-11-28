@@ -2171,6 +2171,7 @@ html[data-theme="dark"] .leaflet-control-zoom a { background: #172438; color: va
   padding: clamp(24px, 5vw, 72px) 20px;
   background:
     linear-gradient(120deg, rgba(10, 36, 69, .70), rgba(17, 73, 130, .32)),
+    url("/nemsu-campus.jpg") center 54% / cover no-repeat,
     linear-gradient(145deg, #5b9cdb 0%, #d9edff 48%, #4a8c55 100%);
 }
 .login-page::before {
