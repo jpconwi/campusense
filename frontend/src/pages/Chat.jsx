@@ -369,7 +369,7 @@ export default function Chat() {
     ["Report a concern", "How do I report a broken facility?"],
     ["Find a campus location", "Where is the NEMSU Tandag campus?"],
   ...(user.role === "student" ? [
-    ["Check instructor availability", "Is Sir JP available today?"],
+    ["Check faculty or instructor availability", "Is my instructor available today?"],
     ["Track my concerns", "Show my pending concerns"],
     ["Share campus feedback", "How do I share feedback about a campus facility?"],
   ] : []),
@@ -399,7 +399,7 @@ export default function Chat() {
                 </div>
                 {canPhoto && <p className="side-note">Something broken or unsafe? Tap the camera button to take or upload a photo, and say what's wrong by typing or speaking.</p>}
                 {user.role === "instructor" && <p className="side-note">Instructors who cannot come to school can type "I am sick and cannot come to school" to file an availability report.</p>}
-                {user.role === "student" && <p className="side-note">You can ask "Is Sir JP available today?" to check whether an instructor is in school.</p>}
+                {user.role === "student" && <p className="side-note">You can ask whether a faculty member or instructor is available today to check if they are in school.</p>}
               </div>
             )}
             {items.map((item) => <Row key={item.id} item={item} onSuggest={(q) => send(q)} />)}
